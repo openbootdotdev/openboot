@@ -31,6 +31,7 @@ DRY_RUN=false
 RESUME=false
 ROLLBACK=false
 SHELL_FRAMEWORK=""
+UPDATE=false
 
 # Selected packages (for customization)
 SELECTED_CLI=()
@@ -52,6 +53,7 @@ OPTIONS:
     --dry-run       Show what would be installed without installing
     --resume        Resume from last incomplete step
     --rollback      Restore backed up files to their original state
+    --update        Update Homebrew and upgrade all installed packages
 
 ENVIRONMENT VARIABLES (for --silent mode):
     OPENBOOT_GIT_NAME         Git user name (required in silent mode)
@@ -120,6 +122,10 @@ parse_args() {
                 ;;
             --rollback)
                 ROLLBACK=true
+                shift
+                ;;
+            --update)
+                UPDATE=true
                 shift
                 ;;
             *)
@@ -425,6 +431,70 @@ show_completion() {
     echo ""
 }
 
+run_update() {
+    ui_header "OpenBoot Update"
+    echo ""
+    
+    if ! brew_ensure_installed; then
+        echo "Error: Homebrew not found. Cannot update."
+        exit 1
+    fi
+    
+    echo "Updating Homebrew..."
+    brew update
+    echo ""
+    
+    echo "Outdated packages:"
+    local outdated
+    outdated=$(brew outdated 2>/dev/null)
+    if [[ -z "$outdated" ]]; then
+        echo "  All packages are up to date!"
+    else
+        echo "$outdated" | sed 's/^/  /'
+        echo ""
+        
+        if $SILENT; then
+            echo "Upgrading all packages..."
+            brew upgrade
+        else
+            if ui_confirm "Upgrade all packages?" true; then
+                echo ""
+                echo "Upgrading packages..."
+                brew upgrade
+            fi
+        fi
+    fi
+    
+    echo ""
+    echo "Outdated casks:"
+    local outdated_casks
+    outdated_casks=$(brew outdated --cask 2>/dev/null)
+    if [[ -z "$outdated_casks" ]]; then
+        echo "  All casks are up to date!"
+    else
+        echo "$outdated_casks" | sed 's/^/  /'
+        echo ""
+        
+        if $SILENT; then
+            echo "Upgrading all casks..."
+            brew upgrade --cask
+        else
+            if ui_confirm "Upgrade all casks?" true; then
+                echo ""
+                echo "Upgrading casks..."
+                brew upgrade --cask
+            fi
+        fi
+    fi
+    
+    echo ""
+    echo "Cleaning up old versions..."
+    brew cleanup
+    
+    echo ""
+    ui_header "Update Complete!"
+}
+
 main() {
     parse_args "$@"
     
@@ -434,6 +504,11 @@ main() {
         rollback_status
         echo ""
         rollback_interactive
+        exit $?
+    fi
+    
+    if $UPDATE; then
+        run_update
         exit $?
     fi
     
