@@ -1,0 +1,139 @@
+presets:
+  minimal:
+    name: minimal
+    description: CLI essentials for servers, containers, or minimalists
+    cli:
+      - curl
+      - wget
+      - jq
+      - yq
+      - ripgrep
+      - fd
+      - bat
+      - eza
+      - fzf
+      - zoxide
+      - htop
+      - btop
+      - tree
+      - tldr
+      - gh
+      - git-delta
+      - lazygit
+      - stow
+    cask:
+      - warp
+      - raycast
+      - maccy
+      - stats
+
+  developer:
+    name: developer
+    description: Ready-to-code Mac setup (Node, Go, Docker, VS Code)
+    cli:
+      - curl
+      - wget
+      - jq
+      - yq
+      - ripgrep
+      - fd
+      - bat
+      - eza
+      - fzf
+      - zoxide
+      - htop
+      - btop
+      - tree
+      - tldr
+      - gh
+      - git-delta
+      - lazygit
+      - stow
+      - node
+      - go
+      - pnpm
+      - docker
+      - docker-compose
+      - tmux
+      - neovim
+      - httpie
+    cask:
+      - warp
+      - raycast
+      - maccy
+      - stats
+      - scroll-reverser
+      - visual-studio-code
+      - orbstack
+      - google-chrome
+      - arc
+      - postman
+      - notion
+
+  full:
+    name: full
+    description: Complete dev environment (languages, DevOps, databases, AI)
+    cli:
+      - curl
+      - wget
+      - jq
+      - yq
+      - ripgrep
+      - fd
+      - bat
+      - eza
+      - fzf
+      - zoxide
+      - htop
+      - btop
+      - tree
+      - tldr
+      - gh
+      - git-delta
+      - lazygit
+      - stow
+      - node
+      - go
+      - pnpm
+      - docker
+      - docker-compose
+      - tmux
+      - neovim
+      - httpie
+      - python
+      - uv
+      - rustup
+      - deno
+      - bun
+      - kubectl
+      - helm
+      - k9s
+      - terraform
+      - awscli
+      - sqlite
+      - postgresql
+      - redis
+      - duckdb
+      - ollama
+      - llm
+    cask:
+      - warp
+      - raycast
+      - maccy
+      - stats
+      - scroll-reverser
+      - visual-studio-code
+      - cursor
+      - orbstack
+      - google-chrome
+      - arc
+      - firefox
+      - postman
+      - proxyman
+      - notion
+      - obsidian
+      - figma
+      - iina
+      - keka
+      - aldente
+      - rectangle

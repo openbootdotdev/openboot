@@ -1,0 +1,227 @@
+categories:
+  - name: Essential
+    icon: "⚡"
+    packages:
+      - name: curl
+        desc: Transfer data with URLs
+      - name: wget
+        desc: Network downloader
+      - name: jq
+        desc: JSON processor
+      - name: yq
+        desc: YAML processor
+      - name: ripgrep
+        desc: Fast grep alternative
+      - name: fd
+        desc: Fast find alternative
+      - name: bat
+        desc: Cat with syntax highlighting
+      - name: eza
+        desc: Modern ls replacement
+      - name: fzf
+        desc: Fuzzy finder
+      - name: zoxide
+        desc: Smarter cd command
+      - name: htop
+        desc: Interactive process viewer
+      - name: btop
+        desc: Resource monitor
+      - name: tree
+        desc: Directory tree viewer
+      - name: tldr
+        desc: Simplified man pages
+
+  - name: Git & GitHub
+    icon: "🔀"
+    packages:
+      - name: gh
+        desc: GitHub CLI
+      - name: git-delta
+        desc: Better git diff
+      - name: lazygit
+        desc: Terminal UI for git
+      - name: stow
+        desc: Symlink farm manager
+
+  - name: Development
+    icon: "🛠"
+    packages:
+      - name: node
+        desc: JavaScript runtime
+      - name: go
+        desc: Go programming language
+      - name: rustup
+        desc: Rust toolchain
+      - name: python
+        desc: Python 3
+      - name: uv
+        desc: Fast Python package manager
+      - name: deno
+        desc: Secure JS/TS runtime
+      - name: bun
+        desc: Fast JS runtime & bundler
+      - name: pnpm
+        desc: Fast npm alternative
+      - name: tmux
+        desc: Terminal multiplexer
+      - name: neovim
+        desc: Modern Vim
+
+  - name: DevOps
+    icon: "☁️"
+    packages:
+      - name: docker
+        desc: Container runtime
+      - name: docker-compose
+        desc: Multi-container Docker
+      - name: kubectl
+        desc: Kubernetes CLI
+      - name: helm
+        desc: Kubernetes package manager
+      - name: k9s
+        desc: Kubernetes TUI
+      - name: terraform
+        desc: Infrastructure as code
+      - name: awscli
+        desc: AWS CLI
+      - name: argocd
+        desc: GitOps for Kubernetes
+
+  - name: Database
+    icon: "🗄"
+    packages:
+      - name: sqlite
+        desc: Embedded SQL database
+      - name: postgresql
+        desc: PostgreSQL client
+      - name: redis
+        desc: Redis CLI
+      - name: duckdb
+        desc: Analytical SQL database
+      - name: mysql
+        desc: MySQL client
+
+  - name: AI & ML
+    icon: "🤖"
+    packages:
+      - name: ollama
+        desc: Run LLMs locally
+      - name: llm
+        desc: CLI for LLMs
+
+  - name: Editors
+    icon: "📝"
+    packages:
+      - name: visual-studio-code
+        desc: VS Code
+        cask: true
+      - name: cursor
+        desc: AI-powered editor
+        cask: true
+      - name: zed
+        desc: High-performance editor
+        cask: true
+
+  - name: Browsers
+    icon: "🌐"
+    packages:
+      - name: google-chrome
+        desc: Chrome browser
+        cask: true
+      - name: arc
+        desc: Arc browser
+        cask: true
+      - name: firefox
+        desc: Firefox browser
+        cask: true
+      - name: microsoft-edge
+        desc: Edge browser
+        cask: true
+
+  - name: Terminals
+    icon: "💻"
+    packages:
+      - name: warp
+        desc: Modern terminal
+        cask: true
+      - name: iterm2
+        desc: Terminal emulator
+        cask: true
+      - name: alacritty
+        desc: GPU-accelerated terminal
+        cask: true
+
+  - name: Productivity
+    icon: "📋"
+    packages:
+      - name: raycast
+        desc: Launcher & productivity
+        cask: true
+      - name: maccy
+        desc: Clipboard manager
+        cask: true
+      - name: notion
+        desc: Notes & docs
+        cask: true
+      - name: obsidian
+        desc: Knowledge base
+        cask: true
+      - name: slack
+        desc: Team communication
+        cask: true
+      - name: discord
+        desc: Community chat
+        cask: true
+      - name: telegram
+        desc: Messaging
+        cask: true
+
+  - name: Utilities
+    icon: "🔧"
+    packages:
+      - name: stats
+        desc: System monitor in menubar
+        cask: true
+      - name: scroll-reverser
+        desc: Reverse scroll direction
+        cask: true
+      - name: rectangle
+        desc: Window management
+        cask: true
+      - name: aldente
+        desc: Battery charge limiter
+        cask: true
+      - name: keka
+        desc: File archiver
+        cask: true
+      - name: iina
+        desc: Modern media player
+        cask: true
+
+  - name: Design
+    icon: "🎨"
+    packages:
+      - name: figma
+        desc: Design tool
+        cask: true
+      - name: sketch
+        desc: Vector design
+        cask: true
+      - name: imageoptim
+        desc: Image compression
+        cask: true
+
+  - name: API & Debug
+    icon: "🔍"
+    packages:
+      - name: httpie
+        desc: HTTP client
+      - name: postman
+        desc: API platform
+        cask: true
+      - name: proxyman
+        desc: HTTP debugging
+        cask: true
+      - name: orbstack
+        desc: Docker & Linux VMs
+        cask: true

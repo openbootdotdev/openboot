@@ -30,6 +30,11 @@ func runInstall(cfg *config.Config) error {
 	ui.Header("OpenBoot Installer v0.3.0")
 	fmt.Println()
 
+	if cfg.RemoteConfig != nil {
+		ui.Info(fmt.Sprintf("Using remote config: @%s/%s", cfg.RemoteConfig.Username, cfg.RemoteConfig.Slug))
+		fmt.Println()
+	}
+
 	if cfg.DryRun {
 		ui.Muted("[DRY-RUN MODE - No changes will be made]")
 		fmt.Println()
@@ -149,6 +154,14 @@ func stepPackageCustomization(cfg *config.Config) error {
 
 	if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
 		cfg.SelectedPkgs = config.GetPackagesForPreset(cfg.Preset)
+		
+		if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
+			for _, pkg := range cfg.RemoteConfig.Packages {
+				cfg.SelectedPkgs[pkg] = true
+			}
+			ui.Info(fmt.Sprintf("Using preset + %d additional packages from remote config", len(cfg.RemoteConfig.Packages)))
+		}
+		
 		total := len(cfg.SelectedPkgs)
 		ui.Info(fmt.Sprintf("Using preset packages: %d selected", total))
 		fmt.Println()
@@ -170,6 +183,12 @@ func stepPackageCustomization(cfg *config.Config) error {
 	}
 
 	cfg.SelectedPkgs = selected
+	
+	if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
+		for _, pkg := range cfg.RemoteConfig.Packages {
+			cfg.SelectedPkgs[pkg] = true
+		}
+	}
 
 	count := 0
 	for _, v := range selected {

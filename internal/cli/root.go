@@ -25,7 +25,8 @@ Install Homebrew, CLI tools, GUI apps, dotfiles, and Oh-My-Zsh with a single com
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "Set preset (minimal, standard, full, devops, frontend, data, mobile, ai)")
+	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "Set preset (minimal, developer, full)")
+	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "Use remote config (username or username/config-name)")
 	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "Non-interactive mode for CI/automation")
 	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "Preview what would be installed without installing")
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "Update Homebrew and upgrade all packages")
@@ -56,6 +57,22 @@ func Execute() error {
 		}
 		if preset := os.Getenv("OPENBOOT_PRESET"); preset != "" && cfg.Preset == "" {
 			cfg.Preset = preset
+		}
+	}
+
+	if user := os.Getenv("OPENBOOT_USER"); user != "" && cfg.User == "" {
+		cfg.User = user
+	}
+
+	if cfg.User != "" {
+		rc, err := config.FetchRemoteConfig(cfg.User)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error fetching remote config: %v\n", err)
+			os.Exit(1)
+		}
+		cfg.RemoteConfig = rc
+		if cfg.Preset == "" {
+			cfg.Preset = rc.Preset
 		}
 	}
 

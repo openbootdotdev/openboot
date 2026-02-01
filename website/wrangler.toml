@@ -8,3 +8,8 @@ custom_domain = true
 
 [assets]
 directory = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "openboot"
+database_id = "6faf0c13-b182-4dca-bf13-ec346d085960"

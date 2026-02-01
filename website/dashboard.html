@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - OpenBoot</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --bg-hover: #222222;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #666666;
+            --accent: #22c55e;
+            --accent-hover: #16a34a;
+            --border: #2a2a2a;
+            --border-hover: #3a3a3a;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+        
+        .username {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-hover);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: var(--danger-hover);
+        }
+        
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+        
+        .btn-ghost:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+        
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+        
+        .configs-grid {
+            display: grid;
+            gap: 16px;
+        }
+        
+        .config-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        
+        .config-card:hover {
+            border-color: var(--border-hover);
+        }
+        
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .config-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .config-slug {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        
+        .config-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+        }
+        
+        .config-meta {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .config-meta-item {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .config-meta-item strong {
+            color: var(--text-secondary);
+        }
+        
+        .config-url {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .config-url code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--accent);
+            word-break: break-all;
+        }
+        
+        .config-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .modal-body {
+            padding: 24px;
+        }
+        
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+        
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+        
+        .form-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        
+        .packages-section {
+            margin-top: 24px;
+        }
+        
+        .packages-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .packages-title {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+        
+        .packages-count {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        
+        .category-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        
+        .category-tab {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .category-tab:hover {
+            border-color: var(--border-hover);
+        }
+        
+        .category-tab.active {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+        }
+        
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 4px;
+        }
+        
+        .package-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .package-item:hover {
+            border-color: var(--border-hover);
+        }
+        
+        .package-item.selected {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: var(--accent);
+        }
+        
+        .package-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+        }
+        
+        .package-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+            color: var(--text-muted);
+        }
+        
+        .login-prompt {
+            text-align: center;
+            padding: 100px 20px;
+        }
+        
+        .login-prompt h2 {
+            font-size: 1.5rem;
+            margin-bottom: 12px;
+        }
+        
+        .login-prompt p {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        .badge-public {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--accent);
+        }
+        
+        .badge-private {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .checkbox-label input {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+        }
+        
+        @media (max-width: 600px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+            
+            .config-actions {
+                flex-wrap: wrap;
+            }
+            
+            .packages-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <a href="/" class="logo">OpenBoot</a>
+        <div class="user-info" id="userInfo">
+            <span class="username" id="usernameDisplay">Loading...</span>
+            <a href="/api/auth/logout" class="btn btn-ghost">Logout</a>
+        </div>
+    </header>
+    
+    <main class="container" id="mainContent">
+        <div class="loading" id="loading">Loading...</div>
+    </main>
+    
+    <div class="modal-overlay" id="configModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">New Configuration</h3>
+                <button class="btn btn-ghost" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editingSlug">
+                
+                <div class="form-group">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-input" id="configName" placeholder="e.g. Frontend Team">
+                    <p class="form-hint">Will be used as the URL slug</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-input" id="configDescription" placeholder="Optional description">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Base Preset</label>
+                    <select class="form-select" id="configPreset">
+                        <option value="minimal">minimal - CLI essentials</option>
+                        <option value="developer" selected>developer - Ready-to-code setup</option>
+                        <option value="full">full - Complete dev environment</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="configPublic" checked>
+                        <span>Public (anyone can use this install URL)</span>
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Short Alias (Optional)</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: var(--text-muted);">openboot.dev/</span>
+                        <input type="text" class="form-input" id="configAlias" placeholder="e.g. myteam" style="flex: 1;">
+                    </div>
+                    <p class="form-hint">2-20 characters, lowercase letters, numbers, and dashes only. Globally unique.</p>
+                </div>
+                
+                <div class="packages-section">
+                    <div class="packages-header">
+                        <span class="packages-title">Additional Packages</span>
+                        <span class="packages-count" id="packagesCount">0 selected</span>
+                    </div>
+                    <div class="category-tabs" id="categoryTabs"></div>
+                    <div class="packages-grid" id="packagesGrid"></div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 24px;">
+                    <label class="form-label">Custom Post-Install Script (Optional)</label>
+                    <textarea class="form-textarea" id="configScript" placeholder="#!/bin/bash
+# Commands to run after installation
+# e.g. npm install -g pnpm"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" id="saveConfigBtn" onclick="saveConfig()">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const PACKAGES_DATA = {
+            "Essential": ["curl", "wget", "jq", "yq", "ripgrep", "fd", "bat", "eza", "fzf", "zoxide", "htop", "btop", "tree", "tldr"],
+            "Git": ["gh", "git-delta", "lazygit", "stow"],
+            "Development": ["node", "go", "rustup", "python", "uv", "deno", "bun", "pnpm", "tmux", "neovim"],
+            "DevOps": ["docker", "docker-compose", "kubectl", "helm", "k9s", "terraform", "awscli", "argocd"],
+            "Database": ["sqlite", "postgresql", "redis", "duckdb", "mysql"],
+            "AI": ["ollama", "llm"],
+            "Editors": ["visual-studio-code", "cursor", "zed"],
+            "Browsers": ["google-chrome", "arc", "firefox", "microsoft-edge"],
+            "Terminals": ["warp", "iterm2", "alacritty"],
+            "Productivity": ["raycast", "maccy", "notion", "obsidian", "slack", "discord"],
+            "Utilities": ["stats", "scroll-reverser", "rectangle", "aldente", "keka", "iina"],
+            "Design": ["figma", "sketch", "imageoptim"],
+            "API Tools": ["httpie", "postman", "proxyman", "orbstack"]
+        };
+        
+        let currentUser = null;
+        let configs = [];
+        let selectedPackages = new Set();
+        let currentCategory = Object.keys(PACKAGES_DATA)[0];
+        
+        async function init() {
+            try {
+                const response = await fetch('/api/user');
+                if (response.status === 401) {
+                    showLoginPrompt();
+                    return;
+                }
+                const data = await response.json();
+                currentUser = data.user;
+                document.getElementById('usernameDisplay').textContent = `@${currentUser.username}`;
+                await loadConfigs();
+            } catch (error) {
+                console.error('Init error:', error);
+                showLoginPrompt();
+            }
+        }
+        
+        function showLoginPrompt() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('mainContent').innerHTML = `
+                <div class="login-prompt">
+                    <h2>Welcome to OpenBoot</h2>
+                    <p>Login with GitHub to create custom installation configs for your team.</p>
+                    <a href="/api/auth/login" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        Login with GitHub
+                    </a>
+                </div>
+            `;
+        }
+        
+        async function loadConfigs() {
+            const response = await fetch('/api/configs');
+            const data = await response.json();
+            configs = data.configs;
+            renderConfigs();
+        }
+        
+        function renderConfigs() {
+            document.getElementById('loading').style.display = 'none';
+            
+            let html = `
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">My Configurations</h1>
+                        <p class="page-subtitle">Create custom install configs for different teams or projects</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal()">+ New Config</button>
+                </div>
+            `;
+            
+            if (configs.length === 0) {
+                html += `
+                    <div class="empty-state">
+                        <h3>No configurations yet</h3>
+                        <p>Create your first config to get a custom install URL.</p>
+                    </div>
+                `;
+            } else {
+                html += '<div class="configs-grid">';
+                for (const config of configs) {
+                    const installUrl = config.alias 
+                        ? `openboot.dev/${config.alias}` 
+                        : `openboot.dev/${currentUser.username}/${config.slug}/install`;
+                    html += `
+                        <div class="config-card">
+                            <div class="config-header">
+                                <div>
+                                    <div class="config-name">${escapeHtml(config.name)}</div>
+                                    <div class="config-slug">${config.alias ? `<span style="color: var(--accent);">/${config.alias}</span>` : `/${config.slug}`}</div>
+                                </div>
+                                <span class="badge ${config.is_public ? 'badge-public' : 'badge-private'}">
+                                    ${config.is_public ? 'Public' : 'Private'}
+                                </span>
+                            </div>
+                            ${config.description ? `<p class="config-description">${escapeHtml(config.description)}</p>` : ''}
+                            <div class="config-meta">
+                                <span class="config-meta-item">Preset: <strong>${config.base_preset}</strong></span>
+                            </div>
+                            <div class="config-url">
+                                <code>curl -fsSL ${installUrl} | bash</code>
+                                <button class="btn btn-ghost" onclick="copyToClipboard('curl -fsSL https://${installUrl} | bash')">Copy</button>
+                            </div>
+                            <div class="config-actions">
+                                <button class="btn btn-secondary" onclick="editConfig('${config.slug}')">Edit</button>
+                                ${config.slug !== 'default' ? `<button class="btn btn-danger" onclick="deleteConfig('${config.slug}')">Delete</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+                html += '</div>';
+            }
+            
+            document.getElementById('mainContent').innerHTML = html;
+        }
+        
+        function openModal(config = null) {
+            document.getElementById('modalTitle').textContent = config ? 'Edit Configuration' : 'New Configuration';
+            document.getElementById('editingSlug').value = config ? config.slug : '';
+            document.getElementById('configName').value = config ? config.name : '';
+            document.getElementById('configDescription').value = config ? (config.description || '') : '';
+            document.getElementById('configPreset').value = config ? config.base_preset : 'developer';
+            document.getElementById('configPublic').checked = config ? config.is_public : true;
+            document.getElementById('configAlias').value = config ? (config.alias || '') : '';
+            document.getElementById('configScript').value = config ? (config.custom_script || '') : '';
+            
+            selectedPackages = new Set(config ? (Array.isArray(config.packages) ? config.packages : JSON.parse(config.packages || '[]')) : []);
+            
+            renderCategoryTabs();
+            renderPackages();
+            updatePackagesCount();
+            
+            document.getElementById('configModal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('configModal').classList.remove('active');
+        }
+        
+        function renderCategoryTabs() {
+            const tabs = document.getElementById('categoryTabs');
+            tabs.innerHTML = Object.keys(PACKAGES_DATA).map(cat => 
+                `<button class="category-tab ${cat === currentCategory ? 'active' : ''}" onclick="selectCategory('${cat}')">${cat}</button>`
+            ).join('');
+        }
+        
+        function selectCategory(category) {
+            currentCategory = category;
+            renderCategoryTabs();
+            renderPackages();
+        }
+        
+        function renderPackages() {
+            const grid = document.getElementById('packagesGrid');
+            const packages = PACKAGES_DATA[currentCategory] || [];
+            
+            grid.innerHTML = packages.map(pkg => `
+                <label class="package-item ${selectedPackages.has(pkg) ? 'selected' : ''}">
+                    <input type="checkbox" class="package-checkbox" 
+                           ${selectedPackages.has(pkg) ? 'checked' : ''} 
+                           onchange="togglePackage('${pkg}')">
+                    <span class="package-name">${pkg}</span>
+                </label>
+            `).join('');
+        }
+        
+        function togglePackage(pkg) {
+            if (selectedPackages.has(pkg)) {
+                selectedPackages.delete(pkg);
+            } else {
+                selectedPackages.add(pkg);
+            }
+            renderPackages();
+            updatePackagesCount();
+        }
+        
+        function updatePackagesCount() {
+            document.getElementById('packagesCount').textContent = `${selectedPackages.size} selected`;
+        }
+        
+        async function saveConfig() {
+            const slug = document.getElementById('editingSlug').value;
+            const data = {
+                name: document.getElementById('configName').value,
+                description: document.getElementById('configDescription').value,
+                base_preset: document.getElementById('configPreset').value,
+                is_public: document.getElementById('configPublic').checked,
+                alias: document.getElementById('configAlias').value.trim() || null,
+                packages: Array.from(selectedPackages),
+                custom_script: document.getElementById('configScript').value
+            };
+            
+            if (!data.name) {
+                alert('Name is required');
+                return;
+            }
+            
+            const url = slug ? `/api/configs/${slug}` : '/api/configs';
+            const method = slug ? 'PUT' : 'POST';
+            
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    alert(result.error || 'Failed to save');
+                    return;
+                }
+                
+                closeModal();
+                await loadConfigs();
+            } catch (error) {
+                console.error('Save error:', error);
+                alert('Failed to save configuration');
+            }
+        }
+        
+        async function editConfig(slug) {
+            try {
+                const response = await fetch(`/api/configs/${slug}`);
+                const data = await response.json();
+                openModal(data.config);
+            } catch (error) {
+                console.error('Edit error:', error);
+                alert('Failed to load configuration');
+            }
+        }
+        
+        async function deleteConfig(slug) {
+            if (!confirm('Are you sure you want to delete this configuration?')) return;
+            
+            try {
+                await fetch(`/api/configs/${slug}`, { method: 'DELETE' });
+                await loadConfigs();
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Failed to delete configuration');
+            }
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        init();
+    </script>
+</body>
+</html>
