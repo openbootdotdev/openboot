@@ -126,3 +126,19 @@ func SelectOption(title string, options []string) (string, error) {
 	err := form.Run()
 	return selected, err
 }
+
+func Input(title, placeholder string) (string, error) {
+	var value string
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title(title).
+				Placeholder(placeholder).
+				Value(&value),
+		),
+	)
+
+	err := form.Run()
+	return value, err
+}

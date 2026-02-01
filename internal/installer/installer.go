@@ -6,6 +6,9 @@ import (
 
 	"github.com/fullstackjam/openboot/internal/brew"
 	"github.com/fullstackjam/openboot/internal/config"
+	"github.com/fullstackjam/openboot/internal/dotfiles"
+	"github.com/fullstackjam/openboot/internal/macos"
+	"github.com/fullstackjam/openboot/internal/shell"
 	"github.com/fullstackjam/openboot/internal/system"
 	"github.com/fullstackjam/openboot/internal/ui"
 )
@@ -42,6 +45,18 @@ func runInstall(cfg *config.Config) error {
 
 	if err := stepConfirmAndInstall(cfg); err != nil {
 		return err
+	}
+
+	if err := stepDotfiles(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
+	}
+
+	if err := stepShell(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+	}
+
+	if err := stepMacOS(cfg); err != nil {
+		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
 	}
 
 	showCompletion(cfg)
@@ -153,6 +168,151 @@ func stepConfirmAndInstall(cfg *config.Config) error {
 		ui.Error(fmt.Sprintf("Failed to install GUI applications: %v", err))
 	}
 
+	return nil
+}
+
+func stepDotfiles(cfg *config.Config) error {
+	if cfg.Dotfiles == "skip" {
+		return nil
+	}
+
+	ui.Header("Step 4: Dotfiles")
+	fmt.Println()
+
+	dotfilesURL := dotfiles.GetDotfilesURL()
+
+	if cfg.Dotfiles == "" && dotfilesURL == "" {
+		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
+			ui.Muted("Skipping dotfiles (no URL provided)")
+			fmt.Println()
+			return nil
+		}
+
+		setup, err := ui.Confirm("Do you have a dotfiles repository to set up?", false)
+		if err != nil {
+			return err
+		}
+		if !setup {
+			ui.Muted("Skipping dotfiles setup")
+			fmt.Println()
+			return nil
+		}
+
+		dotfilesURL, err = ui.Input("Dotfiles repository URL", "https://github.com/username/dotfiles")
+		if err != nil {
+			return err
+		}
+	}
+
+	if dotfilesURL != "" {
+		if err := dotfiles.Clone(dotfilesURL, cfg.DryRun); err != nil {
+			return err
+		}
+	}
+
+	if cfg.Dotfiles == "link" || cfg.Dotfiles == "" {
+		if err := dotfiles.Link(cfg.DryRun); err != nil {
+			return err
+		}
+	}
+
+	if !cfg.DryRun {
+		ui.Success("Dotfiles configured")
+	}
+	fmt.Println()
+	return nil
+}
+
+func stepShell(cfg *config.Config) error {
+	if cfg.Shell == "skip" {
+		return nil
+	}
+
+	ui.Header("Step 5: Shell Configuration")
+	fmt.Println()
+
+	if cfg.Shell == "" {
+		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
+			cfg.Shell = "install"
+		} else {
+			install, err := ui.Confirm("Install Oh-My-Zsh and configure shell?", true)
+			if err != nil {
+				return err
+			}
+			if !install {
+				ui.Muted("Skipping shell configuration")
+				fmt.Println()
+				return nil
+			}
+			cfg.Shell = "install"
+		}
+	}
+
+	if cfg.Shell == "install" {
+		if shell.IsOhMyZshInstalled() {
+			ui.Muted("Oh-My-Zsh already installed")
+		} else {
+			if err := shell.InstallOhMyZsh(cfg.DryRun); err != nil {
+				return fmt.Errorf("failed to install Oh-My-Zsh: %w", err)
+			}
+			if !cfg.DryRun {
+				ui.Success("Oh-My-Zsh installed")
+			}
+		}
+
+		if err := shell.ConfigureZshrc(cfg.DryRun); err != nil {
+			return fmt.Errorf("failed to configure .zshrc: %w", err)
+		}
+		if !cfg.DryRun {
+			ui.Success("Shell aliases configured")
+		}
+	}
+
+	fmt.Println()
+	return nil
+}
+
+func stepMacOS(cfg *config.Config) error {
+	if cfg.Macos == "skip" {
+		return nil
+	}
+
+	ui.Header("Step 6: macOS Preferences")
+	fmt.Println()
+
+	if cfg.Macos == "" {
+		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
+			cfg.Macos = "configure"
+		} else {
+			configure, err := ui.Confirm("Apply developer-friendly macOS preferences?", true)
+			if err != nil {
+				return err
+			}
+			if !configure {
+				ui.Muted("Skipping macOS preferences")
+				fmt.Println()
+				return nil
+			}
+			cfg.Macos = "configure"
+		}
+	}
+
+	if cfg.Macos == "configure" {
+		if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
+			ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
+		}
+
+		if err := macos.Configure(macos.DefaultPreferences, cfg.DryRun); err != nil {
+			return err
+		}
+
+		if !cfg.DryRun {
+			ui.Success("macOS preferences configured")
+			macos.RestartAffectedApps(cfg.DryRun)
+		}
+	}
+
+	fmt.Println()
 	return nil
 }
 
