@@ -1,25 +1,18 @@
-name: Deploy to Cloudflare Workers
+name: Deploy Website
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'website/**'
-      - 'worker/**'
-      - 'wrangler.toml'
-      - '.github/workflows/deploy.yml'
+    branches: [main]
+    paths: ['website/**', '.github/workflows/deploy.yml']
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: website

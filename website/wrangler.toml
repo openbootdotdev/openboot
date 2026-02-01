@@ -1,12 +1,10 @@
 name = "openboot"
-main = "worker/index.js"
+main = "_worker.js"
 compatibility_date = "2024-01-01"
 
-# Static assets configuration
 [assets]
-directory = "./website"
+directory = "."
 
-# Custom domain - configured via wrangler.toml
 routes = [
   { pattern = "openboot.dev", custom_domain = true }
 ]
