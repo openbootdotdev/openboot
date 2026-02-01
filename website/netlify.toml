@@ -1,0 +1,8 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/install"
+  to = "https://raw.githubusercontent.com/fullstackjam/openboot/main/boot.sh"
+  status = 200
+  force = true

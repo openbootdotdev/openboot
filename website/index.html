@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenBoot - One-line macOS Development Environment Setup</title>
+    <meta name="description" content="Bootstrap your Mac development environment in minutes. One command to install everything you need - Homebrew, CLI tools, GUI apps, dotfiles, and Oh-My-Zsh.">
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+    
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="OpenBoot - One-line macOS Development Environment Setup">
+    <meta property="og:description" content="Bootstrap your Mac development environment in minutes. One command to install everything you need.">
+    <meta property="og:url" content="https://openboot.dev">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="OpenBoot - One-line macOS Development Environment Setup">
+    <meta name="twitter:description" content="Bootstrap your Mac development environment in minutes.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #666666;
+            --accent: #22c55e;
+            --accent-hover: #16a34a;
+            --border: #2a2a2a;
+            --code-bg: #1e1e1e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        
+        main {
+            padding: 60px 0;
+        }
+        
+        .hero {
+            text-align: center;
+            padding: 40px 0 60px;
+        }
+        
+        .ascii-logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            line-height: 1.2;
+            color: var(--accent);
+            white-space: pre;
+            margin-bottom: 40px;
+            overflow-x: auto;
+        }
+        
+        @media (max-width: 768px) {
+            .ascii-logo {
+                font-size: 6px;
+            }
+        }
+        
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 1.75rem;
+            }
+        }
+        
+        .hero .subtitle {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            max-width: 800px;
+            margin: 0 auto 40px;
+            text-align: left;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .feature-item::before {
+            content: "✓";
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--text-muted);
+        }
+        
+        .install-command {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            max-width: 700px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+        
+        .install-command code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            color: var(--accent);
+            display: block;
+            overflow-x: auto;
+        }
+        
+        .install-command .copy-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .install-command .copy-btn:hover {
+            background: var(--border);
+            color: var(--text-primary);
+        }
+        
+        .privacy-note {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 60px;
+        }
+        
+        .presets-section {
+            margin-bottom: 80px;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .presets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .preset-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.2s;
+        }
+        
+        .preset-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        
+        .preset-card h3 {
+            font-size: 1.125rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .preset-card .badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            background: var(--accent);
+            color: #000;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .preset-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+        }
+        
+        .preset-tools {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        
+        .preset-tools span {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+        
+        .terminal-preview {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            max-width: 800px;
+            margin: 0 auto 80px;
+        }
+        
+        .terminal-header {
+            background: var(--bg-tertiary);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27ca40; }
+        
+        .terminal-body {
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+        }
+        
+        .terminal-body .prompt {
+            color: var(--accent);
+        }
+        
+        .terminal-body .command {
+            color: var(--text-primary);
+        }
+        
+        .terminal-body .output {
+            color: var(--text-secondary);
+        }
+        
+        .terminal-body .highlight {
+            color: #60a5fa;
+        }
+        
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+        
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+        
+        .footer-links svg {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .footer-text {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .options-section {
+            margin-bottom: 80px;
+        }
+        
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .option-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        
+        .option-item code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent);
+            font-size: 0.85rem;
+        }
+        
+        .option-item p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="container">
+            <section class="hero">
+                <pre class="ascii-logo">
+ ██████╗ ██████╗ ███████╗███╗   ██╗██████╗  ██████╗  ██████╗ ████████╗
+██╔═══██╗██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔═══██╗██╔═══██╗╚══██╔══╝
+██║   ██║██████╔╝█████╗  ██╔██╗ ██║██████╔╝██║   ██║██║   ██║   ██║   
+██║   ██║██╔═══╝ ██╔══╝  ██║╚██╗██║██╔══██╗██║   ██║██║   ██║   ██║   
+╚██████╔╝██║     ███████╗██║ ╚████║██████╔╝╚██████╔╝╚██████╔╝   ██║   
+ ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝╚═════╝  ╚═════╝  ╚═════╝    ╚═╝   
+                </pre>
+                
+                <h1>One-line macOS Development Environment Setup</h1>
+                <p class="subtitle">Bootstrap your Mac in minutes. Install Homebrew, CLI tools, GUI apps, dotfiles, and Oh-My-Zsh with a single command.</p>
+                
+                <div class="features-grid">
+                    <div class="feature-item">Interactive TUI with gum</div>
+                    <div class="feature-item">Apple Silicon & Intel support</div>
+                    <div class="feature-item">6 specialized presets</div>
+                    <div class="feature-item">Oh-My-Zsh + plugins</div>
+                    <div class="feature-item">Dotfiles management</div>
+                    <div class="feature-item">Safe rollback support</div>
+                    <div class="feature-item">Resume interrupted installs</div>
+                    <div class="feature-item">100% open source</div>
+                </div>
+                
+                <div class="cta-buttons">
+                    <a href="https://github.com/fullstackjam/openboot" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        View on GitHub
+                    </a>
+                    <a href="#install" class="btn btn-secondary">Get Started</a>
+                </div>
+                
+                <div class="install-command" id="install">
+                    <code>curl -fsSL https://openboot.dev/install | bash</code>
+                    <button class="copy-btn" onclick="copyCommand()">Copy</button>
+                </div>
+                
+                <p class="privacy-note">No analytics. No telemetry. Your data stays on your machine.</p>
+            </section>
+            
+            <section class="terminal-preview">
+                <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                </div>
+                <div class="terminal-body">
+                    <div><span class="prompt">$</span> <span class="command">curl -fsSL https://openboot.dev/install | bash</span></div>
+                    <div class="output"></div>
+                    <div class="output">=== <span class="highlight">OpenBoot Installer v0.1.0</span> ===</div>
+                    <div class="output"></div>
+                    <div class="output">=== Step 1: Git Configuration ===</div>
+                    <div class="output">? Enter your name: <span class="highlight">John Doe</span></div>
+                    <div class="output">? Enter your email: <span class="highlight">john@example.com</span></div>
+                    <div class="output"></div>
+                    <div class="output">=== Step 2: Preset Selection ===</div>
+                    <div class="output">? Select preset:</div>
+                    <div class="output">  <span class="highlight">› minimal</span>    - Essential tools</div>
+                    <div class="output">    standard   - Development</div>
+                    <div class="output">    devops     - Kubernetes & Cloud</div>
+                    <div class="output">    frontend   - Web Development</div>
+                    <div class="output"></div>
+                    <div class="output">✓ Installing packages...</div>
+                    <div class="output">✓ <span class="highlight">Installation Complete!</span></div>
+                </div>
+            </section>
+            
+            <section class="presets-section">
+                <h2 class="section-title">Presets</h2>
+                <div class="presets-grid">
+                    <div class="preset-card">
+                        <h3>minimal</h3>
+                        <p>Essential tools for any developer</p>
+                        <div class="preset-tools">
+                            <span>curl</span>
+                            <span>wget</span>
+                            <span>jq</span>
+                            <span>tree</span>
+                            <span>htop</span>
+                            <span>gh</span>
+                            <span>stow</span>
+                        </div>
+                    </div>
+                    <div class="preset-card">
+                        <h3>standard <span class="badge">Popular</span></h3>
+                        <p>General development environment</p>
+                        <div class="preset-tools">
+                            <span>node</span>
+                            <span>tmux</span>
+                            <span>VS Code</span>
+                            <span>Chrome</span>
+                            <span>OrbStack</span>
+                        </div>
+                    </div>
+                    <div class="preset-card">
+                        <h3>devops</h3>
+                        <p>Kubernetes & cloud infrastructure</p>
+                        <div class="preset-tools">
+                            <span>kubectl</span>
+                            <span>helm</span>
+                            <span>terraform</span>
+                            <span>k9s</span>
+                            <span>awscli</span>
+                        </div>
+                    </div>
+                    <div class="preset-card">
+                        <h3>frontend</h3>
+                        <p>Web development focused</p>
+                        <div class="preset-tools">
+                            <span>node</span>
+                            <span>yarn</span>
+                            <span>pnpm</span>
+                            <span>bun</span>
+                            <span>Figma</span>
+                        </div>
+                    </div>
+                    <div class="preset-card">
+                        <h3>data</h3>
+                        <p>Data science & analytics</p>
+                        <div class="preset-tools">
+                            <span>python</span>
+                            <span>uv</span>
+                            <span>postgresql</span>
+                            <span>DBeaver</span>
+                        </div>
+                    </div>
+                    <div class="preset-card">
+                        <h3>full</h3>
+                        <p>Comprehensive suite</p>
+                        <div class="preset-tools">
+                            <span>All standard +</span>
+                            <span>Notion</span>
+                            <span>Telegram</span>
+                            <span>MS Office</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="options-section">
+                <h2 class="section-title">Options</h2>
+                <div class="options-grid">
+                    <div class="option-item">
+                        <code>--preset NAME</code>
+                        <p>Set preset (minimal, standard, full, devops, frontend, data)</p>
+                    </div>
+                    <div class="option-item">
+                        <code>--silent</code>
+                        <p>Non-interactive mode for CI/automation</p>
+                    </div>
+                    <div class="option-item">
+                        <code>--shell install</code>
+                        <p>Install Oh-My-Zsh with plugins</p>
+                    </div>
+                    <div class="option-item">
+                        <code>--rollback</code>
+                        <p>Restore backed up files</p>
+                    </div>
+                    <div class="option-item">
+                        <code>--update</code>
+                        <p>Update Homebrew and all packages</p>
+                    </div>
+                    <div class="option-item">
+                        <code>--dry-run</code>
+                        <p>Preview what would be installed</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/fullstackjam/openboot">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
+                </a>
+                <a href="https://github.com/fullstackjam/openboot/issues">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                    Issues
+                </a>
+                <a href="https://github.com/fullstackjam/openboot/blob/main/README.md">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    Docs
+                </a>
+            </div>
+            <p class="footer-text">MIT License · Made for the macOS developer community</p>
+        </div>
+    </footer>
+    
+    <script>
+        function copyCommand() {
+            const command = 'curl -fsSL https://openboot.dev/install | bash';
+            navigator.clipboard.writeText(command).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
