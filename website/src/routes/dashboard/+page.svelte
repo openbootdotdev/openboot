@@ -34,24 +34,43 @@
 		custom_script: ''
 	});
 
-	const PACKAGES_DATA: Record<string, string[]> = {
-		Essential: ['curl', 'wget', 'jq', 'yq', 'ripgrep', 'fd', 'bat', 'eza', 'fzf', 'zoxide', 'htop', 'btop', 'tree', 'tldr'],
-		Git: ['gh', 'git-delta', 'lazygit', 'stow'],
-		Development: ['node', 'go', 'rustup', 'python', 'uv', 'deno', 'bun', 'pnpm', 'tmux', 'neovim'],
-		DevOps: ['docker', 'docker-compose', 'kubectl', 'helm', 'k9s', 'terraform', 'awscli', 'argocd'],
-		Database: ['sqlite', 'postgresql', 'redis', 'duckdb', 'mysql'],
-		AI: ['ollama', 'llm'],
-		Editors: ['visual-studio-code', 'cursor', 'zed'],
-		Browsers: ['google-chrome', 'arc', 'firefox', 'microsoft-edge'],
-		Terminals: ['warp', 'iterm2', 'alacritty'],
-		Productivity: ['raycast', 'maccy', 'notion', 'obsidian', 'slack', 'discord'],
-		Utilities: ['stats', 'scroll-reverser', 'rectangle', 'aldente', 'keka', 'iina'],
-		Design: ['figma', 'sketch', 'imageoptim'],
-		'API Tools': ['httpie', 'postman', 'proxyman', 'orbstack']
+	const PRESET_PACKAGES: Record<string, { cli: string[]; cask: string[] }> = {
+		minimal: {
+			cli: ['curl', 'wget', 'jq', 'yq', 'ripgrep', 'fd', 'bat', 'eza', 'fzf', 'zoxide', 'htop', 'btop', 'tree', 'tldr', 'gh', 'git-delta', 'lazygit', 'stow'],
+			cask: ['warp', 'raycast', 'maccy', 'stats']
+		},
+		developer: {
+			cli: ['curl', 'wget', 'jq', 'yq', 'ripgrep', 'fd', 'bat', 'eza', 'fzf', 'zoxide', 'htop', 'btop', 'tree', 'tldr', 'gh', 'git-delta', 'lazygit', 'stow', 'node', 'go', 'pnpm', 'docker', 'docker-compose', 'tmux', 'neovim', 'httpie'],
+			cask: ['warp', 'raycast', 'maccy', 'stats', 'scroll-reverser', 'visual-studio-code', 'orbstack', 'google-chrome', 'arc', 'postman', 'notion']
+		},
+		full: {
+			cli: ['curl', 'wget', 'jq', 'yq', 'ripgrep', 'fd', 'bat', 'eza', 'fzf', 'zoxide', 'htop', 'btop', 'tree', 'tldr', 'gh', 'git-delta', 'lazygit', 'stow', 'node', 'go', 'pnpm', 'docker', 'docker-compose', 'tmux', 'neovim', 'httpie', 'python', 'uv', 'rustup', 'deno', 'bun', 'kubectl', 'helm', 'k9s', 'terraform', 'awscli', 'sqlite', 'postgresql', 'redis', 'duckdb', 'ollama', 'llm'],
+			cask: ['warp', 'raycast', 'maccy', 'stats', 'scroll-reverser', 'visual-studio-code', 'cursor', 'orbstack', 'google-chrome', 'arc', 'firefox', 'postman', 'proxyman', 'notion', 'obsidian', 'figma', 'iina', 'keka', 'aldente', 'rectangle']
+		}
 	};
 
-	let currentCategory = $state(Object.keys(PACKAGES_DATA)[0]);
+	const EXTRA_PACKAGES: Record<string, string[]> = {
+		CLI: ['rustup', 'python', 'uv', 'deno', 'bun', 'kubectl', 'helm', 'k9s', 'terraform', 'awscli', 'argocd', 'sqlite', 'postgresql', 'redis', 'duckdb', 'mysql', 'ollama', 'llm'],
+		Apps: ['cursor', 'zed', 'iterm2', 'alacritty', 'firefox', 'microsoft-edge', 'proxyman', 'obsidian', 'slack', 'discord', 'rectangle', 'aldente', 'keka', 'iina', 'figma', 'sketch', 'imageoptim']
+	};
+
+	let currentCategory = $state(Object.keys(EXTRA_PACKAGES)[0]);
 	let selectedPackages = $state(new Set<string>());
+
+	function getPresetPackages(preset: string): string[] {
+		const p = PRESET_PACKAGES[preset];
+		return p ? [...p.cli, ...p.cask] : [];
+	}
+
+	function getAvailableExtras(preset: string): Record<string, string[]> {
+		const included = new Set(getPresetPackages(preset));
+		const result: Record<string, string[]> = {};
+		for (const [cat, pkgs] of Object.entries(EXTRA_PACKAGES)) {
+			const filtered = pkgs.filter(p => !included.has(p));
+			if (filtered.length > 0) result[cat] = filtered;
+		}
+		return result;
+	}
 
 	onMount(async () => {
 		await auth.check();
@@ -322,18 +341,34 @@
 
 				<div class="packages-section">
 					<div class="packages-header">
+						<span class="packages-title">Included in "{formData.base_preset}" preset</span>
+						<span class="packages-count">{getPresetPackages(formData.base_preset).length} packages</span>
+					</div>
+					<div class="preset-packages">
+						{#each getPresetPackages(formData.base_preset).slice(0, 12) as pkg}
+							<span class="preset-tag">{pkg}</span>
+						{/each}
+						{#if getPresetPackages(formData.base_preset).length > 12}
+							<span class="preset-tag more">+{getPresetPackages(formData.base_preset).length - 12} more</span>
+						{/if}
+					</div>
+				</div>
+
+				{#if Object.keys(getAvailableExtras(formData.base_preset)).length > 0}
+				<div class="packages-section">
+					<div class="packages-header">
 						<span class="packages-title">Additional Packages</span>
 						<span class="packages-count">{selectedPackages.size} selected</span>
 					</div>
 					<div class="category-tabs">
-						{#each Object.keys(PACKAGES_DATA) as cat}
+						{#each Object.keys(getAvailableExtras(formData.base_preset)) as cat}
 							<button class="category-tab" class:active={cat === currentCategory} onclick={() => (currentCategory = cat)}>
 								{cat}
 							</button>
 						{/each}
 					</div>
 					<div class="packages-grid">
-						{#each PACKAGES_DATA[currentCategory] as pkg}
+						{#each getAvailableExtras(formData.base_preset)[currentCategory] || [] as pkg}
 							<label class="package-item" class:selected={selectedPackages.has(pkg)}>
 								<input type="checkbox" checked={selectedPackages.has(pkg)} onchange={() => togglePackage(pkg)} />
 								<span class="package-name">{pkg}</span>
@@ -341,6 +376,7 @@
 						{/each}
 					</div>
 				</div>
+				{/if}
 
 				<div class="form-group">
 					<label class="form-label">Custom Post-Install Script (Optional)</label>
@@ -693,7 +729,29 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 16px;
+		margin-bottom: 12px;
+	}
+
+	.preset-packages {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.preset-tag {
+		padding: 4px 10px;
+		background: var(--bg-tertiary);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		font-family: 'JetBrains Mono', monospace;
+	}
+
+	.preset-tag.more {
+		background: transparent;
+		border-style: dashed;
+		color: var(--text-muted);
 	}
 
 	.packages-title {
