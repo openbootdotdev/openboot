@@ -1,2 +1,3 @@
 _worker.js
 wrangler.toml
+node_modules
