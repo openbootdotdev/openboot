@@ -99,6 +99,7 @@ var Categories = []Category{
 			{Name: "visual-studio-code", Description: "VS Code", IsCask: true},
 			{Name: "cursor", Description: "AI-powered editor", IsCask: true},
 			{Name: "zed", Description: "High-performance editor", IsCask: true},
+			{Name: "windsurf", Description: "AI-native IDE", IsCask: true},
 		},
 	},
 	{

@@ -131,17 +131,22 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m SelectorModel) getVisibleItems() int {
-	available := m.height - 10
+	if m.height == 0 {
+		return 15
+	}
+	available := m.height - 8
 	if available < 5 {
 		available = 5
+	}
+	if available > 20 {
+		available = 20
 	}
 	return available
 }
 
 func (m SelectorModel) View() string {
-	var b strings.Builder
+	var lines []string
 
-	b.WriteString("\n")
 	var tabs []string
 	for i, cat := range m.categories {
 		count := 0
@@ -157,11 +162,19 @@ func (m SelectorModel) View() string {
 			tabs = append(tabs, tabStyle.Render(label))
 		}
 	}
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, tabs...))
-	b.WriteString("\n\n")
+	lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, tabs...))
+	lines = append(lines, "")
 
 	cat := m.categories[m.activeTab]
 	visibleItems := m.getVisibleItems()
+
+	if m.scrollOffset > len(cat.Packages)-visibleItems {
+		m.scrollOffset = len(cat.Packages) - visibleItems
+	}
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+
 	endIdx := m.scrollOffset + visibleItems
 	if endIdx > len(cat.Packages) {
 		endIdx = len(cat.Packages)
@@ -181,14 +194,12 @@ func (m SelectorModel) View() string {
 			style = selectedStyle
 		}
 
-		line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(pkg.Name))
-		line += " " + descStyle.Render(pkg.Description)
-		b.WriteString(line + "\n")
+		line := fmt.Sprintf("%s%s %s %s", cursor, checkbox, style.Render(pkg.Name), descStyle.Render(pkg.Description))
+		lines = append(lines, line)
 	}
 
-	if len(cat.Packages) > visibleItems {
-		scrollInfo := fmt.Sprintf("\n  ... %d more (scroll with ↑↓)", len(cat.Packages)-visibleItems)
-		b.WriteString(descStyle.Render(scrollInfo))
+	for len(lines) < visibleItems+2 {
+		lines = append(lines, "")
 	}
 
 	totalSelected := 0
@@ -197,12 +208,13 @@ func (m SelectorModel) View() string {
 			totalSelected++
 		}
 	}
-	b.WriteString("\n\n")
-	b.WriteString(countStyle.Render(fmt.Sprintf("Selected: %d packages", totalSelected)))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Tab: switch category • Space: toggle • a: select all • Enter: confirm • q: quit"))
 
-	return b.String()
+	lines = append(lines, "")
+	lines = append(lines, countStyle.Render(fmt.Sprintf("Selected: %d packages", totalSelected)))
+	lines = append(lines, "")
+	lines = append(lines, helpStyle.Render("Tab/←→: switch category • ↑↓: navigate • Space: toggle • a: select all • Enter: confirm • q: quit"))
+
+	return strings.Join(lines, "\n")
 }
 
 func (m SelectorModel) Selected() map[string]bool {
