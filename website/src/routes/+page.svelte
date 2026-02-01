@@ -255,12 +255,12 @@
 
 	.ascii-logo {
 		font-family: 'JetBrains Mono', monospace;
-		font-size: 10px;
+		font-size: clamp(6px, 1.2vw, 10px);
 		line-height: 1.2;
 		color: var(--accent);
 		white-space: pre;
 		margin-bottom: 40px;
-		overflow-x: auto;
+		overflow: hidden;
 	}
 
 	.hero h1 {
