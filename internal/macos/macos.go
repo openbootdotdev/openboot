@@ -27,8 +27,7 @@ var DefaultPreferences = []Preference{
 	{"com.apple.finder", "FXEnableExtensionChangeWarning", "bool", "false", "No extension change warning"},
 	{"com.apple.finder", "AppleShowAllFiles", "bool", "true", "Show hidden files in Finder"},
 
-	{"com.apple.dock", "autohide", "bool", "true", "Auto-hide Dock"},
-	{"com.apple.dock", "autohide-delay", "float", "0", "No Dock auto-hide delay"},
+	{"com.apple.dock", "autohide", "bool", "false", "Keep Dock visible"},
 	{"com.apple.dock", "show-recents", "bool", "false", "Don't show recent apps in Dock"},
 	{"com.apple.dock", "tilesize", "int", "48", "Set Dock icon size"},
 	{"com.apple.dock", "mineffect", "string", "scale", "Minimize windows with scale effect"},
