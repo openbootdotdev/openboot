@@ -46,7 +46,7 @@ Usage: ./install.sh [OPTIONS]
 
 OPTIONS:
     --help          Show this help message
-    --preset NAME   Set preset (minimal, standard, full, devops, frontend, data)
+    --preset NAME   Set preset (minimal, standard, full, devops, frontend, data, mobile, ai)
     --silent        Non-interactive mode (requires env vars)
     --dotfiles MODE Set dotfiles mode (clone, link, skip)
     --shell MODE    Set shell framework (install, skip)
@@ -210,17 +210,23 @@ step_preset_selection() {
     
     if [[ -z "$PRESET" ]]; then
         echo "Choose a preset based on your needs:"
-        echo "  Minimal  - Essential CLI tools + free apps (fastest)"
-        echo "  Standard - Development tools (Node, Docker, VS Code)"
-        echo "  Full     - Everything including office & communication apps"
+        echo ""
+        echo "  minimal   $(get_preset_description minimal)"
+        echo "  standard  $(get_preset_description standard)"
+        echo "  full      $(get_preset_description full)"
+        echo "  devops    $(get_preset_description devops)"
+        echo "  frontend  $(get_preset_description frontend)"
+        echo "  data      $(get_preset_description data)"
+        echo "  mobile    $(get_preset_description mobile)"
+        echo "  ai        $(get_preset_description ai)"
         echo ""
         
-        PRESET=$(ui_choose "Select preset:" "minimal" "standard" "full" "devops" "frontend" "data")
+        PRESET=$(ui_choose "Select preset:" "minimal" "standard" "full" "devops" "frontend" "data" "mobile" "ai")
     fi
     
     # Validate preset
-    if [[ ! "$PRESET" =~ ^(minimal|standard|full|devops|frontend|data)$ ]]; then
-        echo "Error: Invalid preset '$PRESET'. Must be: minimal, standard, full, devops, frontend, or data" >&2
+    if [[ ! "$PRESET" =~ ^(minimal|standard|full|devops|frontend|data|mobile|ai)$ ]]; then
+        echo "Error: Invalid preset '$PRESET'. Must be: minimal, standard, full, devops, frontend, data, mobile, or ai" >&2
         return 1
     fi
     
