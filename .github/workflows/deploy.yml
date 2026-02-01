@@ -52,20 +52,40 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
-          # Check if custom domain already configured
+          # Add domain to Pages project
           EXISTING=$(curl -s -X GET \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/domains" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" | jq -r '.result[].name' | grep -x "$CUSTOM_DOMAIN" || true)
           
           if [ -z "$EXISTING" ]; then
-            echo "Adding custom domain: $CUSTOM_DOMAIN"
+            echo "Adding custom domain to Pages: $CUSTOM_DOMAIN"
             curl -s -X POST \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME/domains" \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               -H "Content-Type: application/json" \
               --data "{\"name\":\"$CUSTOM_DOMAIN\"}"
           else
-            echo "Custom domain $CUSTOM_DOMAIN already configured"
+            echo "Custom domain $CUSTOM_DOMAIN already in Pages"
+          fi
+          
+          # Create DNS CNAME record if zone ID provided
+          if [ -n "$CLOUDFLARE_ZONE_ID" ]; then
+            DNS_EXISTS=$(curl -s -X GET \
+              "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=$CUSTOM_DOMAIN" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" | jq -r '.result | length')
+            
+            if [ "$DNS_EXISTS" = "0" ]; then
+              echo "Creating DNS CNAME record for $CUSTOM_DOMAIN"
+              curl -s -X POST \
+                "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/dns_records" \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data "{\"type\":\"CNAME\",\"name\":\"@\",\"content\":\"$PROJECT_NAME.pages.dev\",\"proxied\":true}"
+            else
+              echo "DNS record for $CUSTOM_DOMAIN already exists"
+            fi
           fi
