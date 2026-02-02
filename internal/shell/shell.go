@@ -27,7 +27,15 @@ func InstallOhMyZsh(dryRun bool) error {
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	home, _ := os.UserHomeDir()
+	zshrcPath := filepath.Join(home, ".zshrc")
+	os.Remove(zshrcPath)
+
+	return nil
 }
 
 func ConfigureZshrc(dryRun bool) error {

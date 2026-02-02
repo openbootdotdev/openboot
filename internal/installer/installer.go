@@ -80,12 +80,12 @@ func runInteractiveInstall(cfg *config.Config) error {
 		return err
 	}
 
-	if err := stepDotfiles(cfg); err != nil {
-		ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
-	}
-
 	if err := stepShell(cfg); err != nil {
 		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+	}
+
+	if err := stepDotfiles(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
 	}
 
 	if err := stepMacOS(cfg); err != nil {
@@ -217,7 +217,7 @@ func stepPackageCustomization(cfg *config.Config) error {
 }
 
 func stepInstallPackages(cfg *config.Config) error {
-	ui.Header("Step 2: Installation")
+	ui.Header("Step 4: Installation")
 	fmt.Println()
 
 	var cliPkgs, caskPkgs []string
@@ -269,7 +269,7 @@ func stepDotfiles(cfg *config.Config) error {
 		return nil
 	}
 
-	ui.Header("Step 5: Dotfiles")
+	ui.Header("Step 6: Dotfiles")
 	fmt.Println()
 
 	dotfilesURL := dotfiles.GetDotfilesURL()
@@ -321,7 +321,7 @@ func stepShell(cfg *config.Config) error {
 		return nil
 	}
 
-	ui.Header("Step 6: Shell Configuration")
+	ui.Header("Step 5: Shell Configuration")
 	fmt.Println()
 
 	if cfg.Shell == "" {

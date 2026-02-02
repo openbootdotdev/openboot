@@ -88,6 +88,13 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 			continue
 		}
 
+		if pkg == "zsh" {
+			zshrc := filepath.Join(home, ".zshrc")
+			zshrcBackup := filepath.Join(home, ".zshrc.pre-oh-my-zsh")
+			os.Remove(zshrc)
+			os.Remove(zshrcBackup)
+		}
+
 		cmd := exec.Command("stow", "-v", "-t", home, pkg)
 		cmd.Dir = dotfilesPath
 		cmd.Stdout = os.Stdout
