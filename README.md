@@ -71,6 +71,7 @@ curl -fsSL openboot.dev/install | bash -s -- --preset minimal --silent
 openboot            # Interactive setup
 openboot doctor     # Check system health
 openboot update     # Update Homebrew and packages
+openboot update --dry-run  # Preview what would be updated
 openboot version    # Print version
 ```
 
@@ -81,8 +82,12 @@ openboot version    # Print version
 -u, --user NAME     Use remote config from openboot.dev
 -s, --silent        Non-interactive mode (requires env vars)
     --dry-run       Preview what would be installed
+    --update        Update Homebrew and packages
     --rollback      Restore backed up files
     --resume        Resume incomplete installation
+    --shell MODE    Shell setup: install, skip
+    --macos MODE    macOS prefs: configure, skip
+    --dotfiles MODE Dotfiles: clone, link, skip
 ```
 
 ## Environment Variables
