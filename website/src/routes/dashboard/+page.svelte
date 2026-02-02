@@ -450,13 +450,16 @@
 						{#each searchResults as result}
 							<label class="package-item" class:selected={selectedPackages.has(result.name)}>
 								<input type="checkbox" checked={selectedPackages.has(result.name)} onchange={() => togglePackage(result.name)} />
-								<div class="package-info">
-									<span class="package-name">{result.name}</span>
-									<span class="package-type">{result.type}</span>
+								<span class="check-indicator">{selectedPackages.has(result.name) ? '✓' : ''}</span>
+								<div class="package-content">
+									<div class="package-info">
+										<span class="package-name">{result.name}</span>
+										<span class="package-type">{result.type}</span>
+									</div>
+									{#if result.desc}
+										<span class="package-desc">{result.desc.slice(0, 60)}{result.desc.length > 60 ? '...' : ''}</span>
+									{/if}
 								</div>
-								{#if result.desc}
-									<span class="package-desc">{result.desc.slice(0, 60)}{result.desc.length > 60 ? '...' : ''}</span>
-								{/if}
 							</label>
 						{/each}
 					</div>
@@ -931,12 +934,12 @@
 
 	.package-item {
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		align-items: flex-start;
-		gap: 4px;
+		gap: 10px;
 		padding: 10px 12px;
 		background: var(--bg-tertiary);
-		border: 1px solid var(--border);
+		border: 2px solid var(--border);
 		border-radius: 6px;
 		cursor: pointer;
 		transition: all 0.2s;
@@ -944,10 +947,11 @@
 
 	.package-item:hover {
 		border-color: var(--border-hover);
+		background: var(--bg-secondary);
 	}
 
 	.package-item.selected {
-		background: rgba(34, 197, 94, 0.1);
+		background: rgba(34, 197, 94, 0.15);
 		border-color: var(--accent);
 	}
 
@@ -956,6 +960,33 @@
 		opacity: 0;
 		width: 0;
 		height: 0;
+	}
+
+	.check-indicator {
+		width: 20px;
+		height: 20px;
+		min-width: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 2px solid var(--border);
+		border-radius: 4px;
+		font-size: 0.75rem;
+		color: var(--accent);
+		background: var(--bg-tertiary);
+	}
+
+	.package-item.selected .check-indicator {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: #000;
+	}
+
+	.package-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
 	}
 
 	.package-info {
