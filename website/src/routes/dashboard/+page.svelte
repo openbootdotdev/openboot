@@ -346,9 +346,7 @@
 						</div>
 						<div class="config-actions">
 							<Button variant="secondary" onclick={() => editConfig(config.slug)}>Edit</Button>
-							{#if config.slug !== 'default'}
-								<Button variant="danger" onclick={() => deleteConfig(config.slug)}>Delete</Button>
-							{/if}
+							<Button variant="danger" onclick={() => deleteConfig(config.slug)}>Delete</Button>
 						</div>
 					</div>
 				{/each}

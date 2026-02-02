@@ -49,12 +49,8 @@ else
 fi
 
 cd "\$DOTFILES_DIR"
-if [ -f "Makefile" ]; then
-  echo "Running make deploy..."
-  make deploy
-else
-  echo "No Makefile found in dotfiles repo, skipping deploy"
-fi
+echo "Deploying dotfiles with stow..."
+stow -v --target="\$HOME" */ 2>/dev/null || stow -v --target="\$HOME" git ssh zsh npm 2>/dev/null || true
 `
 			: ''
 	}
