@@ -23,11 +23,11 @@ var (
 )
 
 type ProgressTracker struct {
-	total       int
-	completed   int
-	currentPkg  string
-	width       int
-	mu          sync.Mutex
+	total      int
+	completed  int
+	currentPkg string
+	width      int
+	mu         sync.Mutex
 }
 
 func NewProgressTracker(total int) *ProgressTracker {
@@ -61,10 +61,15 @@ func (p *ProgressTracker) render() {
 
 	status := fmt.Sprintf(" %d/%d (%.0f%%)", p.completed, p.total, percent*100)
 
-	fmt.Printf("\r%s%s %s   ",
+	pkgDisplay := p.currentPkg
+	if len(pkgDisplay) > 20 {
+		pkgDisplay = pkgDisplay[:17] + "..."
+	}
+
+	fmt.Printf("\r\033[K%s%s %s",
 		bar,
 		progressTextStyle.Render(status),
-		currentPkgStyle.Render(p.currentPkg))
+		currentPkgStyle.Render(pkgDisplay))
 }
 
 func (p *ProgressTracker) Finish() {
