@@ -27,19 +27,43 @@ func Run(cfg *config.Config) error {
 
 func runInstall(cfg *config.Config) error {
 	fmt.Println()
-	ui.Header("OpenBoot Installer v0.6.0")
+	ui.Header("OpenBoot Installer v0.7.0")
 	fmt.Println()
-
-	if cfg.RemoteConfig != nil {
-		ui.Info(fmt.Sprintf("Using remote config: @%s/%s", cfg.RemoteConfig.Username, cfg.RemoteConfig.Slug))
-		fmt.Println()
-	}
 
 	if cfg.DryRun {
 		ui.Muted("[DRY-RUN MODE - No changes will be made]")
 		fmt.Println()
 	}
 
+	if cfg.RemoteConfig != nil {
+		return runCustomInstall(cfg)
+	}
+
+	return runInteractiveInstall(cfg)
+}
+
+func runCustomInstall(cfg *config.Config) error {
+	ui.Info(fmt.Sprintf("Custom config: @%s/%s", cfg.RemoteConfig.Username, cfg.RemoteConfig.Slug))
+	ui.Info(fmt.Sprintf("Installing %d packages...", len(cfg.RemoteConfig.Packages)))
+	fmt.Println()
+
+	cfg.SelectedPkgs = make(map[string]bool)
+	for _, pkg := range cfg.RemoteConfig.Packages {
+		cfg.SelectedPkgs[pkg] = true
+	}
+
+	if err := stepInstallPackages(cfg); err != nil {
+		return err
+	}
+
+	fmt.Println()
+	ui.Success("Package installation complete!")
+	ui.Muted("Dotfiles and shell setup will be handled by the install script.")
+	fmt.Println()
+	return nil
+}
+
+func runInteractiveInstall(cfg *config.Config) error {
 	if err := stepGitConfig(cfg); err != nil {
 		return err
 	}
@@ -54,14 +78,6 @@ func runInstall(cfg *config.Config) error {
 
 	if err := stepInstallPackages(cfg); err != nil {
 		return err
-	}
-
-	if cfg.RemoteConfig != nil {
-		fmt.Println()
-		ui.Success("Package installation complete!")
-		ui.Muted("Dotfiles and shell setup will be handled by the install script.")
-		fmt.Println()
-		return nil
 	}
 
 	if err := stepDotfiles(cfg); err != nil {
@@ -86,7 +102,6 @@ func stepGitConfig(cfg *config.Config) error {
 
 	var name, email string
 
-	// In dry-run mode without TTY, use placeholder values
 	if cfg.DryRun && !system.HasTTY() {
 		name = cfg.GitName
 		email = cfg.GitEmail
@@ -128,10 +143,6 @@ func stepGitConfig(cfg *config.Config) error {
 }
 
 func stepPresetSelection(cfg *config.Config) error {
-	if cfg.RemoteConfig != nil {
-		return nil
-	}
-
 	ui.Header("Step 2: Preset Selection")
 	fmt.Println()
 
@@ -161,16 +172,6 @@ func stepPresetSelection(cfg *config.Config) error {
 }
 
 func stepPackageCustomization(cfg *config.Config) error {
-	if cfg.RemoteConfig != nil {
-		cfg.SelectedPkgs = make(map[string]bool)
-		for _, pkg := range cfg.RemoteConfig.Packages {
-			cfg.SelectedPkgs[pkg] = true
-		}
-		ui.Info(fmt.Sprintf("Using %d packages from remote config", len(cfg.RemoteConfig.Packages)))
-		fmt.Println()
-		return nil
-	}
-
 	ui.Header("Step 3: Package Selection")
 	fmt.Println()
 

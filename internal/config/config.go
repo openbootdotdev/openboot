@@ -32,11 +32,12 @@ type Config struct {
 }
 
 type RemoteConfig struct {
-	Username string   `json:"username"`
-	Slug     string   `json:"slug"`
-	Name     string   `json:"name"`
-	Preset   string   `json:"preset"`
-	Packages []string `json:"packages"`
+	Username     string   `json:"username"`
+	Slug         string   `json:"slug"`
+	Name         string   `json:"name"`
+	Preset       string   `json:"preset"`
+	Packages     []string `json:"packages"`
+	DotfilesRepo string   `json:"dotfiles_repo"`
 }
 
 type Preset struct {
@@ -85,7 +86,7 @@ func FetchRemoteConfig(userSlug string) (*RemoteConfig, error) {
 	}
 
 	url := fmt.Sprintf("https://openboot.dev/%s/%s/config", username, slug)
-	
+
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch config: %w", err)

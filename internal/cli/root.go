@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	version = "0.6.0"
+	version = "0.7.0"
 	cfg     = &config.Config{}
 )
 
@@ -19,6 +19,35 @@ var rootCmd = &cobra.Command{
 	Short: "One-line macOS development environment setup",
 	Long: `OpenBoot bootstraps your Mac development environment in minutes.
 Install Homebrew, CLI tools, GUI apps, dotfiles, and Oh-My-Zsh with a single command.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cfg.Silent {
+			if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
+				cfg.GitName = name
+			}
+			if email := os.Getenv("OPENBOOT_GIT_EMAIL"); email != "" {
+				cfg.GitEmail = email
+			}
+			if preset := os.Getenv("OPENBOOT_PRESET"); preset != "" && cfg.Preset == "" {
+				cfg.Preset = preset
+			}
+		}
+
+		if user := os.Getenv("OPENBOOT_USER"); user != "" && cfg.User == "" {
+			cfg.User = user
+		}
+
+		if cfg.User != "" {
+			rc, err := config.FetchRemoteConfig(cfg.User)
+			if err != nil {
+				return fmt.Errorf("error fetching remote config: %v", err)
+			}
+			cfg.RemoteConfig = rc
+			if cfg.Preset == "" {
+				cfg.Preset = rc.Preset
+			}
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return installer.Run(cfg)
 	},
@@ -48,33 +77,5 @@ var versionCmd = &cobra.Command{
 }
 
 func Execute() error {
-	if cfg.Silent {
-		if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
-			cfg.GitName = name
-		}
-		if email := os.Getenv("OPENBOOT_GIT_EMAIL"); email != "" {
-			cfg.GitEmail = email
-		}
-		if preset := os.Getenv("OPENBOOT_PRESET"); preset != "" && cfg.Preset == "" {
-			cfg.Preset = preset
-		}
-	}
-
-	if user := os.Getenv("OPENBOOT_USER"); user != "" && cfg.User == "" {
-		cfg.User = user
-	}
-
-	if cfg.User != "" {
-		rc, err := config.FetchRemoteConfig(cfg.User)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error fetching remote config: %v\n", err)
-			os.Exit(1)
-		}
-		cfg.RemoteConfig = rc
-		if cfg.Preset == "" {
-			cfg.Preset = rc.Preset
-		}
-	}
-
 	return rootCmd.Execute()
 }
