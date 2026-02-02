@@ -27,7 +27,7 @@ func Run(cfg *config.Config) error {
 
 func runInstall(cfg *config.Config) error {
 	fmt.Println()
-	ui.Header("OpenBoot Installer v0.3.0")
+	ui.Header("OpenBoot Installer v0.5.1")
 	fmt.Println()
 
 	if cfg.RemoteConfig != nil {
@@ -154,14 +154,14 @@ func stepPackageCustomization(cfg *config.Config) error {
 
 	if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
 		cfg.SelectedPkgs = config.GetPackagesForPreset(cfg.Preset)
-		
+
 		if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
 			for _, pkg := range cfg.RemoteConfig.Packages {
 				cfg.SelectedPkgs[pkg] = true
 			}
 			ui.Info(fmt.Sprintf("Using preset + %d additional packages from remote config", len(cfg.RemoteConfig.Packages)))
 		}
-		
+
 		total := len(cfg.SelectedPkgs)
 		ui.Info(fmt.Sprintf("Using preset packages: %d selected", total))
 		fmt.Println()
@@ -183,7 +183,7 @@ func stepPackageCustomization(cfg *config.Config) error {
 	}
 
 	cfg.SelectedPkgs = selected
-	
+
 	if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
 		for _, pkg := range cfg.RemoteConfig.Packages {
 			cfg.SelectedPkgs[pkg] = true
@@ -207,6 +207,15 @@ func stepInstallPackages(cfg *config.Config) error {
 
 	var cliPkgs, caskPkgs []string
 
+	knownCasks := make(map[string]bool)
+	for _, cat := range config.Categories {
+		for _, pkg := range cat.Packages {
+			if pkg.IsCask {
+				knownCasks[pkg.Name] = true
+			}
+		}
+	}
+
 	for _, cat := range config.Categories {
 		for _, pkg := range cat.Packages {
 			if cfg.SelectedPkgs[pkg.Name] {
@@ -216,6 +225,24 @@ func stepInstallPackages(cfg *config.Config) error {
 					cliPkgs = append(cliPkgs, pkg.Name)
 				}
 			}
+		}
+	}
+
+	if cfg.RemoteConfig != nil {
+		added := make(map[string]bool)
+		for _, p := range cliPkgs {
+			added[p] = true
+		}
+		for _, p := range caskPkgs {
+			added[p] = true
+		}
+
+		for _, pkg := range cfg.RemoteConfig.Packages {
+			if added[pkg] {
+				continue
+			}
+			caskPkgs = append(caskPkgs, pkg)
+			added[pkg] = true
 		}
 	}
 

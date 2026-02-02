@@ -85,10 +85,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 
 	for _, pkg := range caskPkgs {
 		progress.SetCurrent(pkg)
-		cmd := exec.Command("brew", "install", "--cask", pkg)
-		cmd.Stdout = nil
-		cmd.Stderr = nil
-		if err := cmd.Run(); err != nil {
+		if installSmartCask(pkg) != nil {
 			failed = append(failed, pkg)
 		}
 		progress.Complete(pkg)
@@ -100,6 +97,19 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 		ui.Muted(fmt.Sprintf("Note: %d packages failed to install: %v", len(failed), failed))
 	}
 
+	return nil
+}
+
+func installSmartCask(pkg string) error {
+	cmd := exec.Command("brew", "install", "--cask", pkg)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		cmd2 := exec.Command("brew", "install", pkg)
+		cmd2.Stdout = nil
+		cmd2.Stderr = nil
+		return cmd2.Run()
+	}
 	return nil
 }
 
