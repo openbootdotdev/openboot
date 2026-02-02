@@ -198,8 +198,9 @@ func (m SelectorModel) View() string {
 		lines = append(lines, line)
 	}
 
+	clearLine := strings.Repeat(" ", 80)
 	for len(lines) < visibleItems+2 {
-		lines = append(lines, "")
+		lines = append(lines, clearLine)
 	}
 
 	totalSelected := 0
