@@ -89,3 +89,89 @@ func HasTTY() bool {
 	f.Close()
 	return true
 }
+
+func SSHKeyExists() bool {
+	home, _ := os.UserHomeDir()
+	keys := []string{
+		home + "/.ssh/id_ed25519",
+		home + "/.ssh/id_rsa",
+	}
+	for _, key := range keys {
+		if _, err := os.Stat(key); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func GetSSHKeyPath() string {
+	home, _ := os.UserHomeDir()
+	if _, err := os.Stat(home + "/.ssh/id_ed25519"); err == nil {
+		return home + "/.ssh/id_ed25519"
+	}
+	if _, err := os.Stat(home + "/.ssh/id_rsa"); err == nil {
+		return home + "/.ssh/id_rsa"
+	}
+	return ""
+}
+
+func GenerateSSHKey(email string) (string, error) {
+	home, _ := os.UserHomeDir()
+	sshDir := home + "/.ssh"
+	keyPath := sshDir + "/id_ed25519"
+
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create .ssh directory: %w", err)
+	}
+
+	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-C", email, "-f", keyPath, "-N", "")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to generate SSH key: %w", err)
+	}
+
+	pubKey, err := os.ReadFile(keyPath + ".pub")
+	if err != nil {
+		return "", fmt.Errorf("failed to read public key: %w", err)
+	}
+
+	return strings.TrimSpace(string(pubKey)), nil
+}
+
+func GetSSHPublicKey() (string, error) {
+	keyPath := GetSSHKeyPath()
+	if keyPath == "" {
+		return "", fmt.Errorf("no SSH key found")
+	}
+
+	pubKey, err := os.ReadFile(keyPath + ".pub")
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(pubKey)), nil
+}
+
+func ConfigureGitSSHSigning(keyPath string) error {
+	if err := RunCommand("git", "config", "--global", "gpg.format", "ssh"); err != nil {
+		return fmt.Errorf("failed to set gpg.format: %w", err)
+	}
+
+	if err := RunCommand("git", "config", "--global", "user.signingkey", keyPath+".pub"); err != nil {
+		return fmt.Errorf("failed to set signing key: %w", err)
+	}
+
+	if err := RunCommand("git", "config", "--global", "commit.gpgsign", "true"); err != nil {
+		return fmt.Errorf("failed to enable commit signing: %w", err)
+	}
+
+	return nil
+}
+
+func IsGitSigningConfigured() bool {
+	signingKey := GetGitConfig("user.signingkey")
+	return signingKey != ""
+}
