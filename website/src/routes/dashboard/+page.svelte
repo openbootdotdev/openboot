@@ -408,7 +408,7 @@
 				<div class="form-group">
 					<label class="form-label">Dotfiles Repository (Optional)</label>
 					<input type="text" class="form-input" bind:value={formData.dotfiles_repo} placeholder="https://github.com/username/dotfiles" />
-					<p class="form-hint">After installing packages, OpenBoot will clone this repo and run <code>make deploy</code>.</p>
+					<p class="form-hint">After installing packages, OpenBoot will clone this repo and deploy configs via stow.</p>
 				</div>
 
 				<div class="packages-section">
