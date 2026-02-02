@@ -5,8 +5,8 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/fullstackjam/openboot/internal/config"
-	"github.com/fullstackjam/openboot/internal/system"
+	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/system"
 )
 
 var (

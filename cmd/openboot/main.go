@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/fullstackjam/openboot/internal/cli"
+	"github.com/openbootdotdev/openboot/internal/cli"
 )
 
 func main() {

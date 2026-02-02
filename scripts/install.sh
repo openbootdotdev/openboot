@@ -2,7 +2,7 @@
 set -euo pipefail
 
 VERSION="${OPENBOOT_VERSION:-latest}"
-REPO="fullstackjam/openboot"
+REPO="openbootdotdev/openboot"
 BINARY_NAME="openboot"
 INSTALL_DIR="${OPENBOOT_INSTALL_DIR:-/tmp}"
 

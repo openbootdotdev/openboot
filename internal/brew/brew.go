@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/fullstackjam/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 func Install(packages []string, dryRun bool) error {

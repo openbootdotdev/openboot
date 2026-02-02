@@ -87,7 +87,7 @@ curl -fsSL openboot.dev/install | bash -s -- --dry-run
 Clone and run locally to test changes:
 
 ```bash
-git clone https://github.com/fullstackjam/openboot.git
+git clone https://github.com/openbootdotdev/openboot.git
 cd openboot
 
 # Test boot.sh (prerequisites only)

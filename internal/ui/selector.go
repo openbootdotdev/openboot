@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/fullstackjam/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/config"
 )
 
 var (

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fullstackjam/openboot/internal/config"
-	"github.com/fullstackjam/openboot/internal/installer"
+	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/spf13/cobra"
 )
 

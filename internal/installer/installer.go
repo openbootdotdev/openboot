@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fullstackjam/openboot/internal/brew"
-	"github.com/fullstackjam/openboot/internal/config"
-	"github.com/fullstackjam/openboot/internal/dotfiles"
-	"github.com/fullstackjam/openboot/internal/macos"
-	"github.com/fullstackjam/openboot/internal/shell"
-	"github.com/fullstackjam/openboot/internal/system"
-	"github.com/fullstackjam/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/brew"
+	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/dotfiles"
+	"github.com/openbootdotdev/openboot/internal/macos"
+	"github.com/openbootdotdev/openboot/internal/shell"
+	"github.com/openbootdotdev/openboot/internal/system"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 func Run(cfg *config.Config) error {
