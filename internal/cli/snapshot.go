@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -21,7 +20,7 @@ var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
 	Short: "Capture and upload your Mac's current dev environment",
 	Long: `Scan your Mac for installed Homebrew packages, macOS preferences,
-shell configuration, development tools, and optionally VS Code extensions.
+shell configuration, and development tools.
 
 The snapshot can be saved locally, printed as JSON, or uploaded to
 openboot.dev as a configuration that others can install.
@@ -59,16 +58,8 @@ func runSnapshot(cmd *cobra.Command) error {
 	fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Scanning your Mac... ==="))
 	fmt.Fprintln(os.Stderr)
 
-	includeVSCode := false
-	if _, err := exec.LookPath("code"); err == nil {
-		include, err := ui.Confirm("Include VS Code extensions?", false)
-		if err == nil {
-			includeVSCode = include
-		}
-	}
-
 	fmt.Fprintf(os.Stderr, "  Capturing environment...\n")
-	snap, err := snapshot.Capture(includeVSCode)
+	snap, err := snapshot.Capture()
 	if err != nil {
 		return fmt.Errorf("failed to capture snapshot: %w", err)
 	}
@@ -198,8 +189,10 @@ func showSnapshotPreview(snap *snapshot.Snapshot) {
 	fmt.Fprintf(os.Stderr, "  %s %d\n", snapBoldStyle.Render("Taps:"), len(snap.Packages.Taps))
 	printSnapshotList(snap.Packages.Taps, 10)
 
-	fmt.Fprintf(os.Stderr, "  %s %d settings captured\n",
-		snapBoldStyle.Render("macOS Preferences:"), len(snap.MacOSPrefs))
+	fmt.Fprintf(os.Stderr, "  %s %d\n", snapBoldStyle.Render("macOS Preferences:"), len(snap.MacOSPrefs))
+	for _, pref := range snap.MacOSPrefs {
+		fmt.Fprintf(os.Stderr, "    %s.%s = %s\n", pref.Domain, pref.Key, pref.Value)
+	}
 
 	omzStatus := "not installed"
 	if snap.Shell.OhMyZsh {
@@ -224,20 +217,6 @@ func showSnapshotPreview(snap *snapshot.Snapshot) {
 		fmt.Fprintf(os.Stderr, "    %s %s\n", tool.Name, tool.Version)
 	}
 
-	if len(snap.VSCodeExts) > 0 {
-		fmt.Fprintf(os.Stderr, "  %s %d\n", snapBoldStyle.Render("VS Code Extensions:"), len(snap.VSCodeExts))
-	}
-
-	total := len(snap.CatalogMatch.Matched) + len(snap.CatalogMatch.Unmatched)
-	matchPct := snap.CatalogMatch.MatchRate * 100
-	fmt.Fprintf(os.Stderr, "  %s %d/%d packages (%.0f%%)\n",
-		snapBoldStyle.Render("Catalog Match:"), len(snap.CatalogMatch.Matched), total, matchPct)
-
-	preset := snap.MatchedPreset
-	if preset == "" {
-		preset = "None"
-	}
-	fmt.Fprintf(os.Stderr, "  %s %s\n", snapBoldStyle.Render("Best-fit Preset:"), preset)
 }
 
 func printSnapshotList(items []string, max int) {

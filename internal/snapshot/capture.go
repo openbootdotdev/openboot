@@ -12,7 +12,7 @@ import (
 )
 
 // Capture orchestrates a full environment snapshot.
-func Capture(includeVSCode bool) (*Snapshot, error) {
+func Capture() (*Snapshot, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
@@ -53,14 +53,6 @@ func Capture(includeVSCode bool) (*Snapshot, error) {
 		return nil, err
 	}
 
-	vsExts := []string{}
-	if includeVSCode {
-		vsExts, err = CaptureVSCodeExtensions()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &Snapshot{
 		Version:    1,
 		CapturedAt: time.Now(),
@@ -74,7 +66,6 @@ func Capture(includeVSCode bool) (*Snapshot, error) {
 		Shell:         *shellSnap,
 		Git:           *gitSnap,
 		DevTools:      devTools,
-		VSCodeExts:    vsExts,
 		MatchedPreset: "",
 		CatalogMatch: CatalogMatch{
 			Matched:   []string{},
@@ -249,21 +240,6 @@ func CaptureDevTools() ([]DevTool, error) {
 	}
 
 	return tools, nil
-}
-
-// CaptureVSCodeExtensions lists installed VS Code extensions.
-func CaptureVSCodeExtensions() ([]string, error) {
-	if _, err := exec.LookPath("code"); err != nil {
-		return []string{}, nil
-	}
-
-	cmd := exec.Command("code", "--list-extensions")
-	output, err := cmd.Output()
-	if err != nil {
-		return []string{}, nil
-	}
-
-	return parseLines(string(output)), nil
 }
 
 func sanitizePath(path string) string {

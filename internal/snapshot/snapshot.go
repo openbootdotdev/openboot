@@ -12,7 +12,6 @@ type Snapshot struct {
 	Shell         ShellSnapshot   `json:"shell"`
 	Git           GitSnapshot     `json:"git"`
 	DevTools      []DevTool       `json:"dev_tools"`
-	VSCodeExts    []string        `json:"vscode_exts"`
 	MatchedPreset string          `json:"matched_preset"`
 	CatalogMatch  CatalogMatch    `json:"catalog_match"`
 }
