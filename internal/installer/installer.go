@@ -27,7 +27,7 @@ func Run(cfg *config.Config) error {
 
 func runInstall(cfg *config.Config) error {
 	fmt.Println()
-	ui.Header("OpenBoot Installer v0.10.0")
+	ui.Header("OpenBoot Installer v0.10.1")
 	fmt.Println()
 
 	if cfg.DryRun {
@@ -69,7 +69,6 @@ func runCustomInstall(cfg *config.Config) error {
 	}
 
 	fmt.Println()
-	ui.Success("Package installation complete!")
 	ui.Muted("Dotfiles and shell setup will be handled by the install script.")
 	fmt.Println()
 	return nil
@@ -235,8 +234,12 @@ func stepInstallPackages(cfg *config.Config) error {
 	var cliPkgs, caskPkgs []string
 
 	if cfg.RemoteConfig != nil {
+		caskSet := make(map[string]bool)
+		for _, c := range cfg.RemoteConfig.Casks {
+			caskSet[c] = true
+		}
 		for pkg := range cfg.SelectedPkgs {
-			if config.IsCaskPackage(pkg) {
+			if caskSet[pkg] || config.IsCaskPackage(pkg) {
 				caskPkgs = append(caskPkgs, pkg)
 			} else {
 				cliPkgs = append(cliPkgs, pkg)
