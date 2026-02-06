@@ -177,7 +177,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 		return nil
 	}
 
-	if err := PreInstallChecks(total, len(caskPkgs) > 0); err != nil {
+	if err := PreInstallChecks(total); err != nil {
 		return err
 	}
 
@@ -318,11 +318,9 @@ func installFormulaWithError(pkg string) string {
 
 func installSmartCaskWithError(pkg string) string {
 	cmd := exec.Command("brew", "install", "--cask", pkg)
-	cmd.Stdin = os.Stdin
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		cmd2 := exec.Command("brew", "install", pkg)
-		cmd2.Stdin = os.Stdin
 		output2, err2 := cmd2.CombinedOutput()
 		if err2 != nil {
 			errMsg := parseBrewError(string(output))
@@ -473,18 +471,7 @@ func DoctorDiagnose() ([]string, error) {
 	return suggestions, nil
 }
 
-func RefreshSudo() {
-	if exec.Command("sudo", "-n", "true").Run() == nil {
-		return
-	}
-	cmd := exec.Command("sudo", "-v")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
-}
-
-func PreInstallChecks(packageCount int, hasCasks bool) error {
+func PreInstallChecks(packageCount int) error {
 	ui.Info("Checking network connectivity...")
 	if err := CheckNetwork(); err != nil {
 		return fmt.Errorf("network check failed: %v\nPlease check your internet connection and try again", err)
@@ -503,10 +490,6 @@ func PreInstallChecks(packageCount int, hasCasks bool) error {
 		if availableGB < 5.0 {
 			ui.Warn(fmt.Sprintf("Low disk space: %.1f GB available. Consider freeing up space.", availableGB))
 		}
-	}
-
-	if hasCasks {
-		RefreshSudo()
 	}
 
 	return nil
