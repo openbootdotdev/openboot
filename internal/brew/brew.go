@@ -215,22 +215,51 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 		return nil
 	}
 
-	if err := PreInstallChecks(total); err != nil {
-		return err
-	}
-
 	progress := ui.NewStickyProgress(total)
 	progress.Start()
 
+	installedFormulae, installedCasks, _ := GetInstalledPackages()
+
+	var newCli []string
+	for _, p := range cliPkgs {
+		progress.SetCurrent(p)
+		if installedFormulae[p] {
+			progress.PrintLine("  ✔ %s (already installed)", p)
+			progress.Increment()
+		} else {
+			newCli = append(newCli, p)
+		}
+	}
+	var newCask []string
+	for _, p := range caskPkgs {
+		progress.SetCurrent(p)
+		if installedCasks[p] {
+			progress.PrintLine("  ✔ %s (already installed)", p)
+			progress.Increment()
+		} else {
+			newCask = append(newCask, p)
+		}
+	}
+
+	if len(newCli)+len(newCask) == 0 {
+		progress.Finish()
+		return nil
+	}
+
+	if err := PreInstallChecks(len(newCli) + len(newCask)); err != nil {
+		progress.Finish()
+		return err
+	}
+
 	var allFailed []failedJob
 
-	if len(cliPkgs) > 0 {
-		failed := runParallelInstallWithProgress(cliPkgs, progress)
+	if len(newCli) > 0 {
+		failed := runParallelInstallWithProgress(newCli, progress)
 		allFailed = append(allFailed, failed...)
 	}
 
-	if len(caskPkgs) > 0 {
-		for _, pkg := range caskPkgs {
+	if len(newCask) > 0 {
+		for _, pkg := range newCask {
 			progress.SetCurrent(pkg)
 			progress.PauseForInteractive()
 			fmt.Printf("  Installing %s...\n", pkg)
