@@ -37,6 +37,7 @@ type RemoteConfig struct {
 	Name         string   `json:"name"`
 	Preset       string   `json:"preset"`
 	Packages     []string `json:"packages"`
+	Taps         []string `json:"taps"`
 	DotfilesRepo string   `json:"dotfiles_repo"`
 }
 

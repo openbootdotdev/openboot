@@ -44,8 +44,20 @@ func runInstall(cfg *config.Config) error {
 
 func runCustomInstall(cfg *config.Config) error {
 	ui.Info(fmt.Sprintf("Custom config: @%s/%s", cfg.RemoteConfig.Username, cfg.RemoteConfig.Slug))
-	ui.Info(fmt.Sprintf("Installing %d packages...", len(cfg.RemoteConfig.Packages)))
+
+	if len(cfg.RemoteConfig.Taps) > 0 {
+		ui.Info(fmt.Sprintf("Adding %d taps, installing %d packages...", len(cfg.RemoteConfig.Taps), len(cfg.RemoteConfig.Packages)))
+	} else {
+		ui.Info(fmt.Sprintf("Installing %d packages...", len(cfg.RemoteConfig.Packages)))
+	}
 	fmt.Println()
+
+	if len(cfg.RemoteConfig.Taps) > 0 {
+		if err := brew.InstallTaps(cfg.RemoteConfig.Taps, cfg.DryRun); err != nil {
+			ui.Warn(fmt.Sprintf("Some taps failed: %v", err))
+		}
+		fmt.Println()
+	}
 
 	cfg.SelectedPkgs = make(map[string]bool)
 	for _, pkg := range cfg.RemoteConfig.Packages {

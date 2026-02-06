@@ -100,6 +100,32 @@ func Install(packages []string, dryRun bool) error {
 	return cmd.Run()
 }
 
+func InstallTaps(taps []string, dryRun bool) error {
+	if len(taps) == 0 {
+		return nil
+	}
+
+	if dryRun {
+		ui.Info("Would add taps:")
+		for _, t := range taps {
+			fmt.Printf("    brew tap %s\n", t)
+		}
+		return nil
+	}
+
+	ui.Info(fmt.Sprintf("Adding %d Homebrew taps...", len(taps)))
+
+	for _, tap := range taps {
+		cmd := exec.Command("brew", "tap", tap)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			ui.Warn(fmt.Sprintf("Failed to tap %s: %v", tap, err))
+		}
+	}
+	return nil
+}
+
 func InstallCask(packages []string, dryRun bool) error {
 	if len(packages) == 0 {
 		return nil
@@ -300,7 +326,7 @@ func installSmartCaskWithError(pkg string) string {
 
 func parseBrewError(output string) string {
 	lowerOutput := strings.ToLower(output)
-	
+
 	switch {
 	case strings.Contains(lowerOutput, "no available formula"):
 		return "package not found"
