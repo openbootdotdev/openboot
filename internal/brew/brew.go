@@ -302,7 +302,16 @@ func installFormulaWithError(pkg string) string {
 	cmd := exec.Command("brew", "install", pkg)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return parseBrewError(string(output))
+		outputStr := string(output)
+		if strings.Contains(strings.ToLower(outputStr), "try again using") && strings.Contains(strings.ToLower(outputStr), "--cask") {
+			cmd2 := exec.Command("brew", "install", "--cask", pkg)
+			output2, err2 := cmd2.CombinedOutput()
+			if err2 != nil {
+				return parseBrewError(string(output2))
+			}
+			return ""
+		}
+		return parseBrewError(outputStr)
 	}
 	return ""
 }
