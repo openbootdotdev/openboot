@@ -104,13 +104,6 @@ main() {
     arch=$(detect_arch)
 
     if [[ "$os" == "darwin" && "$snapshot_mode" == false ]]; then
-        echo "Some installations require admin privileges."
-        sudo -v
-        
-        ( while true; do sudo -n true; sleep 50; done ) 2>/dev/null &
-        SUDO_KEEPALIVE_PID=$!
-        trap "kill $SUDO_KEEPALIVE_PID 2>/dev/null" EXIT
-        
         install_xcode_clt
         install_homebrew
     fi

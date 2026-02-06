@@ -181,56 +181,64 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 		return err
 	}
 
-	allJobs := make([]installJob, 0, total)
-	for _, pkg := range cliPkgs {
-		allJobs = append(allJobs, installJob{name: pkg, isCask: false})
-	}
-	for _, pkg := range caskPkgs {
-		allJobs = append(allJobs, installJob{name: pkg, isCask: true})
-	}
-
-	failed := runParallelInstall(allJobs, total)
-
-	if len(failed) > 0 {
-		fmt.Println()
-		ui.Error(fmt.Sprintf("%d packages failed to install:", len(failed)))
-		for _, f := range failed {
-			if f.errMsg != "" {
-				fmt.Printf("    - %s (%s)\n", f.name, f.errMsg)
-			} else {
-				fmt.Printf("    - %s\n", f.name)
-			}
-		}
+	if len(cliPkgs) > 0 {
+		ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(cliPkgs)))
 		fmt.Println()
 
-		retryJobs := make([]installJob, len(failed))
-		for i, f := range failed {
-			retryJobs[i] = f.installJob
+		formulaJobs := make([]installJob, 0, len(cliPkgs))
+		for _, pkg := range cliPkgs {
+			formulaJobs = append(formulaJobs, installJob{name: pkg, isCask: false})
 		}
 
-		retry, _ := ui.Confirm(fmt.Sprintf("Retry %d failed packages?", len(failed)), true)
-		if retry {
-			ui.Info("Retrying failed packages...")
-			stillFailed := runParallelInstall(retryJobs, len(retryJobs))
-			if len(stillFailed) > 0 {
-				fmt.Println()
-				ui.Muted(fmt.Sprintf("Skipped %d packages that couldn't be installed:", len(stillFailed)))
-				for _, f := range stillFailed {
-					if f.errMsg != "" {
-						fmt.Printf("    - %s (%s)\n", f.name, f.errMsg)
-					} else {
-						fmt.Printf("    - %s\n", f.name)
-					}
+		failed := runParallelInstall(formulaJobs, len(cliPkgs))
+		handleFailedJobs(failed)
+	}
+
+	if len(caskPkgs) > 0 {
+		fmt.Println()
+		ui.Info(fmt.Sprintf("Installing %d GUI apps (may require password)...", len(caskPkgs)))
+		fmt.Println()
+
+		var caskFailed []failedJob
+		for _, pkg := range caskPkgs {
+			ui.Info(fmt.Sprintf("  Installing %s...", pkg))
+			cmd := exec.Command("brew", "install", "--cask", pkg)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Stdin = os.Stdin
+			if err := cmd.Run(); err != nil {
+				cmd2 := exec.Command("brew", "install", pkg)
+				cmd2.Stdout = os.Stdout
+				cmd2.Stderr = os.Stderr
+				cmd2.Stdin = os.Stdin
+				if err2 := cmd2.Run(); err2 != nil {
+					caskFailed = append(caskFailed, failedJob{
+						installJob: installJob{name: pkg, isCask: true},
+						errMsg:     "install failed",
+					})
 				}
-			} else {
-				ui.Success("All packages installed successfully on retry!")
 			}
-		} else {
-			ui.Muted("Skipping failed packages")
 		}
+		handleFailedJobs(caskFailed)
 	}
 
 	return nil
+}
+
+func handleFailedJobs(failed []failedJob) {
+	if len(failed) == 0 {
+		return
+	}
+
+	fmt.Println()
+	ui.Error(fmt.Sprintf("%d packages failed to install:", len(failed)))
+	for _, f := range failed {
+		if f.errMsg != "" {
+			fmt.Printf("    - %s (%s)\n", f.name, f.errMsg)
+		} else {
+			fmt.Printf("    - %s\n", f.name)
+		}
+	}
 }
 
 type failedJob struct {
