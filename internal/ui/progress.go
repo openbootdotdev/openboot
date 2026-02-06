@@ -27,14 +27,15 @@ var (
 )
 
 type ProgressTracker struct {
-	total       int
-	completed   int
-	active      map[string]bool
-	width       int
-	startTime   time.Time
-	mu          sync.Mutex
-	spinnerIdx  int
-	spinnerStop chan bool
+	total         int
+	completed     int
+	active        map[string]bool
+	width         int
+	startTime     time.Time
+	mu            sync.Mutex
+	spinnerIdx    int
+	spinnerStop   chan bool
+	lastDisplayed string
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -80,6 +81,9 @@ func (p *ProgressTracker) Complete(pkgName string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.active, pkgName)
+	if p.lastDisplayed == pkgName {
+		p.lastDisplayed = ""
+	}
 	p.completed++
 	p.render()
 }
@@ -92,32 +96,39 @@ func (p *ProgressTracker) render() {
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
 		progressBgStyle.Render(strings.Repeat("░", empty))
 
-	status := fmt.Sprintf(" %d/%d (%.0f%%)", p.completed, p.total, percent*100)
+	status := fmt.Sprintf(" %d/%d (%3.0f%%)", p.completed, p.total, percent*100)
 
 	eta := p.estimateRemaining()
+	if eta != "" {
+		eta = fmt.Sprintf("%-6s", eta)
+	}
 
-	spinner := ""
 	activeDisplay := ""
 	activeCount := len(p.active)
 	if activeCount > 0 {
-		spinner = currentPkgStyle.Render(spinnerFrames[p.spinnerIdx]) + " "
-		for pkg := range p.active {
-			if len(pkg) > 15 {
-				pkg = pkg[:12] + "..."
+		if p.lastDisplayed != "" && p.active[p.lastDisplayed] {
+			activeDisplay = p.lastDisplayed
+		} else {
+			for pkg := range p.active {
+				p.lastDisplayed = pkg
+				activeDisplay = pkg
+				break
 			}
-			activeDisplay = pkg
-			break
+		}
+		if len(activeDisplay) > 12 {
+			activeDisplay = activeDisplay[:12] + "..."
 		}
 		if activeCount > 1 {
-			activeDisplay = fmt.Sprintf("%s +%d", activeDisplay, activeCount-1)
+			activeDisplay = fmt.Sprintf("%-15s +%d", activeDisplay, activeCount-1)
+		} else {
+			activeDisplay = fmt.Sprintf("%-15s", activeDisplay)
 		}
 	}
 
-	fmt.Printf("\r\033[K%s%s %s %s%s",
+	fmt.Printf("\r\033[K%s%s %s %s",
 		bar,
 		progressTextStyle.Render(status),
 		etaStyle.Render(eta),
-		spinner,
 		currentPkgStyle.Render(activeDisplay))
 }
 
