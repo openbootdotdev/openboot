@@ -3,6 +3,7 @@ package installer
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/config"
@@ -27,7 +28,7 @@ func Run(cfg *config.Config) error {
 
 func runInstall(cfg *config.Config) error {
 	fmt.Println()
-	ui.Header("OpenBoot Installer v0.10.1")
+	ui.Header("OpenBoot Installer v0.11.0")
 	fmt.Println()
 
 	if cfg.DryRun {
@@ -267,6 +268,44 @@ func stepInstallPackages(cfg *config.Config) error {
 
 	ui.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", total, len(cliPkgs), len(caskPkgs)))
 	fmt.Println()
+
+	if !cfg.DryRun {
+		installedFormulae, installedCasks, err := brew.GetInstalledPackages()
+		if err == nil {
+			var skipped []string
+			var newCli []string
+			for _, p := range cliPkgs {
+				if installedFormulae[p] {
+					skipped = append(skipped, p)
+				} else {
+					newCli = append(newCli, p)
+				}
+			}
+			var newCask []string
+			for _, p := range caskPkgs {
+				if installedCasks[p] {
+					skipped = append(skipped, p)
+				} else {
+					newCask = append(newCask, p)
+				}
+			}
+			if len(skipped) > 0 {
+				ui.Muted(fmt.Sprintf("Skipping %d already installed: %s", len(skipped), strings.Join(skipped, ", ")))
+				fmt.Println()
+			}
+			cliPkgs = newCli
+			caskPkgs = newCask
+
+			if len(cliPkgs)+len(caskPkgs) == 0 {
+				ui.Success("All packages already installed!")
+				fmt.Println()
+				return nil
+			}
+
+			ui.Info(fmt.Sprintf("Installing %d new packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
+			fmt.Println()
+		}
+	}
 
 	if err := brew.InstallWithProgress(cliPkgs, caskPkgs, cfg.DryRun); err != nil {
 		ui.Error(fmt.Sprintf("Some packages failed: %v", err))

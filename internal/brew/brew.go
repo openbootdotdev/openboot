@@ -27,6 +27,44 @@ func IsInstalled() bool {
 	return err == nil
 }
 
+func GetInstalledPackages() (formulae map[string]bool, casks map[string]bool, err error) {
+	formulae = make(map[string]bool)
+	casks = make(map[string]bool)
+
+	var fOut, cOut []byte
+	var fErr, cErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		fOut, fErr = exec.Command("brew", "list", "--formula", "-1").Output()
+	}()
+	go func() {
+		defer wg.Done()
+		cOut, cErr = exec.Command("brew", "list", "--cask", "-1").Output()
+	}()
+	wg.Wait()
+
+	if fErr != nil {
+		return nil, nil, fErr
+	}
+	if cErr != nil {
+		return nil, nil, cErr
+	}
+
+	for _, name := range strings.Split(strings.TrimSpace(string(fOut)), "\n") {
+		if name != "" {
+			formulae[name] = true
+		}
+	}
+	for _, name := range strings.Split(strings.TrimSpace(string(cOut)), "\n") {
+		if name != "" {
+			casks[name] = true
+		}
+	}
+	return
+}
+
 func ListOutdated() ([]OutdatedPackage, error) {
 	cmd := exec.Command("brew", "outdated", "--json")
 	output, err := cmd.Output()
@@ -181,27 +219,22 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 		return err
 	}
 
+	progress := ui.NewStickyProgress(total)
+	progress.Start()
+	scrollOut := ui.NewScrollWriter(progress)
+
+	var allFailed []failedJob
+
 	if len(cliPkgs) > 0 {
-		ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(cliPkgs)))
-		fmt.Println()
-
-		formulaJobs := make([]installJob, 0, len(cliPkgs))
-		for _, pkg := range cliPkgs {
-			formulaJobs = append(formulaJobs, installJob{name: pkg, isCask: false})
-		}
-
-		failed := runParallelInstall(formulaJobs, len(cliPkgs))
-		handleFailedJobs(failed)
+		failed := runParallelInstallWithProgress(cliPkgs, progress, scrollOut)
+		allFailed = append(allFailed, failed...)
 	}
 
 	if len(caskPkgs) > 0 {
-		fmt.Println()
-		ui.Info(fmt.Sprintf("Installing %d GUI apps (may require password)...", len(caskPkgs)))
-		fmt.Println()
-
-		var caskFailed []failedJob
 		for _, pkg := range caskPkgs {
-			ui.Info(fmt.Sprintf("  Installing %s...", pkg))
+			progress.SetCurrent(pkg)
+			progress.PauseForInteractive()
+			fmt.Printf("  Installing %s...\n", pkg)
 			cmd := exec.Command("brew", "install", "--cask", pkg)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -212,15 +245,19 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 				cmd2.Stderr = os.Stderr
 				cmd2.Stdin = os.Stdin
 				if err2 := cmd2.Run(); err2 != nil {
-					caskFailed = append(caskFailed, failedJob{
+					allFailed = append(allFailed, failedJob{
 						installJob: installJob{name: pkg, isCask: true},
 						errMsg:     "install failed",
 					})
 				}
 			}
+			progress.ResumeAfterInteractive()
+			progress.Increment()
 		}
-		handleFailedJobs(caskFailed)
 	}
+
+	progress.Finish()
+	handleFailedJobs(allFailed)
 
 	return nil
 }
@@ -246,12 +283,15 @@ type failedJob struct {
 	errMsg string
 }
 
-func runParallelInstall(jobs []installJob, total int) []failedJob {
-	if len(jobs) == 0 {
+func runParallelInstallWithProgress(pkgs []string, progress *ui.StickyProgress, scrollOut *ui.ScrollWriter) []failedJob {
+	if len(pkgs) == 0 {
 		return nil
 	}
 
-	progress := ui.NewProgressTracker(total)
+	jobs := make([]installJob, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		jobs = append(jobs, installJob{name: pkg, isCask: false})
+	}
 
 	jobChan := make(chan installJob, len(jobs))
 	results := make(chan installResult, len(jobs))
@@ -268,14 +308,14 @@ func runParallelInstall(jobs []installJob, total int) []failedJob {
 			defer wg.Done()
 			for job := range jobChan {
 				progress.SetCurrent(job.name)
-				errMsg := ""
-				if job.isCask {
-					errMsg = installSmartCaskWithError(job.name)
+				errMsg := installFormulaWithError(job.name)
+				if errMsg == "" {
+					fmt.Fprintf(scrollOut, "  ✔ %s\n", job.name)
 				} else {
-					errMsg = installFormulaWithError(job.name)
+					fmt.Fprintf(scrollOut, "  ✗ %s (%s)\n", job.name, errMsg)
 				}
 				results <- installResult{name: job.name, failed: errMsg != "", isCask: job.isCask, errMsg: errMsg}
-				progress.Complete(job.name)
+				progress.Increment()
 			}
 		}()
 	}
@@ -302,7 +342,6 @@ func runParallelInstall(jobs []installJob, total int) []failedJob {
 		}
 	}
 
-	progress.Finish()
 	return failed
 }
 
