@@ -2,11 +2,22 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
+)
+
+const (
+	minBarWidth     = 20
+	defaultBarWidth = 40
+	minPkgWidth     = 10
+	defaultPkgWidth = 25
+	statusWidth     = 16 // " 48/48 (100%)"
+	etaWidth        = 8  // "~10m30s "
 )
 
 var (
@@ -30,7 +41,8 @@ type ProgressTracker struct {
 	total         int
 	completed     int
 	active        map[string]bool
-	width         int
+	barWidth      int
+	pkgWidth      int
 	startTime     time.Time
 	mu            sync.Mutex
 	spinnerIdx    int
@@ -40,10 +52,21 @@ type ProgressTracker struct {
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+func getTerminalWidth() int {
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
+		return w
+	}
+	return 80
+}
+
 func NewProgressTracker(total int) *ProgressTracker {
+	termWidth := getTerminalWidth()
+	barWidth, pkgWidth := calculateWidths(termWidth)
+
 	p := &ProgressTracker{
 		total:       total,
-		width:       40,
+		barWidth:    barWidth,
+		pkgWidth:    pkgWidth,
 		startTime:   time.Now(),
 		active:      make(map[string]bool),
 		spinnerStop: make(chan bool),
@@ -70,6 +93,28 @@ func NewProgressTracker(total int) *ProgressTracker {
 	return p
 }
 
+func calculateWidths(termWidth int) (barWidth, pkgWidth int) {
+	fixed := statusWidth + etaWidth
+	available := termWidth - fixed - 2
+
+	if available < minBarWidth+minPkgWidth {
+		return minBarWidth, minPkgWidth
+	}
+
+	barWidth = available * 55 / 100
+	pkgWidth = available - barWidth
+
+	if barWidth > defaultBarWidth {
+		barWidth = defaultBarWidth
+		pkgWidth = available - barWidth
+	}
+	if pkgWidth > defaultPkgWidth+10 {
+		pkgWidth = defaultPkgWidth + 10
+	}
+
+	return barWidth, pkgWidth
+}
+
 func (p *ProgressTracker) SetCurrent(pkgName string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -88,10 +133,20 @@ func (p *ProgressTracker) Complete(pkgName string) {
 	p.render()
 }
 
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
 func (p *ProgressTracker) render() {
 	percent := float64(p.completed) / float64(p.total)
-	filled := int(percent * float64(p.width))
-	empty := p.width - filled
+	filled := int(percent * float64(p.barWidth))
+	empty := p.barWidth - filled
 
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
 		progressBgStyle.Render(strings.Repeat("░", empty))
@@ -115,13 +170,13 @@ func (p *ProgressTracker) render() {
 				break
 			}
 		}
-		if len(activeDisplay) > 20 {
-			activeDisplay = activeDisplay[:17] + "..."
-		}
+		suffixLen := 0
 		if activeCount > 1 {
-			activeDisplay = fmt.Sprintf("%-20s +%d", activeDisplay, activeCount-1)
-		} else {
-			activeDisplay = fmt.Sprintf("%-20s", activeDisplay)
+			suffixLen = len(fmt.Sprintf(" +%d", activeCount-1))
+		}
+		activeDisplay = truncate(activeDisplay, p.pkgWidth-suffixLen)
+		if activeCount > 1 {
+			activeDisplay = fmt.Sprintf("%s +%d", activeDisplay, activeCount-1)
 		}
 	}
 
