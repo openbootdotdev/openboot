@@ -159,8 +159,7 @@ func (p *ProgressTracker) render() {
 	}
 
 	activeDisplay := ""
-	activeCount := len(p.active)
-	if activeCount > 0 {
+	if len(p.active) > 0 {
 		if p.lastDisplayed != "" && p.active[p.lastDisplayed] {
 			activeDisplay = p.lastDisplayed
 		} else {
@@ -170,14 +169,7 @@ func (p *ProgressTracker) render() {
 				break
 			}
 		}
-		suffixLen := 0
-		if activeCount > 1 {
-			suffixLen = len(fmt.Sprintf(" +%d", activeCount-1))
-		}
-		activeDisplay = truncate(activeDisplay, p.pkgWidth-suffixLen)
-		if activeCount > 1 {
-			activeDisplay = fmt.Sprintf("%s +%d", activeDisplay, activeCount-1)
-		}
+		activeDisplay = truncate(activeDisplay, p.pkgWidth)
 	}
 
 	fmt.Printf("\r\033[K%s%s %s %s",
