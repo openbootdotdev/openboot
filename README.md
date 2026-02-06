@@ -101,8 +101,8 @@ openboot version    # Print version
 
 ## Features
 
-- **Parallel installation** - Installs up to 4 packages simultaneously
-- **Smart retry** - Failed packages can be retried or skipped
+- **Smart install** - Detects already-installed packages and skips them, only installs what's new
+- **Two-phase install** - CLI tools install in parallel (4x), GUI apps install sequentially with terminal access for password prompts
 - **Search** - Press `/` in package selector to search across categories
 - **Pre-flight checks** - Network connectivity and disk space verification
 - **Doctor** - Diagnose issues with `openboot doctor`

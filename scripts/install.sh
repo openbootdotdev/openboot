@@ -67,8 +67,7 @@ detect_os() {
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
     case "$os" in
         darwin) echo "darwin" ;;
-        linux)  echo "linux" ;;
-        *)      echo "unsupported: $os" >&2; exit 1 ;;
+        *)      echo "Error: OpenBoot only supports macOS" >&2; exit 1 ;;
     esac
 }
 
