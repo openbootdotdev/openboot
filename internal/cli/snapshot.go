@@ -42,7 +42,7 @@ Import:
 func init() {
 	snapshotCmd.Flags().Bool("local", false, "Save snapshot locally only")
 	snapshotCmd.Flags().Bool("json", false, "Output as JSON to stdout")
-	snapshotCmd.Flags().Bool("dry-run", false, "Preview only, no save/upload")
+	snapshotCmd.Flags().Bool("dry-run", false, "preview without installing or modifying anything")
 	snapshotCmd.Flags().String("import", "", "Restore from a snapshot file or URL")
 }
 
@@ -366,6 +366,40 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 	if !confirmed {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Restore cancelled."))
+		fmt.Fprintln(os.Stderr)
+		return nil
+	}
+
+	totalFormulae := len(edited.Packages.Formulae)
+	totalCasks := len(edited.Packages.Casks)
+	totalNpm := len(edited.Packages.Npm)
+	totalTaps := len(edited.Packages.Taps)
+	totalPkgs := totalFormulae + totalCasks + totalNpm + totalTaps
+
+	fmt.Fprintln(os.Stderr)
+	if dryRun {
+		fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Confirm Installation (DRY-RUN) ==="))
+	} else {
+		fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Confirm Installation ==="))
+	}
+	fmt.Fprintf(os.Stderr, "  %s %d formulae, %d casks, %d npm, %d taps\n",
+		snapBoldStyle.Render("About to install:"),
+		totalFormulae, totalCasks, totalNpm, totalTaps)
+	fmt.Fprintf(os.Stderr, "  %s %d total packages\n", snapBoldStyle.Render("Total:"), totalPkgs)
+	fmt.Fprintln(os.Stderr)
+	if dryRun {
+		fmt.Fprintf(os.Stderr, "  %s", snapMutedStyle.Render("Proceed with installation? [y/N] (dry-run mode) "))
+	} else {
+		fmt.Fprintf(os.Stderr, "  %s", snapMutedStyle.Render("Proceed with installation? [y/N] "))
+	}
+
+	var response string
+	fmt.Scanln(&response)
+	response = strings.ToLower(strings.TrimSpace(response))
+
+	if response != "y" && response != "yes" {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Installation cancelled."))
 		fmt.Fprintln(os.Stderr)
 		return nil
 	}
