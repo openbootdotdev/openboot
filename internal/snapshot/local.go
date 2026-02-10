@@ -40,8 +40,11 @@ func SaveLocal(snap *Snapshot) (string, error) {
 
 // LoadLocal reads and unmarshals the snapshot from ~/.openboot/snapshot.json.
 func LoadLocal() (*Snapshot, error) {
-	path := LocalPath()
+	return LoadFile(LocalPath())
+}
 
+// LoadFile reads and unmarshals a snapshot from the given file path.
+func LoadFile(path string) (*Snapshot, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

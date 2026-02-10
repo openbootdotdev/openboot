@@ -12,6 +12,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/auth"
+	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
@@ -23,14 +25,16 @@ var snapshotCmd = &cobra.Command{
 	Long: `Scan your Mac for installed Homebrew packages, macOS preferences,
 shell configuration, and development tools.
 
-The snapshot can be saved locally, printed as JSON, or uploaded to
-openboot.dev as a configuration that others can install.
+The snapshot can be saved locally, printed as JSON, uploaded to
+openboot.dev, or restored on another machine.
 
 Examples:
-  openboot snapshot              # Interactive: capture, preview, and upload
-  openboot snapshot --local      # Save snapshot to ~/.openboot/snapshot.json
-  openboot snapshot --json       # Output snapshot as JSON (for piping)
-  openboot snapshot --dry-run    # Preview what would be captured`,
+  openboot snapshot                          # Interactive: capture and save
+  openboot snapshot --local                  # Save to ~/.openboot/snapshot.json
+  openboot snapshot --json                   # Output as JSON (for piping)
+  openboot snapshot --json > my-setup.json   # Export to file
+  openboot snapshot --import my-setup.json   # Restore from snapshot file
+  openboot snapshot --dry-run                # Preview what would be captured`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSnapshot(cmd)
 	},
@@ -40,6 +44,7 @@ func init() {
 	snapshotCmd.Flags().Bool("local", false, "Save snapshot locally only")
 	snapshotCmd.Flags().Bool("json", false, "Output as JSON to stdout")
 	snapshotCmd.Flags().Bool("dry-run", false, "Preview only, no save/upload")
+	snapshotCmd.Flags().String("import", "", "Restore environment from a snapshot file")
 }
 
 // stderr-only styles so stdout stays clean for --json piping
@@ -51,6 +56,12 @@ var (
 )
 
 func runSnapshot(cmd *cobra.Command) error {
+	importFile, _ := cmd.Flags().GetString("import")
+	if importFile != "" {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		return runSnapshotImport(importFile, dryRun)
+	}
+
 	localFlag, _ := cmd.Flags().GetBool("local")
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	dryRunFlag, _ := cmd.Flags().GetBool("dry-run")
@@ -305,4 +316,71 @@ func printSnapshotList(items []string, max int) {
 		}
 		fmt.Fprintf(os.Stderr, "    %s\n", item)
 	}
+}
+
+func runSnapshotImport(importPath string, dryRun bool) error {
+	snap, err := snapshot.LoadFile(importPath)
+	if err != nil {
+		return err
+	}
+
+	catalogMatch := snapshot.MatchPackages(snap)
+	snap.CatalogMatch = *catalogMatch
+	snap.MatchedPreset = snapshot.DetectBestPreset(snap)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Restoring from Snapshot ==="))
+	fmt.Fprintf(os.Stderr, "  %s %s\n", snapBoldStyle.Render("Source:"), importPath)
+	fmt.Fprintf(os.Stderr, "  %s %d formulae, %d casks, %d npm, %d taps\n",
+		snapBoldStyle.Render("Packages:"),
+		len(snap.Packages.Formulae), len(snap.Packages.Casks),
+		len(snap.Packages.Npm), len(snap.Packages.Taps))
+	fmt.Fprintln(os.Stderr)
+
+	edited, confirmed, err := ui.RunSnapshotEditor(snap)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Restore cancelled."))
+		fmt.Fprintln(os.Stderr)
+		return nil
+	}
+
+	catalogSet := make(map[string]bool)
+	for _, cat := range config.Categories {
+		for _, pkg := range cat.Packages {
+			catalogSet[pkg.Name] = true
+		}
+	}
+
+	cfg := &config.Config{DryRun: dryRun}
+	cfg.SelectedPkgs = make(map[string]bool)
+
+	for _, name := range edited.Packages.Formulae {
+		if catalogSet[name] {
+			cfg.SelectedPkgs[name] = true
+		} else {
+			cfg.OnlinePkgs = append(cfg.OnlinePkgs, config.Package{Name: name})
+		}
+	}
+	for _, name := range edited.Packages.Casks {
+		if catalogSet[name] {
+			cfg.SelectedPkgs[name] = true
+		} else {
+			cfg.OnlinePkgs = append(cfg.OnlinePkgs, config.Package{Name: name, IsCask: true})
+		}
+	}
+	for _, name := range edited.Packages.Npm {
+		if catalogSet[name] {
+			cfg.SelectedPkgs[name] = true
+		} else {
+			cfg.OnlinePkgs = append(cfg.OnlinePkgs, config.Package{Name: name, IsNpm: true})
+		}
+	}
+
+	cfg.SnapshotTaps = edited.Packages.Taps
+
+	return installer.RunFromSnapshot(cfg)
 }

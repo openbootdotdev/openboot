@@ -565,6 +565,45 @@ func showCompletion(cfg *config.Config) {
 	fmt.Println()
 }
 
+func RunFromSnapshot(cfg *config.Config) error {
+	fmt.Println()
+	ui.Header("OpenBoot — Restore from Snapshot")
+	fmt.Println()
+
+	if cfg.DryRun {
+		ui.Muted("[DRY-RUN MODE - No changes will be made]")
+		fmt.Println()
+	}
+
+	if len(cfg.SnapshotTaps) > 0 {
+		ui.Info(fmt.Sprintf("Adding %d taps...", len(cfg.SnapshotTaps)))
+		fmt.Println()
+		if err := brew.InstallTaps(cfg.SnapshotTaps, cfg.DryRun); err != nil {
+			ui.Warn(fmt.Sprintf("Some taps failed: %v", err))
+		}
+		fmt.Println()
+	}
+
+	if err := stepInstallPackages(cfg); err != nil {
+		return err
+	}
+
+	if err := stepInstallNpm(cfg); err != nil {
+		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
+	}
+
+	if err := stepShell(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+	}
+
+	if err := stepMacOS(cfg); err != nil {
+		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+	}
+
+	showCompletion(cfg)
+	return nil
+}
+
 func runUpdate(cfg *config.Config) error {
 	ui.Header("OpenBoot Update")
 	fmt.Println()

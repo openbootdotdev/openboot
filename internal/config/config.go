@@ -28,6 +28,7 @@ type Config struct {
 	GitEmail     string
 	SelectedPkgs map[string]bool
 	OnlinePkgs   []Package
+	SnapshotTaps []string
 	User         string
 	RemoteConfig *RemoteConfig
 }
