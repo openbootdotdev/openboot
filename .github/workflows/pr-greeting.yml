@@ -29,7 +29,7 @@ jobs:
             message += `- [ ] Code follows existing patterns in the codebase\n`;
             message += `- [ ] \`go build ./...\` and \`go vet ./...\` pass\n`;
             message += `- [ ] Commit message is clear and descriptive\n\n`;
-            message += `A maintainer will review this soon. Thanks for contributing! 🚀`;
+            message += `@fullstackjam will review this soon. Thanks for contributing! 🚀`;
             
             github.rest.issues.createComment({
               issue_number: pr.number,

@@ -29,7 +29,7 @@ jobs:
             message += `- If reporting a bug, please include your macOS version and OpenBoot version (\`openboot version\`)\n`;
             message += `- If requesting a feature, describe your use case\n`;
             message += `- If you have questions, check out our [documentation](https://openboot.dev)\n\n`;
-            message += `A maintainer will review this soon.`;
+            message += `@fullstackjam will review this soon.`;
             
             github.rest.issues.createComment({
               issue_number: issue.number,
