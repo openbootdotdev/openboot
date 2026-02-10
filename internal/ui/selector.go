@@ -386,6 +386,16 @@ func highlightMatches(text string, matchedIndexes []int) string {
 	return result.String()
 }
 
+func truncateLine(line string, maxWidth int) string {
+	if maxWidth <= 0 || len(line) <= maxWidth {
+		return line
+	}
+	if maxWidth < 10 {
+		return line[:maxWidth]
+	}
+	return line[:maxWidth-3] + "..."
+}
+
 func (m SelectorModel) View() string {
 	if m.showConfirmation {
 		return m.confirmationView()
@@ -445,10 +455,17 @@ func (m SelectorModel) View() string {
 		}
 
 		line := fmt.Sprintf("%s%s %s %s", cursor, checkbox, style.Render(pkg.Name), descStyle.Render(pkg.Description))
+		if m.width > 0 {
+			line = truncateLine(line, m.width-2)
+		}
 		lines = append(lines, line)
 	}
 
-	clearLine := strings.Repeat(" ", 80)
+	clearWidth := 80
+	if m.width > 0 && m.width < 80 {
+		clearWidth = m.width
+	}
+	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+2 {
 		lines = append(lines, clearLine)
 	}
@@ -509,11 +526,20 @@ func (m SelectorModel) confirmationView() string {
 
 	estimatedSeconds := len(formulae)*15 + len(casks)*30 + len(npm)*5
 	estimatedMinutes := estimatedSeconds / 60
+
+	boxWidth := 60
+	if m.width > 0 && m.width < 70 {
+		boxWidth = m.width - 10
+		if boxWidth < 40 {
+			boxWidth = 40
+		}
+	}
+
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#22c55e")).
 		Padding(1, 2).
-		Width(60)
+		Width(boxWidth)
 
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#22c55e")).
@@ -626,6 +652,9 @@ func (m SelectorModel) viewSearch() string {
 			}
 
 			line := fmt.Sprintf("%s%s %s%s %s", cursor, checkbox, badge, style.Render(displayName), descStyle.Render(pkg.Description))
+			if m.width > 0 {
+				line = truncateLine(line, m.width-2)
+			}
 			lines = append(lines, line)
 			itemsRendered++
 		}
@@ -666,13 +695,20 @@ func (m SelectorModel) viewSearch() string {
 
 				badge := getTypeBadge(pkg)
 				line := fmt.Sprintf("%s%s %s%s %s", cursor, checkbox, badge, style.Render(pkg.Name), descStyle.Render(pkg.Description))
+				if m.width > 0 {
+					line = truncateLine(line, m.width-2)
+				}
 				lines = append(lines, line)
 				itemsRendered++
 			}
 		}
 	}
 
-	clearLine := strings.Repeat(" ", 80)
+	clearWidth := 80
+	if m.width > 0 && m.width < 80 {
+		clearWidth = m.width
+	}
+	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+2 {
 		lines = append(lines, clearLine)
 	}

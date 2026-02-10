@@ -300,20 +300,26 @@ func (m SnapshotEditorModel) View() string {
 				style = selectedStyle
 			}
 
-			name := item.name
-			if m.width > 0 && len(name) > m.width-15 {
-				name = name[:m.width-18] + "..."
-			}
-
-			line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(name))
+			line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(item.name))
 			if item.description != "" {
 				line += " " + descStyle.Render(item.description)
+			}
+			if m.width > 0 && len(line) > m.width {
+				if m.width < 10 {
+					line = line[:m.width]
+				} else {
+					line = line[:m.width-3] + "..."
+				}
 			}
 			lines = append(lines, line)
 		}
 	}
 
-	clearLine := strings.Repeat(" ", 80)
+	clearWidth := 80
+	if m.width > 0 && m.width < 80 {
+		clearWidth = m.width
+	}
+	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+5 {
 		lines = append(lines, clearLine)
 	}
@@ -369,20 +375,26 @@ func (m SnapshotEditorModel) viewSearch() string {
 				style = selectedStyle
 			}
 
-			name := item.name
-			if m.width > 0 && len(name) > m.width-15 {
-				name = name[:m.width-18] + "..."
-			}
-
-			line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(name))
+			line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(item.name))
 			if item.description != "" {
 				line += " " + descStyle.Render(item.description)
+			}
+			if m.width > 0 && len(line) > m.width {
+				if m.width < 10 {
+					line = line[:m.width]
+				} else {
+					line = line[:m.width-3] + "..."
+				}
 			}
 			lines = append(lines, line)
 		}
 	}
 
-	clearLine := strings.Repeat(" ", 80)
+	clearWidth := 80
+	if m.width > 0 && m.width < 80 {
+		clearWidth = m.width
+	}
+	clearLine := strings.Repeat(" ", clearWidth)
 	for len(lines) < visibleItems+2 {
 		lines = append(lines, clearLine)
 	}
