@@ -53,6 +53,21 @@ func runCustomInstall(cfg *config.Config) error {
 	}
 	fmt.Println()
 
+	// Calculate estimated install time
+	formulaeCount := len(cfg.RemoteConfig.Packages)
+	caskCount := len(cfg.RemoteConfig.Casks)
+	npmCount := len(cfg.RemoteConfig.Npm)
+	totalPackages := formulaeCount + caskCount + npmCount
+
+	// Heuristic: ~15s per formula, ~30s per cask, ~5s per npm
+	totalSeconds := formulaeCount*15 + caskCount*30 + npmCount*5
+	minutes := totalSeconds / 60
+	if minutes < 1 {
+		minutes = 1
+	}
+	ui.Info(fmt.Sprintf("Estimated install time: ~%d min for %d packages", minutes, totalPackages))
+	fmt.Println()
+
 	if len(cfg.RemoteConfig.Taps) > 0 {
 		if err := brew.InstallTaps(cfg.RemoteConfig.Taps, cfg.DryRun); err != nil {
 			ui.Warn(fmt.Sprintf("Some taps failed: %v", err))
