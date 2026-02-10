@@ -3,8 +3,10 @@ package ui
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -45,6 +47,7 @@ type StickyProgress struct {
 	mu         sync.Mutex
 	spinnerIdx int
 	stopCh     chan struct{}
+	sigCh      chan os.Signal
 	active     bool
 }
 
@@ -76,6 +79,7 @@ func NewStickyProgress(total int) *StickyProgress {
 		barWidth: barWidth,
 		pkgWidth: pkgWidth,
 		stopCh:   make(chan struct{}),
+		sigCh:    make(chan os.Signal, 1),
 	}
 }
 
@@ -85,7 +89,7 @@ func (sp *StickyProgress) Start() {
 	sp.startTime = time.Now()
 	sp.mu.Unlock()
 
-	sp.render()
+	signal.Notify(sp.sigCh, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
 		ticker := time.NewTicker(80 * time.Millisecond)
@@ -94,6 +98,9 @@ func (sp *StickyProgress) Start() {
 			select {
 			case <-sp.stopCh:
 				return
+			case <-sp.sigCh:
+				sp.Finish()
+				os.Exit(130)
 			case <-ticker.C:
 				sp.mu.Lock()
 				sp.spinnerIdx = (sp.spinnerIdx + 1) % len(spinnerFrames)
@@ -179,6 +186,7 @@ func (sp *StickyProgress) ResumeAfterInteractive() {
 }
 
 func (sp *StickyProgress) Finish() {
+	signal.Stop(sp.sigCh)
 	close(sp.stopCh)
 	sp.mu.Lock()
 	defer sp.mu.Unlock()

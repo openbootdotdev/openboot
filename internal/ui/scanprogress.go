@@ -79,10 +79,13 @@ func NewScanProgress(totalSteps int) *ScanProgress {
 							break
 						}
 					}
-					if hasActive {
-						sp.render()
-					}
+					active := hasActive
 					sp.mu.Unlock()
+					if active {
+						sp.mu.Lock()
+						sp.render()
+						sp.mu.Unlock()
+					}
 				}
 			}
 		}()
