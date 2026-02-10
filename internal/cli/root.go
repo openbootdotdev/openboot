@@ -64,7 +64,11 @@ Self-Update:
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return installer.Run(cfg)
+		err := installer.Run(cfg)
+		if err == installer.ErrUserCancelled {
+			return nil
+		}
+		return err
 	},
 }
 
@@ -72,7 +76,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "Use a preset (minimal, developer, full)")
 	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "Install from openboot.dev user config")
 	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "Non-interactive mode for CI")
-	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "Preview without making changes")
+	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "preview without installing or modifying anything")
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "Update Homebrew and upgrade packages")
 	rootCmd.Flags().BoolVar(&cfg.Rollback, "rollback", false, "Restore backed-up config files")
 	rootCmd.Flags().StringVar(&cfg.Shell, "shell", "", "Shell setup (install, skip)")
