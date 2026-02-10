@@ -31,6 +31,7 @@ type Config struct {
 	SnapshotTaps []string
 	User         string
 	RemoteConfig *RemoteConfig
+	PackagesOnly bool
 }
 
 type RemoteConfig struct {

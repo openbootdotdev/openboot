@@ -115,6 +115,7 @@ func SelectPreset() (string, error) {
 		label := fmt.Sprintf("%s - %s", name, p.Description)
 		options = append(options, huh.NewOption(label, name))
 	}
+	options = append(options, huh.NewOption("scratch - Start from scratch (select individual packages)", "scratch"))
 
 	form := huh.NewForm(
 		huh.NewGroup(

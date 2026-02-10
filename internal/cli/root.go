@@ -79,6 +79,7 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS preferences (configure, skip)")
 	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "Dotfiles (clone, link, skip)")
 	rootCmd.Flags().BoolVar(&cfg.Resume, "resume", false, "Resume an incomplete installation")
+	rootCmd.Flags().BoolVar(&cfg.PackagesOnly, "packages-only", false, "Install packages only, skip system configuration")
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)

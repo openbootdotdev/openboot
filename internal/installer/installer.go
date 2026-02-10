@@ -97,8 +97,10 @@ func runCustomInstall(cfg *config.Config) error {
 }
 
 func runInteractiveInstall(cfg *config.Config) error {
-	if err := stepGitConfig(cfg); err != nil {
-		return err
+	if !cfg.PackagesOnly {
+		if err := stepGitConfig(cfg); err != nil {
+			return err
+		}
 	}
 
 	if err := stepPresetSelection(cfg); err != nil {
@@ -117,16 +119,18 @@ func runInteractiveInstall(cfg *config.Config) error {
 		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
 	}
 
-	if err := stepShell(cfg); err != nil {
-		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
-	}
+	if !cfg.PackagesOnly {
+		if err := stepShell(cfg); err != nil {
+			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+		}
 
-	if err := stepDotfiles(cfg); err != nil {
-		ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
-	}
+		if err := stepDotfiles(cfg); err != nil {
+			ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
+		}
 
-	if err := stepMacOS(cfg); err != nil {
-		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+		if err := stepMacOS(cfg); err != nil {
+			ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+		}
 	}
 
 	showCompletion(cfg)
@@ -136,6 +140,15 @@ func runInteractiveInstall(cfg *config.Config) error {
 func stepGitConfig(cfg *config.Config) error {
 	ui.Header("Step 1: Git Configuration")
 	fmt.Println()
+
+	// Smart detection: skip if already configured
+	existingName, existingEmail := system.GetExistingGitConfig()
+
+	if existingName != "" && existingEmail != "" {
+		ui.Success(fmt.Sprintf("✓ Already configured: %s <%s>", existingName, existingEmail))
+		fmt.Println()
+		return nil
+	}
 
 	var name, email string
 
@@ -432,6 +445,13 @@ func stepShell(cfg *config.Config) error {
 
 	ui.Header("Step 5: Shell Configuration")
 	fmt.Println()
+
+	// Smart detection: skip if Oh-My-Zsh is already installed
+	if shell.IsOhMyZshInstalled() && cfg.Shell == "" {
+		ui.Success("✓ Oh-My-Zsh already installed")
+		fmt.Println()
+		return nil
+	}
 
 	if cfg.Shell == "" {
 		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
