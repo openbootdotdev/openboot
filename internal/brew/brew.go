@@ -271,6 +271,38 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 	}
 
 	progress.Finish()
+
+	var failedFormulae []failedJob
+	for _, f := range allFailed {
+		if !f.isCask {
+			failedFormulae = append(failedFormulae, f)
+		}
+	}
+
+	if len(failedFormulae) > 0 {
+		fmt.Printf("\nRetrying %d failed packages...\n", len(failedFormulae))
+
+		retriedSuccessfully := make(map[string]bool)
+
+		for _, f := range failedFormulae {
+			errMsg := installFormulaWithError(f.name)
+			if errMsg == "" {
+				fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)
+				retriedSuccessfully[f.name] = true
+			} else {
+				fmt.Printf("  ✗ %s (still failed)\n", f.name)
+			}
+		}
+
+		var stillFailed []failedJob
+		for _, f := range allFailed {
+			if !retriedSuccessfully[f.name] {
+				stillFailed = append(stillFailed, f)
+			}
+		}
+		allFailed = stillFailed
+	}
+
 	handleFailedJobs(allFailed)
 
 	return nil
