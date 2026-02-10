@@ -10,29 +10,30 @@ import (
 )
 
 var (
-	version = "0.7.1"
+	version = "0.13.0"
 	cfg     = &config.Config{}
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "openboot",
-	Short: "One-line macOS development environment setup",
-	Long: `OpenBoot bootstraps your Mac development environment in minutes.
-Install Homebrew, CLI tools, GUI apps, dotfiles, and Oh-My-Zsh with a single command.
+	Short: "Set up your Mac dev environment in one command",
+	Long: `OpenBoot sets up your Mac development environment in minutes.
+Homebrew, CLI tools, GUI apps, npm packages, shell, and macOS preferences — all in one go.
+
+Install:
+  curl -fsSL https://openboot.dev/install | bash
 
 Quick Start:
-  openboot                    Interactive setup with package selection
-  openboot -p minimal         Quick setup with essential tools only
-  openboot -p developer       Full developer environment
-  openboot -u username        Use your saved config from openboot.dev
+  openboot                              Interactive setup with package selection
+  openboot snapshot                     Capture your current environment
+  openboot snapshot --import setup.json Restore from a snapshot
 
 Remote Config:
-  Create your config at https://openboot.dev and run:
-  openboot -u your-github-username
+  openboot -u <github-username>         Install from your openboot.dev config
+  openboot -p developer                 Use a built-in preset
 
-CI/Automation:
-  export OPENBOOT_PRESET=developer
-  openboot --silent`,
+Self-Update:
+  openboot update --self                Update OpenBoot to the latest version`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if cfg.Silent {
 			if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
@@ -68,16 +69,16 @@ CI/Automation:
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "Preset: minimal, developer, full")
-	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "GitHub username for remote config")
-	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "Non-interactive mode (for CI)")
-	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "Preview changes without installing")
-	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "Update Homebrew and packages")
-	rootCmd.Flags().BoolVar(&cfg.Rollback, "rollback", false, "Restore backed up config files")
-	rootCmd.Flags().StringVar(&cfg.Shell, "shell", "", "Shell setup: install, skip")
-	rootCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS prefs: configure, skip")
-	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "Dotfiles: clone, link, skip")
-	rootCmd.Flags().BoolVar(&cfg.Resume, "resume", false, "Resume incomplete installation")
+	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "Use a preset (minimal, developer, full)")
+	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "Install from openboot.dev user config")
+	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "Non-interactive mode for CI")
+	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "Preview without making changes")
+	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "Update Homebrew and upgrade packages")
+	rootCmd.Flags().BoolVar(&cfg.Rollback, "rollback", false, "Restore backed-up config files")
+	rootCmd.Flags().StringVar(&cfg.Shell, "shell", "", "Shell setup (install, skip)")
+	rootCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS preferences (configure, skip)")
+	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "Dotfiles (clone, link, skip)")
+	rootCmd.Flags().BoolVar(&cfg.Resume, "resume", false, "Resume an incomplete installation")
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)

@@ -22,20 +22,18 @@ import (
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
-	Short: "Capture your Mac's current dev environment",
-	Long: `Scan your Mac for installed Homebrew packages, macOS preferences,
-shell configuration, and development tools.
+	Short: "Capture or restore your dev environment",
+	Long: `Capture your Mac's Homebrew packages, npm globals, macOS preferences,
+shell config, and dev tools into a portable JSON snapshot.
 
-The snapshot can be saved locally, printed as JSON, uploaded to
-openboot.dev, or restored on another machine.
+Export:
+  openboot snapshot                            Capture interactively (save or upload)
+  openboot snapshot --local                    Save to ~/.openboot/snapshot.json
+  openboot snapshot --json > my-setup.json     Export as JSON
 
-Examples:
-  openboot snapshot                          # Interactive: capture and save
-  openboot snapshot --local                  # Save to ~/.openboot/snapshot.json
-  openboot snapshot --json                   # Output as JSON (for piping)
-  openboot snapshot --json > my-setup.json   # Export to file
-  openboot snapshot --import my-setup.json   # Restore from snapshot file
-  openboot snapshot --dry-run                # Preview what would be captured`,
+Import:
+  openboot snapshot --import my-setup.json     Restore from a local file
+  openboot snapshot --import https://...       Restore from a URL`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSnapshot(cmd)
 	},
@@ -45,7 +43,7 @@ func init() {
 	snapshotCmd.Flags().Bool("local", false, "Save snapshot locally only")
 	snapshotCmd.Flags().Bool("json", false, "Output as JSON to stdout")
 	snapshotCmd.Flags().Bool("dry-run", false, "Preview only, no save/upload")
-	snapshotCmd.Flags().String("import", "", "Restore environment from a snapshot file")
+	snapshotCmd.Flags().String("import", "", "Restore from a snapshot file or URL")
 }
 
 // stderr-only styles so stdout stays clean for --json piping
