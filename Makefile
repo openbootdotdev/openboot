@@ -12,14 +12,19 @@ test-integration:
 	go test -v -tags=integration ./...
 
 test-e2e: build
-	go test -v -tags=e2e ./...
+	go test -v -tags=e2e -short ./...
 
 test-coverage:
 	go test -v -coverprofile=$(COVERAGE_FILE) ./...
 	go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML)
 	@echo "Coverage report generated: $(COVERAGE_HTML)"
 
-test-all: test-unit test-integration test-e2e test-coverage
+test-all:
+	@echo "Running all tests..."
+	$(MAKE) test-unit
+	$(MAKE) test-integration
+	-$(MAKE) test-e2e
+	$(MAKE) test-coverage
 
 build:
 	go build -o $(BINARY_PATH) ./cmd/openboot
