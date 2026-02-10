@@ -6,11 +6,12 @@ import (
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
+	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/spf13/cobra"
 )
 
 var (
-	version = "0.14.2"
+	version = "0.14.3"
 	cfg     = &config.Config{}
 )
 
@@ -61,9 +62,12 @@ Self-Update:
 				cfg.Preset = rc.Preset
 			}
 		}
+
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		updater.ShowUpdateNotificationIfAvailable(version)
+		updater.CheckForUpdatesAsync(version)
 		err := installer.Run(cfg)
 		if err == installer.ErrUserCancelled {
 			return nil

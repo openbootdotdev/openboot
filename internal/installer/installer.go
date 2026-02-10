@@ -31,7 +31,7 @@ func Run(cfg *config.Config) error {
 
 func runInstall(cfg *config.Config) error {
 	fmt.Println()
-	ui.Header("OpenBoot Installer v0.14.2")
+	ui.Header("OpenBoot Installer v0.14.3")
 	fmt.Println()
 
 	if cfg.DryRun {
