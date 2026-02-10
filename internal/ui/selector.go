@@ -3,11 +3,14 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/search"
+	"github.com/sahilm/fuzzy"
 )
 
 var (
@@ -36,33 +39,92 @@ var (
 
 	countStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888"))
+
+	badgeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666"))
+
+	boldStyle = lipgloss.NewStyle().
+			Bold(true)
+
+	onlineHeaderStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#f59e0b")).
+				Bold(true)
+
+	onlineSearchingStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#888")).
+				Italic(true)
 )
 
+type onlineSearchResultMsg struct {
+	Results []config.Package
+	Query   string
+	Err     error
+}
+
+type onlineSearchTickMsg struct{}
+
+const onlineSearchDebounce = 500 * time.Millisecond
+
 type SelectorModel struct {
-	categories    []config.Category
-	selected      map[string]bool
-	activeTab     int
-	cursor        int
-	confirmed     bool
-	width         int
-	height        int
-	scrollOffset  int
-	searchMode    bool
-	searchQuery   string
-	filteredPkgs  []config.Package
+	categories            []config.Category
+	selected              map[string]bool
+	activeTab             int
+	cursor                int
+	confirmed             bool
+	width                 int
+	height                int
+	scrollOffset          int
+	searchMode            bool
+	searchQuery           string
+	filteredPkgs          []config.Package
+	fuzzyMatches          []fuzzy.Match
+	cursorPositions       map[int]int
+	onlineResults         []config.Package
+	onlineSearching       bool
+	onlineSearchQuery     string
+	onlineDebouncePending bool
 }
 
 func NewSelector(presetName string) SelectorModel {
 	return SelectorModel{
-		categories: config.Categories,
-		selected:   config.GetPackagesForPreset(presetName),
-		activeTab:  0,
-		cursor:     0,
+		categories:      config.Categories,
+		selected:        config.GetPackagesForPreset(presetName),
+		activeTab:       0,
+		cursor:          0,
+		cursorPositions: make(map[int]int),
 	}
 }
 
 func (m SelectorModel) Init() tea.Cmd {
 	return nil
+}
+
+func searchOnlineCmd(query string) tea.Cmd {
+	return func() tea.Msg {
+		results, err := search.SearchOnline(query)
+		return onlineSearchResultMsg{Results: results, Query: query, Err: err}
+	}
+}
+
+func onlineSearchDebounceCmd() tea.Cmd {
+	return tea.Tick(onlineSearchDebounce, func(time.Time) tea.Msg {
+		return onlineSearchTickMsg{}
+	})
+}
+
+func (m SelectorModel) totalSearchItems() int {
+	return len(m.filteredPkgs) + len(m.onlineResults)
+}
+
+func (m SelectorModel) searchItemAt(index int) (config.Package, bool) {
+	if index < len(m.filteredPkgs) {
+		return m.filteredPkgs[index], false
+	}
+	onlineIdx := index - len(m.filteredPkgs)
+	if onlineIdx < len(m.onlineResults) {
+		return m.onlineResults[onlineIdx], true
+	}
+	return config.Package{}, false
 }
 
 func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -71,6 +133,22 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+	case onlineSearchResultMsg:
+		if msg.Query == m.searchQuery {
+			m.onlineSearching = false
+			m.onlineResults = msg.Results
+		}
+		return m, nil
+
+	case onlineSearchTickMsg:
+		if m.onlineDebouncePending && m.searchQuery != "" && m.searchQuery == m.onlineSearchQuery {
+			m.onlineDebouncePending = false
+			m.onlineSearching = true
+			return m, searchOnlineCmd(m.searchQuery)
+		}
+		m.onlineDebouncePending = false
+		return m, nil
+
 	case tea.KeyMsg:
 		if m.searchMode {
 			switch msg.String() {
@@ -78,36 +156,52 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchMode = false
 				m.searchQuery = ""
 				m.filteredPkgs = nil
+				m.onlineResults = nil
+				m.onlineSearching = false
+				m.onlineDebouncePending = false
 				m.cursor = 0
 				m.scrollOffset = 0
-			case "enter":
-				if len(m.filteredPkgs) > 0 && m.cursor < len(m.filteredPkgs) {
-					pkg := m.filteredPkgs[m.cursor]
+				return m, nil
+			case "enter", " ":
+				total := m.totalSearchItems()
+				if total > 0 && m.cursor < total {
+					pkg, _ := m.searchItemAt(m.cursor)
 					m.selected[pkg.Name] = !m.selected[pkg.Name]
 				}
+				return m, nil
 			case "backspace":
 				if len(m.searchQuery) > 0 {
 					m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
 					m.updateFilteredPackages()
+					m.onlineSearchQuery = m.searchQuery
+					m.onlineDebouncePending = true
+					m.onlineResults = nil
+					if m.searchQuery == "" {
+						m.onlineDebouncePending = false
+						m.onlineSearching = false
+					}
+					return m, onlineSearchDebounceCmd()
 				}
+				return m, nil
 			case "up":
 				if m.cursor > 0 {
 					m.cursor--
 				}
+				return m, nil
 			case "down":
-				if m.cursor < len(m.filteredPkgs)-1 {
+				if m.cursor < m.totalSearchItems()-1 {
 					m.cursor++
 				}
-			case " ":
-				if len(m.filteredPkgs) > 0 && m.cursor < len(m.filteredPkgs) {
-					pkg := m.filteredPkgs[m.cursor]
-					m.selected[pkg.Name] = !m.selected[pkg.Name]
-				}
+				return m, nil
 			default:
 				if len(msg.String()) == 1 && msg.String() >= " " {
 					m.searchQuery += msg.String()
 					m.updateFilteredPackages()
 					m.cursor = 0
+					m.onlineSearchQuery = m.searchQuery
+					m.onlineDebouncePending = true
+					m.onlineResults = nil
+					return m, onlineSearchDebounceCmd()
 				}
 			}
 			return m, nil
@@ -124,13 +218,21 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updateFilteredPackages()
 
 		case key.Matches(msg, keys.Tab), key.Matches(msg, keys.Right):
+			m.cursorPositions[m.activeTab] = m.cursor
 			m.activeTab = (m.activeTab + 1) % len(m.categories)
-			m.cursor = 0
+			m.cursor = m.cursorPositions[m.activeTab]
+			if m.cursor >= len(m.categories[m.activeTab].Packages) {
+				m.cursor = 0
+			}
 			m.scrollOffset = 0
 
 		case key.Matches(msg, keys.ShiftTab), key.Matches(msg, keys.Left):
+			m.cursorPositions[m.activeTab] = m.cursor
 			m.activeTab = (m.activeTab - 1 + len(m.categories)) % len(m.categories)
-			m.cursor = 0
+			m.cursor = m.cursorPositions[m.activeTab]
+			if m.cursor >= len(m.categories[m.activeTab].Packages) {
+				m.cursor = 0
+			}
 			m.scrollOffset = 0
 
 		case key.Matches(msg, keys.Up):
@@ -183,19 +285,28 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *SelectorModel) updateFilteredPackages() {
 	if m.searchQuery == "" {
 		m.filteredPkgs = nil
+		m.fuzzyMatches = nil
 		return
 	}
 
-	query := strings.ToLower(m.searchQuery)
-	m.filteredPkgs = nil
+	var allPackages []config.Package
+	var packageNames []string
 
 	for _, cat := range m.categories {
 		for _, pkg := range cat.Packages {
-			if strings.Contains(strings.ToLower(pkg.Name), query) ||
-				strings.Contains(strings.ToLower(pkg.Description), query) {
-				m.filteredPkgs = append(m.filteredPkgs, pkg)
-			}
+			allPackages = append(allPackages, pkg)
+			packageNames = append(packageNames, pkg.Name)
 		}
+	}
+
+	matches := fuzzy.Find(m.searchQuery, packageNames)
+
+	m.filteredPkgs = nil
+	m.fuzzyMatches = nil
+
+	for _, match := range matches {
+		m.filteredPkgs = append(m.filteredPkgs, allPackages[match.Index])
+		m.fuzzyMatches = append(m.fuzzyMatches, match)
 	}
 }
 
@@ -211,6 +322,38 @@ func (m SelectorModel) getVisibleItems() int {
 		available = 20
 	}
 	return available
+}
+
+func getTypeBadge(pkg config.Package) string {
+	if pkg.IsNpm {
+		return badgeStyle.Render("📦 ")
+	}
+	if pkg.IsCask {
+		return badgeStyle.Render("🖥 ")
+	}
+	return badgeStyle.Render("⚙ ")
+}
+
+func highlightMatches(text string, matchedIndexes []int) string {
+	if len(matchedIndexes) == 0 {
+		return text
+	}
+
+	var result strings.Builder
+	matchSet := make(map[int]bool)
+	for _, idx := range matchedIndexes {
+		matchSet[idx] = true
+	}
+
+	for i, char := range text {
+		if matchSet[i] {
+			result.WriteString(boldStyle.Render(string(char)))
+		} else {
+			result.WriteRune(char)
+		}
+	}
+
+	return result.String()
 }
 
 func (m SelectorModel) View() string {
@@ -299,8 +442,9 @@ func (m SelectorModel) viewSearch() string {
 	lines = append(lines, "")
 
 	visibleItems := m.getVisibleItems()
+	itemsRendered := 0
 
-	if len(m.filteredPkgs) == 0 {
+	if len(m.filteredPkgs) == 0 && len(m.onlineResults) == 0 && !m.onlineSearching {
 		if m.searchQuery == "" {
 			lines = append(lines, descStyle.Render("Type to search packages..."))
 		} else {
@@ -326,8 +470,59 @@ func (m SelectorModel) viewSearch() string {
 				style = selectedStyle
 			}
 
-			line := fmt.Sprintf("%s%s %s %s", cursor, checkbox, style.Render(pkg.Name), descStyle.Render(pkg.Description))
+			badge := getTypeBadge(pkg)
+
+			var displayName string
+			if i < len(m.fuzzyMatches) {
+				displayName = highlightMatches(pkg.Name, m.fuzzyMatches[i].MatchedIndexes)
+			} else {
+				displayName = pkg.Name
+			}
+
+			line := fmt.Sprintf("%s%s %s%s %s", cursor, checkbox, badge, style.Render(displayName), descStyle.Render(pkg.Description))
 			lines = append(lines, line)
+			itemsRendered++
+		}
+
+		if m.onlineSearching {
+			lines = append(lines, "")
+			lines = append(lines, onlineSearchingStyle.Render("  Searching online..."))
+			itemsRendered += 2
+		} else if len(m.onlineResults) > 0 {
+			lines = append(lines, "")
+			lines = append(lines, onlineHeaderStyle.Render("── Online Results ──"))
+			itemsRendered += 2
+
+			onlineVisibleLimit := visibleItems - itemsRendered
+			if onlineVisibleLimit < 1 {
+				onlineVisibleLimit = 1
+			}
+			onlineEnd := onlineVisibleLimit
+			if onlineEnd > len(m.onlineResults) {
+				onlineEnd = len(m.onlineResults)
+			}
+
+			offlineCount := len(m.filteredPkgs)
+			for i := 0; i < onlineEnd; i++ {
+				pkg := m.onlineResults[i]
+				globalIdx := offlineCount + i
+				cursor := "  "
+				if globalIdx == m.cursor {
+					cursor = "> "
+				}
+
+				checkbox := "[ ]"
+				style := itemStyle
+				if m.selected[pkg.Name] {
+					checkbox = "[✓]"
+					style = selectedStyle
+				}
+
+				badge := getTypeBadge(pkg)
+				line := fmt.Sprintf("%s%s %s%s %s", cursor, checkbox, badge, style.Render(pkg.Name), descStyle.Render(pkg.Description))
+				lines = append(lines, line)
+				itemsRendered++
+			}
 		}
 	}
 
@@ -343,8 +538,9 @@ func (m SelectorModel) viewSearch() string {
 		}
 	}
 
+	foundCount := len(m.filteredPkgs) + len(m.onlineResults)
 	lines = append(lines, "")
-	lines = append(lines, countStyle.Render(fmt.Sprintf("Selected: %d packages • Found: %d", totalSelected, len(m.filteredPkgs))))
+	lines = append(lines, countStyle.Render(fmt.Sprintf("Selected: %d packages • Found: %d", totalSelected, foundCount)))
 	lines = append(lines, "")
 	lines = append(lines, helpStyle.Render("↑↓: navigate • Space: toggle • Esc: exit search • Enter: toggle selected"))
 
