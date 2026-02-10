@@ -14,6 +14,9 @@ jobs:
   test:
     name: test
     runs-on: macos-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,7 +32,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
           files: ./coverage.out
           flags: unittests
           name: openboot-coverage
