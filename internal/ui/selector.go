@@ -83,6 +83,7 @@ type SelectorModel struct {
 	onlineSearching       bool
 	onlineSearchQuery     string
 	onlineDebouncePending bool
+	showConfirmation      bool
 }
 
 func NewSelector(presetName string) SelectorModel {
@@ -150,6 +151,18 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.showConfirmation {
+			switch msg.String() {
+			case "enter":
+				m.confirmed = true
+				return m, tea.Quit
+			case "esc":
+				m.showConfirmation = false
+				return m, nil
+			}
+			return m, nil
+		}
+
 		if m.searchMode {
 			switch msg.String() {
 			case "esc":
@@ -261,8 +274,8 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, keys.Enter):
-			m.confirmed = true
-			return m, tea.Quit
+			m.showConfirmation = true
+			return m, nil
 
 		case key.Matches(msg, keys.SelectAll):
 			cat := m.categories[m.activeTab]
@@ -357,6 +370,10 @@ func highlightMatches(text string, matchedIndexes []int) string {
 }
 
 func (m SelectorModel) View() string {
+	if m.showConfirmation {
+		return m.confirmationView()
+	}
+
 	var lines []string
 
 	if m.searchMode {
@@ -432,6 +449,112 @@ func (m SelectorModel) View() string {
 	lines = append(lines, helpStyle.Render("Tab/←→: switch • ↑↓: navigate • Space: toggle • /: search • a: all • Enter: confirm • q: quit"))
 
 	return strings.Join(lines, "\n")
+}
+
+func (m SelectorModel) confirmationView() string {
+	var formulae, casks, npm []string
+	for name, selected := range m.selected {
+		if !selected {
+			continue
+		}
+
+		var pkg *config.Package
+		for _, cat := range m.categories {
+			for i := range cat.Packages {
+				if cat.Packages[i].Name == name {
+					pkg = &cat.Packages[i]
+					break
+				}
+			}
+			if pkg != nil {
+				break
+			}
+		}
+
+		if pkg != nil {
+			if pkg.IsNpm {
+				npm = append(npm, pkg.Name)
+			} else if pkg.IsCask {
+				casks = append(casks, pkg.Name)
+			} else {
+				formulae = append(formulae, pkg.Name)
+			}
+		}
+	}
+
+	totalPackages := len(formulae) + len(casks) + len(npm)
+
+	estimatedSeconds := len(formulae)*15 + len(casks)*30 + len(npm)*5
+	estimatedMinutes := estimatedSeconds / 60
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#22c55e")).
+		Padding(1, 2).
+		Width(60)
+
+	headerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#22c55e")).
+		Bold(true)
+
+	sectionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#fff")).
+		Bold(true)
+
+	listStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#888"))
+
+	instructionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#666")).
+		Italic(true)
+
+	var content strings.Builder
+
+	content.WriteString(headerStyle.Render("Install Summary"))
+	content.WriteString("\n\n")
+	content.WriteString(fmt.Sprintf("Total: %d packages\n\n", totalPackages))
+
+	if len(formulae) > 0 {
+		content.WriteString(sectionStyle.Render(fmt.Sprintf("⚙  Formulae (%d)", len(formulae))))
+		content.WriteString("\n")
+		if len(formulae) <= 10 {
+			content.WriteString(listStyle.Render("  " + strings.Join(formulae, ", ")))
+		} else {
+			content.WriteString(listStyle.Render("  " + strings.Join(formulae[:10], ", ")))
+			content.WriteString(listStyle.Render(fmt.Sprintf(" and %d more...", len(formulae)-10)))
+		}
+		content.WriteString("\n\n")
+	}
+
+	if len(casks) > 0 {
+		content.WriteString(sectionStyle.Render(fmt.Sprintf("🖥  Applications (%d)", len(casks))))
+		content.WriteString("\n")
+		if len(casks) <= 10 {
+			content.WriteString(listStyle.Render("  " + strings.Join(casks, ", ")))
+		} else {
+			content.WriteString(listStyle.Render("  " + strings.Join(casks[:10], ", ")))
+			content.WriteString(listStyle.Render(fmt.Sprintf(" and %d more...", len(casks)-10)))
+		}
+		content.WriteString("\n\n")
+	}
+
+	if len(npm) > 0 {
+		content.WriteString(sectionStyle.Render(fmt.Sprintf("📦  NPM (%d)", len(npm))))
+		content.WriteString("\n")
+		if len(npm) <= 10 {
+			content.WriteString(listStyle.Render("  " + strings.Join(npm, ", ")))
+		} else {
+			content.WriteString(listStyle.Render("  " + strings.Join(npm[:10], ", ")))
+			content.WriteString(listStyle.Render(fmt.Sprintf(" and %d more...", len(npm)-10)))
+		}
+		content.WriteString("\n\n")
+	}
+
+	content.WriteString(fmt.Sprintf("Estimated time: ~%d minutes\n\n", estimatedMinutes))
+	content.WriteString(instructionStyle.Render("[Enter] Confirm & Install"))
+	content.WriteString("\n")
+	content.WriteString(instructionStyle.Render("[Esc] Go Back"))
+
+	return boxStyle.Render(content.String())
 }
 
 func (m SelectorModel) viewSearch() string {
