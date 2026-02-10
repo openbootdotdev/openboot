@@ -2,7 +2,8 @@ package installer
 
 import (
 	"fmt"
-	"os"
+	"strings"
+	"time"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/config"
@@ -13,6 +14,8 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
+
+var ErrUserCancelled = fmt.Errorf("user cancelled")
 
 func Run(cfg *config.Config) error {
 	if cfg.Update {
@@ -85,7 +88,7 @@ func runCustomInstall(cfg *config.Config) error {
 	}
 
 	if len(cfg.RemoteConfig.Npm) > 0 {
-		if err := stepInstallNpm(cfg); err != nil {
+		if err := stepInstallNpmWithRetry(cfg); err != nil {
 			ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
 		}
 	}
@@ -115,7 +118,7 @@ func runInteractiveInstall(cfg *config.Config) error {
 		return err
 	}
 
-	if err := stepInstallNpm(cfg); err != nil {
+	if err := stepInstallNpmWithRetry(cfg); err != nil {
 		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
 	}
 
@@ -247,7 +250,7 @@ func stepPackageCustomization(cfg *config.Config) error {
 
 	if !confirmed {
 		ui.Muted("Installation cancelled.")
-		os.Exit(0)
+		return ErrUserCancelled
 	}
 
 	cfg.SelectedPkgs = selected
@@ -384,6 +387,39 @@ func stepInstallNpm(cfg *config.Config) error {
 	fmt.Println()
 
 	return npm.Install(npmPkgs, cfg.DryRun)
+}
+
+func stepInstallNpmWithRetry(cfg *config.Config) error {
+	maxAttempts := 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err := stepInstallNpm(cfg)
+		if err == nil {
+			return nil
+		}
+
+		if attempt == maxAttempts {
+			ui.Error(fmt.Sprintf("npm package installation failed after %d attempts: %v", maxAttempts, err))
+			return fmt.Errorf("npm installation failed after %d attempts: %w", maxAttempts, err)
+		}
+
+		if cfg.Silent || !system.HasTTY() {
+			ui.Warn(fmt.Sprintf("npm installation failed (attempt %d/%d), retrying...", attempt, maxAttempts))
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			continue
+		}
+
+		fmt.Println()
+		fmt.Printf("  Retry npm installation? [Y/n] ")
+		var response string
+		fmt.Scanln(&response)
+		response = strings.ToLower(strings.TrimSpace(response))
+
+		if response == "n" || response == "no" {
+			ui.Muted("Skipping npm package retry")
+			return err
+		}
+	}
+	return nil
 }
 
 func stepDotfiles(cfg *config.Config) error {
@@ -608,7 +644,7 @@ func RunFromSnapshot(cfg *config.Config) error {
 		return err
 	}
 
-	if err := stepInstallNpm(cfg); err != nil {
+	if err := stepInstallNpmWithRetry(cfg); err != nil {
 		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
 	}
 
