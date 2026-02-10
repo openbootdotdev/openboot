@@ -4,22 +4,19 @@ set -euo pipefail
 VERSION="${OPENBOOT_VERSION:-latest}"
 REPO="openbootdotdev/openboot"
 BINARY_NAME="openboot"
-INSTALL_DIR="${OPENBOOT_INSTALL_DIR:-/tmp}"
+INSTALL_DIR="${OPENBOOT_INSTALL_DIR:-$HOME/.openboot/bin}"
 
-# Bootstrap: Install Xcode Command Line Tools if missing
 install_xcode_clt() {
     if xcode-select -p &>/dev/null; then
         return 0
     fi
-    
+
     echo "Installing Xcode Command Line Tools..."
     echo "(A dialog may appear - please click 'Install')"
     echo ""
-    
-    # Trigger the install
+
     xcode-select --install 2>/dev/null || true
-    
-    # Wait for installation to complete
+
     echo "Waiting for Xcode Command Line Tools installation..."
     until xcode-select -p &>/dev/null; do
         sleep 5
@@ -28,24 +25,22 @@ install_xcode_clt() {
     echo ""
 }
 
-# Bootstrap: Install Homebrew if missing
 install_homebrew() {
     if command -v brew &>/dev/null; then
         return 0
     fi
-    
+
     echo "Installing Homebrew..."
     echo ""
-    
+
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
-    # Add brew to PATH for this session
+
     if [[ $(uname -m) == "arm64" ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
     else
         eval "$(/usr/local/bin/brew shellenv)"
     fi
-    
+
     echo ""
     echo "Homebrew installed!"
     echo ""
@@ -74,12 +69,25 @@ detect_os() {
 get_download_url() {
     local os="$1"
     local arch="$2"
-    
+
     if [[ "$VERSION" == "latest" ]]; then
         echo "https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}-${os}-${arch}"
     else
         echo "https://github.com/${REPO}/releases/download/${VERSION}/${BINARY_NAME}-${os}-${arch}"
     fi
+}
+
+add_to_path() {
+    local path_entry='export PATH="$HOME/.openboot/bin:$PATH"'
+    local zshrc="$HOME/.zshrc"
+
+    if [[ -f "$zshrc" ]] && grep -qF '.openboot/bin' "$zshrc"; then
+        return 0
+    fi
+
+    echo "" >> "$zshrc"
+    echo "$path_entry" >> "$zshrc"
+    echo "Added ~/.openboot/bin to PATH in .zshrc"
 }
 
 main() {
@@ -106,27 +114,31 @@ main() {
         install_xcode_clt
         install_homebrew
     fi
+
     url=$(get_download_url "$os" "$arch")
+    mkdir -p "$INSTALL_DIR"
     binary_path="${INSTALL_DIR}/${BINARY_NAME}"
 
     echo "Detected: ${os}/${arch}"
     echo "Downloading OpenBoot..."
-    
+
     if ! curl -fsSL "$url" -o "$binary_path"; then
         echo ""
         echo "Error: Failed to download OpenBoot"
         echo "URL: $url"
         echo ""
-        echo "If this is a new installation, releases may not be available yet."
         echo "Please check: https://github.com/${REPO}/releases"
         exit 1
     fi
 
     chmod +x "$binary_path"
-    
-    echo "Running OpenBoot..."
+
+    add_to_path
+    export PATH="$INSTALL_DIR:$PATH"
+
+    echo "OpenBoot installed to $binary_path"
     echo ""
-    
+
     exec "$binary_path" "$@"
 }
 
