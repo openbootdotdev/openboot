@@ -39,6 +39,7 @@ type RemoteConfig struct {
 	Packages     []string `json:"packages"`
 	Casks        []string `json:"casks"`
 	Taps         []string `json:"taps"`
+	Npm          []string `json:"npm"`
 	DotfilesRepo string   `json:"dotfiles_repo"`
 }
 
@@ -47,6 +48,7 @@ type Preset struct {
 	Description string   `yaml:"description"`
 	CLI         []string `yaml:"cli"`
 	Cask        []string `yaml:"cask"`
+	Npm         []string `yaml:"npm"`
 }
 
 type presetsData struct {

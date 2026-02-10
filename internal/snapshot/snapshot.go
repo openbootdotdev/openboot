@@ -21,6 +21,7 @@ type PackageSnapshot struct {
 	Formulae []string `json:"formulae"`
 	Casks    []string `json:"casks"`
 	Taps     []string `json:"taps"`
+	Npm      []string `json:"npm"`
 }
 
 // MacOSPref captures a single macOS defaults preference value.

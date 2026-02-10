@@ -16,6 +16,7 @@ func MatchPackages(snap *Snapshot) *CatalogMatch {
 
 	allPkgs := append([]string{}, snap.Packages.Formulae...)
 	allPkgs = append(allPkgs, snap.Packages.Casks...)
+	allPkgs = append(allPkgs, snap.Packages.Npm...)
 
 	matched := []string{}
 	unmatched := []string{}
@@ -50,6 +51,9 @@ func DetectBestPreset(snap *Snapshot) string {
 	for _, pkg := range snap.Packages.Casks {
 		snapshotSet[pkg] = true
 	}
+	for _, pkg := range snap.Packages.Npm {
+		snapshotSet[pkg] = true
+	}
 
 	snapshotPkgs := make([]string, 0, len(snapshotSet))
 	for pkg := range snapshotSet {
@@ -62,6 +66,7 @@ func DetectBestPreset(snap *Snapshot) string {
 	for presetName, preset := range config.Presets {
 		presetPkgs := append([]string{}, preset.CLI...)
 		presetPkgs = append(presetPkgs, preset.Cask...)
+		presetPkgs = append(presetPkgs, preset.Npm...)
 
 		similarity := jaccardSimilarity(snapshotPkgs, presetPkgs)
 

@@ -8,6 +8,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/dotfiles"
 	"github.com/openbootdotdev/openboot/internal/macos"
+	"github.com/openbootdotdev/openboot/internal/npm"
 	"github.com/openbootdotdev/openboot/internal/shell"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -68,6 +69,12 @@ func runCustomInstall(cfg *config.Config) error {
 		return err
 	}
 
+	if len(cfg.RemoteConfig.Npm) > 0 {
+		if err := stepInstallNpm(cfg); err != nil {
+			ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
+		}
+	}
+
 	fmt.Println()
 	ui.Muted("Dotfiles and shell setup will be handled by the install script.")
 	fmt.Println()
@@ -89,6 +96,10 @@ func runInteractiveInstall(cfg *config.Config) error {
 
 	if err := stepInstallPackages(cfg); err != nil {
 		return err
+	}
+
+	if err := stepInstallNpm(cfg); err != nil {
+		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
 	}
 
 	if err := stepShell(cfg); err != nil {
@@ -177,6 +188,9 @@ func stepPresetSelection(cfg *config.Config) error {
 	ui.Success(fmt.Sprintf("Selected preset: %s", preset.Name))
 	ui.Info(fmt.Sprintf("CLI packages: %d", len(preset.CLI)))
 	ui.Info(fmt.Sprintf("GUI applications: %d", len(preset.Cask)))
+	if len(preset.Npm) > 0 {
+		ui.Info(fmt.Sprintf("npm packages: %d", len(preset.Npm)))
+	}
 
 	fmt.Println()
 	return nil
@@ -238,8 +252,14 @@ func stepInstallPackages(cfg *config.Config) error {
 		for _, c := range cfg.RemoteConfig.Casks {
 			caskSet[c] = true
 		}
+		npmSet := make(map[string]bool)
+		for _, n := range cfg.RemoteConfig.Npm {
+			npmSet[n] = true
+		}
 		for pkg := range cfg.SelectedPkgs {
-			if caskSet[pkg] || config.IsCaskPackage(pkg) {
+			if npmSet[pkg] || config.IsNpmPackage(pkg) {
+				continue
+			} else if caskSet[pkg] || config.IsCaskPackage(pkg) {
 				caskPkgs = append(caskPkgs, pkg)
 			} else {
 				cliPkgs = append(cliPkgs, pkg)
@@ -249,7 +269,9 @@ func stepInstallPackages(cfg *config.Config) error {
 		for _, cat := range config.Categories {
 			for _, pkg := range cat.Packages {
 				if cfg.SelectedPkgs[pkg.Name] {
-					if pkg.IsCask {
+					if pkg.IsNpm {
+						continue
+					} else if pkg.IsCask {
 						caskPkgs = append(caskPkgs, pkg.Name)
 					} else {
 						cliPkgs = append(cliPkgs, pkg.Name)
@@ -277,6 +299,34 @@ func stepInstallPackages(cfg *config.Config) error {
 	}
 	fmt.Println()
 	return nil
+}
+
+func stepInstallNpm(cfg *config.Config) error {
+	var npmPkgs []string
+
+	if cfg.RemoteConfig != nil {
+		npmPkgs = cfg.RemoteConfig.Npm
+	} else {
+		for _, cat := range config.Categories {
+			for _, pkg := range cat.Packages {
+				if pkg.IsNpm && cfg.SelectedPkgs[pkg.Name] {
+					npmPkgs = append(npmPkgs, pkg.Name)
+				}
+			}
+		}
+	}
+
+	if len(npmPkgs) == 0 {
+		return nil
+	}
+
+	fmt.Println()
+	ui.Header("NPM Global Packages")
+	fmt.Println()
+	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(npmPkgs)))
+	fmt.Println()
+
+	return npm.Install(npmPkgs, cfg.DryRun)
 }
 
 func stepDotfiles(cfg *config.Config) error {
@@ -425,11 +475,13 @@ func stepMacOS(cfg *config.Config) error {
 }
 
 func showCompletion(cfg *config.Config) {
-	var cliCount, caskCount int
+	var cliCount, caskCount, npmCount int
 	for _, cat := range config.Categories {
 		for _, pkg := range cat.Packages {
 			if cfg.SelectedPkgs[pkg.Name] {
-				if pkg.IsCask {
+				if pkg.IsNpm {
+					npmCount++
+				} else if pkg.IsCask {
 					caskCount++
 				} else {
 					cliCount++
@@ -449,6 +501,9 @@ func showCompletion(cfg *config.Config) {
 	ui.Info("  - Git configured with your identity")
 	ui.Info(fmt.Sprintf("  - %d CLI packages", cliCount))
 	ui.Info(fmt.Sprintf("  - %d GUI applications", caskCount))
+	if npmCount > 0 {
+		ui.Info(fmt.Sprintf("  - %d npm global packages", npmCount))
+	}
 	fmt.Println()
 
 	ui.Info("Next steps:")

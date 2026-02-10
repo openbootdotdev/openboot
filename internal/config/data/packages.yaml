@@ -225,3 +225,52 @@ categories:
       - name: orbstack
         desc: Docker & Linux VMs
         cask: true
+
+  - name: NPM Global
+    icon: "📦"
+    packages:
+      - name: typescript
+        desc: TypeScript compiler
+        npm: true
+      - name: tsx
+        desc: TypeScript execute
+        npm: true
+      - name: eslint
+        desc: JavaScript linter
+        npm: true
+      - name: prettier
+        desc: Code formatter
+        npm: true
+      - name: nodemon
+        desc: Auto-restart Node apps
+        npm: true
+      - name: pm2
+        desc: Node process manager
+        npm: true
+      - name: serve
+        desc: Static file server
+        npm: true
+      - name: vercel
+        desc: Vercel CLI
+        npm: true
+      - name: wrangler
+        desc: Cloudflare Workers CLI
+        npm: true
+      - name: firebase-tools
+        desc: Firebase CLI
+        npm: true
+      - name: "@angular/cli"
+        desc: Angular CLI
+        npm: true
+      - name: create-react-app
+        desc: Create React apps
+        npm: true
+      - name: degit
+        desc: Scaffold from git repos
+        npm: true
+      - name: np
+        desc: Better npm publish
+        npm: true
+      - name: npm-check-updates
+        desc: Update package.json deps
+        npm: true

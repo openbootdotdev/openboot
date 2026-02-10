@@ -69,6 +69,12 @@ presets:
       - arc
       - postman
       - notion
+    npm:
+      - typescript
+      - tsx
+      - eslint
+      - prettier
+      - nodemon
 
   full:
     name: full
@@ -137,3 +143,13 @@ presets:
       - keka
       - aldente
       - rectangle
+    npm:
+      - typescript
+      - tsx
+      - eslint
+      - prettier
+      - nodemon
+      - pm2
+      - serve
+      - vercel
+      - wrangler

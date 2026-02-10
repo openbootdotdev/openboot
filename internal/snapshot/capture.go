@@ -33,6 +33,11 @@ func Capture() (*Snapshot, error) {
 		return nil, err
 	}
 
+	npmPkgs, err := CaptureNpm()
+	if err != nil {
+		return nil, err
+	}
+
 	prefs, err := CaptureMacOSPrefs()
 	if err != nil {
 		return nil, err
@@ -61,6 +66,7 @@ func Capture() (*Snapshot, error) {
 			Formulae: formulae,
 			Casks:    casks,
 			Taps:     taps,
+			Npm:      npmPkgs,
 		},
 		MacOSPrefs:    prefs,
 		Shell:         *shellSnap,
@@ -78,8 +84,8 @@ func Capture() (*Snapshot, error) {
 // ScanStep represents progress information for a single capture step.
 type ScanStep struct {
 	Name   string `json:"name"`   // e.g. "Homebrew Formulae"
-	Index  int    `json:"index"`  // 0-6
-	Total  int    `json:"total"`  // always 7
+	Index  int    `json:"index"`  // 0-7
+	Total  int    `json:"total"`  // always 8
 	Status string `json:"status"` // "scanning" | "done" | "error"
 	Count  int    `json:"count"`  // items found (only meaningful on "done")
 }
@@ -95,106 +101,121 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 
 	// Step 0: Homebrew Formulae
 	if callback != nil {
-		callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 8, Status: "scanning", Count: 0})
 	}
 	formulae, err := CaptureFormulae()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 7, Status: "done", Count: len(formulae)})
+			callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 8, Status: "done", Count: len(formulae)})
 		}
 	}
 
 	// Step 1: Homebrew Casks
 	if callback != nil {
-		callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 8, Status: "scanning", Count: 0})
 	}
 	casks, err := CaptureCasks()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 7, Status: "done", Count: len(casks)})
+			callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 8, Status: "done", Count: len(casks)})
 		}
 	}
 
 	// Step 2: Homebrew Taps
 	if callback != nil {
-		callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 8, Status: "scanning", Count: 0})
 	}
 	taps, err := CaptureTaps()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 7, Status: "done", Count: len(taps)})
+			callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 8, Status: "done", Count: len(taps)})
 		}
 	}
 
-	// Step 3: macOS Preferences
+	// Step 3: NPM Global Packages
 	if callback != nil {
-		callback(ScanStep{Name: "macOS Preferences", Index: 3, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "NPM Global Packages", Index: 3, Total: 8, Status: "scanning", Count: 0})
+	}
+	npmPkgs, err := CaptureNpm()
+	if err != nil {
+		if callback != nil {
+			callback(ScanStep{Name: "NPM Global Packages", Index: 3, Total: 8, Status: "error", Count: 0})
+		}
+	} else {
+		if callback != nil {
+			callback(ScanStep{Name: "NPM Global Packages", Index: 3, Total: 8, Status: "done", Count: len(npmPkgs)})
+		}
+	}
+
+	// Step 4: macOS Preferences
+	if callback != nil {
+		callback(ScanStep{Name: "macOS Preferences", Index: 4, Total: 8, Status: "scanning", Count: 0})
 	}
 	prefs, err := CaptureMacOSPrefs()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "macOS Preferences", Index: 3, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "macOS Preferences", Index: 4, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "macOS Preferences", Index: 3, Total: 7, Status: "done", Count: len(prefs)})
+			callback(ScanStep{Name: "macOS Preferences", Index: 4, Total: 8, Status: "done", Count: len(prefs)})
 		}
 	}
 
-	// Step 4: Shell Environment
+	// Step 5: Shell Environment
 	if callback != nil {
-		callback(ScanStep{Name: "Shell Environment", Index: 4, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "Shell Environment", Index: 5, Total: 8, Status: "scanning", Count: 0})
 	}
 	shellSnap, err := CaptureShell()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "Shell Environment", Index: 4, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "Shell Environment", Index: 5, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "Shell Environment", Index: 4, Total: 7, Status: "done", Count: 1})
+			callback(ScanStep{Name: "Shell Environment", Index: 5, Total: 8, Status: "done", Count: 1})
 		}
 	}
 
-	// Step 5: Git Configuration
+	// Step 6: Git Configuration
 	if callback != nil {
-		callback(ScanStep{Name: "Git Configuration", Index: 5, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "Git Configuration", Index: 6, Total: 8, Status: "scanning", Count: 0})
 	}
 	gitSnap, err := CaptureGit()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "Git Configuration", Index: 5, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "Git Configuration", Index: 6, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "Git Configuration", Index: 5, Total: 7, Status: "done", Count: 1})
+			callback(ScanStep{Name: "Git Configuration", Index: 6, Total: 8, Status: "done", Count: 1})
 		}
 	}
 
-	// Step 6: Dev Tools
+	// Step 7: Dev Tools
 	if callback != nil {
-		callback(ScanStep{Name: "Dev Tools", Index: 6, Total: 7, Status: "scanning", Count: 0})
+		callback(ScanStep{Name: "Dev Tools", Index: 7, Total: 8, Status: "scanning", Count: 0})
 	}
 	devTools, err := CaptureDevTools()
 	if err != nil {
 		if callback != nil {
-			callback(ScanStep{Name: "Dev Tools", Index: 6, Total: 7, Status: "error", Count: 0})
+			callback(ScanStep{Name: "Dev Tools", Index: 7, Total: 8, Status: "error", Count: 0})
 		}
 	} else {
 		if callback != nil {
-			callback(ScanStep{Name: "Dev Tools", Index: 6, Total: 7, Status: "done", Count: len(devTools)})
+			callback(ScanStep{Name: "Dev Tools", Index: 7, Total: 8, Status: "done", Count: len(devTools)})
 		}
 	}
 
@@ -206,6 +227,7 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			Formulae: formulae,
 			Casks:    casks,
 			Taps:     taps,
+			Npm:      npmPkgs,
 		},
 		MacOSPrefs:    prefs,
 		Shell:         *shellSnap,
@@ -218,6 +240,38 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			MatchRate: 0,
 		},
 	}, nil
+}
+
+func CaptureNpm() ([]string, error) {
+	if _, err := exec.LookPath("npm"); err != nil {
+		return []string{}, nil
+	}
+
+	cmd := exec.Command("npm", "list", "-g", "--depth=0", "--parseable")
+	output, err := cmd.Output()
+	if err != nil {
+		return []string{}, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var packages []string
+	for _, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "/")
+		if len(parts) > 0 {
+			pkgName := parts[len(parts)-1]
+			if len(parts) >= 2 && strings.HasPrefix(parts[len(parts)-2], "@") {
+				pkgName = parts[len(parts)-2] + "/" + parts[len(parts)-1]
+			}
+			if pkgName != "" && pkgName != "npm" && pkgName != "corepack" {
+				packages = append(packages, pkgName)
+			}
+		}
+	}
+	return packages, nil
 }
 
 func isBrewInstalled() bool {

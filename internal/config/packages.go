@@ -14,6 +14,7 @@ type Package struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"desc"`
 	IsCask      bool   `yaml:"cask"`
+	IsNpm       bool   `yaml:"npm"`
 }
 
 type Category struct {
@@ -56,6 +57,9 @@ func GetPackagesForPreset(presetName string) map[string]bool {
 	for _, pkg := range preset.Cask {
 		selected[pkg] = true
 	}
+	for _, pkg := range preset.Npm {
+		selected[pkg] = true
+	}
 
 	return selected
 }
@@ -68,6 +72,17 @@ func GetAllPackageNames() []string {
 		}
 	}
 	return names
+}
+
+func IsNpmPackage(name string) bool {
+	for _, cat := range Categories {
+		for _, pkg := range cat.Packages {
+			if pkg.Name == name {
+				return pkg.IsNpm
+			}
+		}
+	}
+	return false
 }
 
 func IsCaskPackage(name string) bool {
