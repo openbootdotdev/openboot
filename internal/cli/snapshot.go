@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/auth"
@@ -226,14 +227,18 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", stored.Token))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	uploadClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := uploadClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to upload snapshot: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("upload failed (status %d): failed to read response: %w", resp.StatusCode, err)
+		}
 		return fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
@@ -259,7 +264,9 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	fmt.Fprintln(os.Stderr)
 
 	// Auto-open browser
-	exec.Command("open", configURL).Start()
+	if err := exec.Command("open", configURL).Start(); err != nil {
+		ui.Warn(fmt.Sprintf("Could not open browser: %v", err))
+	}
 	fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Opening in browser..."))
 	fmt.Fprintln(os.Stderr)
 
@@ -324,7 +331,8 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 	localPath := importPath
 	if strings.HasPrefix(importPath, "http://") || strings.HasPrefix(importPath, "https://") {
 		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
-		resp, err := http.Get(importPath)
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Get(importPath)
 		if err != nil {
 			return fmt.Errorf("failed to download snapshot: %w", err)
 		}

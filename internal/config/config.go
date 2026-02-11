@@ -7,9 +7,14 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+var remoteHTTPClient = &http.Client{
+	Timeout: 15 * time.Second,
+}
 
 //go:embed data/presets.yaml
 var presetsYAML embed.FS
@@ -95,7 +100,7 @@ func FetchRemoteConfig(userSlug string) (*RemoteConfig, error) {
 
 	url := fmt.Sprintf("https://openboot.dev/%s/%s/config", username, slug)
 
-	resp, err := http.Get(url)
+	resp, err := remoteHTTPClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch config: %w", err)
 	}
