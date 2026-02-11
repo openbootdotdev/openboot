@@ -171,7 +171,14 @@ func checkGit() []checkResult {
 func checkShell() []checkResult {
 	var results []checkResult
 
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return []checkResult{{
+			name:    "Shell",
+			status:  "error",
+			message: "cannot determine home directory",
+		}}
+	}
 	omzPath := filepath.Join(home, ".oh-my-zsh")
 
 	if _, err := os.Stat(omzPath); os.IsNotExist(err) {

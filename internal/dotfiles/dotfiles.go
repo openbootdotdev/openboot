@@ -15,7 +15,10 @@ func Clone(repoURL string, dryRun bool) error {
 		return nil
 	}
 
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
 	if _, err := os.Stat(dotfilesPath); err == nil {
@@ -35,7 +38,10 @@ func Clone(repoURL string, dryRun bool) error {
 }
 
 func Link(dryRun bool) error {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
 	if _, err := os.Stat(dotfilesPath); os.IsNotExist(err) {
@@ -75,7 +81,10 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 		return err
 	}
 
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
@@ -108,7 +117,10 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 }
 
 func linkDirect(dotfilesPath string, dryRun bool) error {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 
 	entries, err := os.ReadDir(dotfilesPath)
 	if err != nil {

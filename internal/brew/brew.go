@@ -553,7 +553,10 @@ func CheckNetwork() error {
 
 func CheckDiskSpace() (float64, error) {
 	var stat syscall.Statfs_t
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return 0, fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	if err := syscall.Statfs(home, &stat); err != nil {
 		return 0, err
 	}

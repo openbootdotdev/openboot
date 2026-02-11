@@ -8,8 +8,11 @@ import (
 )
 
 func IsOhMyZshInstalled() bool {
-	home, _ := os.UserHomeDir()
-	_, err := os.Stat(filepath.Join(home, ".oh-my-zsh"))
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(home, ".oh-my-zsh"))
 	return err == nil
 }
 
@@ -31,7 +34,10 @@ func InstallOhMyZsh(dryRun bool) error {
 		return err
 	}
 
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	zshrcPath := filepath.Join(home, ".zshrc")
 	os.Remove(zshrcPath)
 
@@ -39,7 +45,10 @@ func InstallOhMyZsh(dryRun bool) error {
 }
 
 func ConfigureZshrc(dryRun bool) error {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	zshrcPath := filepath.Join(home, ".zshrc")
 
 	additions := `

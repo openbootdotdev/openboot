@@ -50,7 +50,10 @@ var DefaultPreferences = []Preference{
 
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~/") {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
 		return filepath.Join(home, path[2:])
 	}
 	return path
@@ -89,7 +92,10 @@ func Configure(prefs []Preference, dryRun bool) error {
 }
 
 func CreateScreenshotsDir(dryRun bool) error {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("cannot determine home directory: %w", err)
+	}
 	dir := filepath.Join(home, "Screenshots")
 
 	if dryRun {
@@ -109,8 +115,9 @@ func RestartAffectedApps(dryRun bool) error {
 			continue
 		}
 
+		// killall returns an error if the app isn't running, which is expected and safe to ignore
 		cmd := exec.Command("killall", app)
-		cmd.Run()
+		cmd.Run() //nolint:errcheck // non-fatal: app may not be running
 	}
 
 	return nil
