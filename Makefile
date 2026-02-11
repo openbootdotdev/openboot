@@ -29,5 +29,17 @@ test-all:
 build:
 	go build -o $(BINARY_PATH) ./cmd/openboot
 
+build-release:
+	@echo "Building optimized release binary..."
+	go build -ldflags="-s -w" -trimpath -o $(BINARY_PATH) ./cmd/openboot
+	@echo "Original size: $$(du -h $(BINARY_PATH) | cut -f1)"
+	@if command -v upx >/dev/null 2>&1; then \
+		echo "Compressing with UPX..."; \
+		upx --best --lzma $(BINARY_PATH); \
+		echo "Compressed size: $$(du -h $(BINARY_PATH) | cut -f1)"; \
+	else \
+		echo "UPX not found. Install with: brew install upx"; \
+	fi
+
 clean:
 	rm -f $(BINARY_PATH) $(COVERAGE_FILE) $(COVERAGE_HTML)
