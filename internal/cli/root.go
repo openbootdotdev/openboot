@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "0.18.2"
+	version = "dev"
 	cfg     = &config.Config{}
 )
 

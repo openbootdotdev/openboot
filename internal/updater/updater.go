@@ -196,6 +196,10 @@ func isNewerVersion(latest, current string) bool {
 	if latest == "" {
 		return false
 	}
+	// Dev builds (built from source without version injection) never auto-update
+	if current == "dev" {
+		return false
+	}
 	latestClean := trimVersionPrefix(latest)
 	currentClean := trimVersionPrefix(current)
 	return latestClean != currentClean && latestClean > currentClean

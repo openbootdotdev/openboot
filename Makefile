@@ -2,6 +2,8 @@
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
+VERSION ?= dev
+LDFLAGS=-X github.com/openbootdotdev/openboot/internal/cli.version=$(VERSION)
 COVERAGE_FILE=coverage.out
 COVERAGE_HTML=coverage.html
 
@@ -27,11 +29,11 @@ test-all:
 	$(MAKE) test-coverage
 
 build:
-	go build -o $(BINARY_PATH) ./cmd/openboot
+	go build -ldflags="$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/openboot
 
 build-release:
-	@echo "Building optimized release binary..."
-	go build -ldflags="-s -w" -trimpath -o $(BINARY_PATH) ./cmd/openboot
+	@echo "Building optimized release binary (version=$(VERSION))..."
+	go build -ldflags="-s -w $(LDFLAGS)" -trimpath -o $(BINARY_PATH) ./cmd/openboot
 	@echo "Original size: $$(du -h $(BINARY_PATH) | cut -f1)"
 	@if command -v upx >/dev/null 2>&1; then \
 		echo "Compressing with UPX..."; \

@@ -78,7 +78,7 @@ cli (root)
 - **Testing**: Table-driven with testify/assert. Build tags for integration/e2e
 - **Concurrency**: `sync.WaitGroup` with bounded workers (max 4 for brew)
 - **Dry-run**: All destructive operations check `cfg.DryRun` first
-- **Version string**: Hardcoded in `internal/cli/root.go` — bump manually before release
+- **Version string**: Default `"dev"` in `internal/cli/root.go` — injected via ldflags at build time, never edit manually
 - **Config storage**: `~/.openboot/` directory for auth, state, snapshots
 
 ## ANTI-PATTERNS
@@ -93,24 +93,32 @@ cli (root)
 ## COMMANDS
 
 ```bash
-make build              # go build -o openboot ./cmd/openboot
-make build-release      # Optimized: -ldflags="-s -w" -trimpath + UPX
-make test-unit          # go test -v ./...
-make test-integration   # go test -v -tags=integration ./...
-make test-e2e           # go test -v -tags=e2e -short ./...
-make test-all           # All above + coverage
-make clean              # Remove binaries + coverage
-go vet ./...            # Lint check
+make build                    # Dev build (version=dev)
+make build VERSION=0.19.0     # Build with specific version
+make build-release VERSION=0.19.0  # Optimized + UPX with version
+make test-unit                # go test -v ./...
+make test-integration         # go test -v -tags=integration ./...
+make test-e2e                 # go test -v -tags=e2e -short ./...
+make test-all                 # All above + coverage
+make clean                    # Remove binaries + coverage
+go vet ./...                  # Lint check
 ```
 
 ## RELEASE PROCESS
 
-1. Bump version in `internal/cli/root.go`
-2. `git commit && git push`
-3. Build: `GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o openboot-darwin-arm64 ./cmd/openboot`
-4. `gh release create vX.Y.Z openboot-darwin-arm64 openboot-darwin-amd64 checksums.txt`
+Tag-driven. CI handles everything. **Never edit root.go for version bumps.**
 
-CI auto-releases on `v*` tags via `.github/workflows/release.yml`.
+```bash
+git tag v0.19.0
+git push --tags
+# CI builds binaries with version injected via ldflags, creates GitHub release
+```
+
+- Version is `"dev"` in source — overridden by `-ldflags -X` at build time
+- Dev builds (`version=dev`) skip auto-update
+- CI workflow: `.github/workflows/release.yml` extracts version from git tag
+
+**When to release**: Only for user-facing changes (features, bug fixes, package updates). Skip for docs, AGENTS.md, CI config, test-only changes.
 
 ## NOTES
 

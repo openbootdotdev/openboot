@@ -33,13 +33,24 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Get version from tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          # Strip 'v' prefix for the version string
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+
       - name: Build
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: '0'
         run: |
-          go build -ldflags="-s -w" -trimpath -o openboot-${{ matrix.os }}-${{ matrix.arch }} ./cmd/openboot
+          go build -ldflags="-s -w -X github.com/openbootdotdev/openboot/internal/cli.version=${{ steps.version.outputs.version }}" -trimpath -o openboot-${{ matrix.os }}-${{ matrix.arch }} ./cmd/openboot
 
       - name: Install UPX
         run: |
