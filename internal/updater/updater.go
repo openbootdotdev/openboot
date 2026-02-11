@@ -1,12 +1,13 @@
 package updater
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -30,7 +31,135 @@ type CheckState struct {
 	UpdateAvailable bool      `json:"update_available"`
 }
 
-func ShowUpdateNotificationIfAvailable(currentVersion string) {
+type AutoUpdateMode string
+
+const (
+	AutoUpdateEnabled  AutoUpdateMode = "true"
+	AutoUpdateNotify   AutoUpdateMode = "notify"
+	AutoUpdateDisabled AutoUpdateMode = "false"
+)
+
+type UserConfig struct {
+	AutoUpdate AutoUpdateMode `json:"autoupdate"`
+}
+
+func loadUserConfig() UserConfig {
+	cfg := UserConfig{AutoUpdate: AutoUpdateEnabled}
+	path, err := getUserConfigPath()
+	if err != nil {
+		return cfg
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return cfg
+	}
+	json.Unmarshal(data, &cfg)
+	if cfg.AutoUpdate == "" {
+		cfg.AutoUpdate = AutoUpdateEnabled
+	}
+	return cfg
+}
+
+func getUserConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".openboot", "config.json"), nil
+}
+
+func AutoUpgrade(currentVersion string) {
+	if os.Getenv("OPENBOOT_DISABLE_AUTOUPDATE") == "1" {
+		return
+	}
+
+	cfg := loadUserConfig()
+
+	switch cfg.AutoUpdate {
+	case AutoUpdateDisabled:
+		return
+	case AutoUpdateNotify:
+		notifyIfUpdateAvailable(currentVersion)
+		checkForUpdatesAsync(currentVersion)
+		return
+	default:
+		latest, err := getLatestVersion()
+		if err != nil {
+			return
+		}
+		if !isNewerVersion(latest, currentVersion) {
+			return
+		}
+
+		latestClean := trimVersionPrefix(latest)
+		ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s...", currentVersion, latestClean))
+		if err := DownloadAndReplace(); err != nil {
+			ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
+			ui.Muted("Run 'openboot update --self' to update manually")
+			fmt.Println()
+			return
+		}
+		ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
+		fmt.Println()
+	}
+}
+
+func DownloadAndReplace() error {
+	arch := runtime.GOARCH
+	if arch == "" {
+		arch = "arm64"
+	}
+
+	url := fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/openboot-darwin-%s", arch)
+
+	client := getHTTPClient()
+	resp, err := client.Get(url)
+	if err != nil {
+		return fmt.Errorf("download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
+	}
+
+	binPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("cannot determine binary path: %w", err)
+	}
+
+	binPath, err = filepath.EvalSymlinks(binPath)
+	if err != nil {
+		return fmt.Errorf("cannot resolve binary path: %w", err)
+	}
+
+	tmpPath := binPath + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to write binary: %w", err)
+	}
+	f.Close()
+
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to set permissions: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, binPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to replace binary: %w", err)
+	}
+
+	return nil
+}
+
+func notifyIfUpdateAvailable(currentVersion string) {
 	state, err := loadState()
 	if err != nil {
 		return
@@ -43,16 +172,9 @@ func ShowUpdateNotificationIfAvailable(currentVersion string) {
 	}
 }
 
-func CheckForUpdatesAsync(ctx context.Context, currentVersion string) {
+func checkForUpdatesAsync(currentVersion string) {
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
 		state, _ := loadState()
-
 		if state != nil && time.Since(state.LastCheck) < checkInterval {
 			return
 		}
@@ -62,12 +184,10 @@ func CheckForUpdatesAsync(ctx context.Context, currentVersion string) {
 			return
 		}
 
-		updateAvailable := isNewerVersion(latestVersion, currentVersion)
-
 		saveState(&CheckState{
 			LastCheck:       time.Now(),
 			LatestVersion:   latestVersion,
-			UpdateAvailable: updateAvailable,
+			UpdateAvailable: isNewerVersion(latestVersion, currentVersion),
 		})
 	}()
 }
@@ -76,10 +196,8 @@ func isNewerVersion(latest, current string) bool {
 	if latest == "" {
 		return false
 	}
-
 	latestClean := trimVersionPrefix(latest)
 	currentClean := trimVersionPrefix(current)
-
 	return latestClean != currentClean && latestClean > currentClean
 }
 
@@ -92,7 +210,7 @@ func trimVersionPrefix(v string) string {
 
 func getHTTPClient() *http.Client {
 	httpClientOnce.Do(func() {
-		httpClient = &http.Client{Timeout: 5 * time.Second}
+		httpClient = &http.Client{Timeout: 15 * time.Second}
 	})
 	return httpClient
 }

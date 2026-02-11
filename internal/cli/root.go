@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	version = "0.18.0"
+	version = "0.18.1"
 	cfg     = &config.Config{}
 )
 
@@ -64,8 +64,7 @@ shell configuration, and macOS preferences.`,
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		updater.ShowUpdateNotificationIfAvailable(version)
-		updater.CheckForUpdatesAsync(cmd.Context(), version)
+		updater.AutoUpgrade(version)
 		cfg.Version = version
 		err := installer.Run(cfg)
 		if err == installer.ErrUserCancelled {

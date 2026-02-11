@@ -2,13 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"runtime"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -42,49 +39,9 @@ func runSelfUpdate() error {
 	ui.Header("OpenBoot Self-Update")
 	fmt.Println()
 
-	arch := runtime.GOARCH
-	if arch == "" {
-		arch = "arm64"
-	}
-
-	url := fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/openboot-darwin-%s", arch)
-	ui.Info(fmt.Sprintf("Downloading latest release (%s)...", arch))
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("failed to download: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
-	}
-
-	binPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("cannot determine binary path: %w", err)
-	}
-
-	tmpPath := binPath + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to write binary: %w", err)
-	}
-
-	if err := os.Chmod(tmpPath, 0755); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to set permissions: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, binPath); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to replace binary: %w", err)
+	ui.Info("Downloading latest release...")
+	if err := updater.DownloadAndReplace(); err != nil {
+		return err
 	}
 
 	fmt.Println()
