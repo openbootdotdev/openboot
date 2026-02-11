@@ -31,20 +31,24 @@ var (
 var scanSpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 type stepState struct {
-	name   string
-	status string
-	count  int
+	name    string
+	status  string
+	count   int
+	elapsed time.Duration
 }
 
 // ScanProgress is a stderr-based multi-line progress renderer for snapshot scanning.
 type ScanProgress struct {
-	steps       []stepState
-	totalSteps  int
-	spinnerIdx  int
-	spinnerStop chan bool
-	mu          sync.Mutex
-	isTTY       bool
-	rendered    bool
+	steps          []stepState
+	totalSteps     int
+	spinnerIdx     int
+	spinnerStop    chan bool
+	mu             sync.Mutex
+	isTTY          bool
+	rendered       bool
+	overallStart   time.Time
+	stepStartTimes []time.Time
+	completedCount int
 }
 
 // NewScanProgress creates a ScanProgress with an optional TTY spinner goroutine.
@@ -55,10 +59,12 @@ func NewScanProgress(totalSteps int) *ScanProgress {
 	}
 
 	sp := &ScanProgress{
-		steps:       steps,
-		totalSteps:  totalSteps,
-		spinnerStop: make(chan bool),
-		isTTY:       system.HasTTY(),
+		steps:          steps,
+		totalSteps:     totalSteps,
+		spinnerStop:    make(chan bool),
+		isTTY:          system.HasTTY(),
+		overallStart:   time.Now(),
+		stepStartTimes: make([]time.Time, totalSteps),
 	}
 
 	if sp.isTTY {
@@ -103,6 +109,17 @@ func (sp *ScanProgress) Update(step snapshot.ScanStep) {
 		return
 	}
 
+	// Track when scanning starts
+	if step.Status == "scanning" && sp.steps[step.Index].status != "scanning" {
+		sp.stepStartTimes[step.Index] = time.Now()
+	}
+
+	// Track when step completes
+	if (step.Status == "done" || step.Status == "error") && sp.steps[step.Index].status == "scanning" {
+		sp.steps[step.Index].elapsed = time.Since(sp.stepStartTimes[step.Index])
+		sp.completedCount++
+	}
+
 	sp.steps[step.Index].name = step.Name
 	sp.steps[step.Index].status = step.Status
 	sp.steps[step.Index].count = step.Count
@@ -131,30 +148,36 @@ func (sp *ScanProgress) render() {
 
 func (sp *ScanProgress) renderTTY() {
 	if sp.rendered {
-		fmt.Fprintf(os.Stderr, "\033[%dA", sp.totalSteps)
-	} else {
-		fmt.Fprintf(os.Stderr, "  Scanning your Mac...\n")
-		sp.rendered = true
+		fmt.Fprintf(os.Stderr, "\033[%dA", sp.totalSteps+1)
 	}
 
-	for _, s := range sp.steps {
+	if !sp.rendered {
+		sp.rendered = true
+	}
+	fmt.Fprintf(os.Stderr, "\033[K  Scanning your Mac... [%d/%d]\n", sp.completedCount, sp.totalSteps)
+
+	for i, s := range sp.steps {
 		fmt.Fprintf(os.Stderr, "\033[K")
 
 		switch s.status {
 		case "done":
+			elapsed := sp.formatStepDuration(s.elapsed)
 			countText := formatStepCount(s.count)
 			fmt.Fprintf(os.Stderr, "  %s %s\n",
 				scanCheckStyle.Render("✓ "+s.name),
-				scanCountStyle.Render(countText))
+				scanCountStyle.Render(fmt.Sprintf("%s, %s", countText, elapsed)))
 		case "error":
+			elapsed := sp.formatStepDuration(s.elapsed)
 			fmt.Fprintf(os.Stderr, "  %s %s\n",
 				scanErrorStyle.Render("✗ "+s.name),
-				scanCountStyle.Render("failed"))
+				scanCountStyle.Render(fmt.Sprintf("failed, %s", elapsed)))
 		case "scanning":
 			spinner := scanSpinnerFrames[sp.spinnerIdx]
+			live := time.Since(sp.stepStartTimes[i])
+			liveStr := sp.formatStepDuration(live)
 			fmt.Fprintf(os.Stderr, "  %s %s\n",
 				scanActiveStyle.Render(spinner+" "+s.name),
-				scanCountStyle.Render("scanning..."))
+				scanCountStyle.Render(fmt.Sprintf("%s...", liveStr)))
 		default:
 			name := s.name
 			if name == "" {
@@ -174,18 +197,27 @@ func (sp *ScanProgress) renderPlain() {
 				fmt.Fprintf(os.Stderr, "  Scanning your Mac...\n")
 				sp.rendered = true
 			}
+			elapsed := sp.formatStepDuration(s.elapsed)
 			countText := formatStepCount(s.count)
-			fmt.Fprintf(os.Stderr, "  ✓ %s (%s)\n", s.name, countText)
+			fmt.Fprintf(os.Stderr, "  ✓ %s (%s, %s)\n", s.name, countText, elapsed)
 			sp.steps[i].status = "done_printed"
 		case "error":
 			if !sp.rendered {
 				fmt.Fprintf(os.Stderr, "  Scanning your Mac...\n")
 				sp.rendered = true
 			}
-			fmt.Fprintf(os.Stderr, "  ✗ %s (failed)\n", s.name)
+			elapsed := sp.formatStepDuration(s.elapsed)
+			fmt.Fprintf(os.Stderr, "  ✗ %s (failed, %s)\n", s.name, elapsed)
 			sp.steps[i].status = "error_printed"
 		}
 	}
+}
+
+func (sp *ScanProgress) formatStepDuration(d time.Duration) string {
+	if d < time.Second {
+		return "< 1s"
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 func formatStepCount(count int) string {
