@@ -38,8 +38,14 @@ categories:
         desc: GitHub CLI
       - name: git-delta
         desc: Better git diff
+      - name: git-lfs
+        desc: Git Large File Storage
       - name: lazygit
         desc: Terminal UI for git
+      - name: tig
+        desc: Text-mode git interface
+      - name: pre-commit
+        desc: Git hooks framework
       - name: stow
         desc: Symlink farm manager
 
@@ -66,6 +72,19 @@ categories:
         desc: Terminal multiplexer
       - name: neovim
         desc: Modern Vim
+      - name: cmake
+        desc: Cross-platform build system
+      - name: zig
+        desc: Systems programming language
+      - name: elixir
+        desc: Functional programming language
+      - name: ollama
+        desc: Run LLMs locally
+      - name: llm
+        desc: CLI for LLMs
+      - name: miniconda
+        desc: Minimal Conda installer
+        cask: true
 
   - name: DevOps
     icon: "☁️"
@@ -86,6 +105,24 @@ categories:
         desc: AWS CLI
       - name: argocd
         desc: GitOps for Kubernetes
+      - name: lazydocker
+        desc: Terminal UI for Docker
+      - name: dive
+        desc: Explore Docker image layers
+      - name: httpie
+        desc: HTTP client
+      - name: ngrok
+        desc: Secure tunnels to localhost
+        cask: true
+      - name: postman
+        desc: API platform
+        cask: true
+      - name: proxyman
+        desc: HTTP debugging proxy
+        cask: true
+      - name: orbstack
+        desc: Docker & Linux VMs
+        cask: true
 
   - name: Database
     icon: "🗄"
@@ -100,16 +137,17 @@ categories:
         desc: Analytical SQL database
       - name: mysql
         desc: MySQL client
+      - name: tableplus
+        desc: Database GUI client
+        cask: true
+      - name: datagrip
+        desc: JetBrains database IDE
+        cask: true
+      - name: pgadmin4
+        desc: PostgreSQL admin GUI
+        cask: true
 
-  - name: AI & ML
-    icon: "🤖"
-    packages:
-      - name: ollama
-        desc: Run LLMs locally
-      - name: llm
-        desc: CLI for LLMs
-
-  - name: Editors
+  - name: Dev Environment
     icon: "📝"
     packages:
       - name: visual-studio-code
@@ -120,6 +158,27 @@ categories:
         cask: true
       - name: zed
         desc: High-performance editor
+        cask: true
+      - name: sublime-text
+        desc: Lightweight text editor
+        cask: true
+      - name: webstorm
+        desc: JavaScript IDE
+        cask: true
+      - name: warp
+        desc: Modern terminal
+        cask: true
+      - name: iterm2
+        desc: Terminal emulator
+        cask: true
+      - name: alacritty
+        desc: GPU-accelerated terminal
+        cask: true
+      - name: kitty
+        desc: GPU-based terminal
+        cask: true
+      - name: ghostty
+        desc: Fast native terminal
         cask: true
 
   - name: Browsers
@@ -137,18 +196,8 @@ categories:
       - name: microsoft-edge
         desc: Edge browser
         cask: true
-
-  - name: Terminals
-    icon: "💻"
-    packages:
-      - name: warp
-        desc: Modern terminal
-        cask: true
-      - name: iterm2
-        desc: Terminal emulator
-        cask: true
-      - name: alacritty
-        desc: GPU-accelerated terminal
+      - name: brave-browser
+        desc: Privacy-focused browser
         cask: true
 
   - name: Productivity
@@ -175,10 +224,6 @@ categories:
       - name: telegram
         desc: Messaging
         cask: true
-
-  - name: Utilities
-    icon: "🔧"
-    packages:
       - name: stats
         desc: System monitor in menubar
         cask: true
@@ -197,10 +242,12 @@ categories:
       - name: iina
         desc: Modern media player
         cask: true
-
-  - name: Design
-    icon: "🎨"
-    packages:
+      - name: appcleaner
+        desc: Thorough app uninstaller
+        cask: true
+      - name: shottr
+        desc: Screenshot & annotation
+        cask: true
       - name: figma
         desc: Design tool
         cask: true
@@ -209,21 +256,6 @@ categories:
         cask: true
       - name: imageoptim
         desc: Image compression
-        cask: true
-
-  - name: API & Debug
-    icon: "🔍"
-    packages:
-      - name: httpie
-        desc: HTTP client
-      - name: postman
-        desc: API platform
-        cask: true
-      - name: proxyman
-        desc: HTTP debugging
-        cask: true
-      - name: orbstack
-        desc: Docker & Linux VMs
         cask: true
 
   - name: NPM Global

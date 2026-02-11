@@ -190,8 +190,8 @@ func TestDetectBestPreset_DeveloperPreset(t *testing.T) {
 			Formulae: []string{
 				"curl", "wget", "jq", "yq", "ripgrep", "fd", "bat", "eza",
 				"fzf", "zoxide", "htop", "btop", "tree", "tldr", "gh", "git-delta",
-				"lazygit", "stow", "node", "go", "pnpm", "docker", "docker-compose",
-				"tmux", "neovim", "httpie",
+				"git-lfs", "lazygit", "pre-commit", "stow", "node", "go", "pnpm",
+				"docker", "docker-compose", "lazydocker", "tmux", "neovim", "httpie",
 			},
 			Casks: []string{},
 			Npm:   []string{},

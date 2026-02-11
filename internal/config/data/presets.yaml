@@ -19,6 +19,7 @@ presets:
       - tldr
       - gh
       - git-delta
+      - git-lfs
       - lazygit
       - stow
     cask:
@@ -26,6 +27,7 @@ presets:
       - raycast
       - maccy
       - stats
+      - rectangle
 
   developer:
     name: developer
@@ -47,13 +49,16 @@ presets:
       - tldr
       - gh
       - git-delta
+      - git-lfs
       - lazygit
+      - pre-commit
       - stow
       - node
       - go
       - pnpm
       - docker
       - docker-compose
+      - lazydocker
       - tmux
       - neovim
       - httpie
@@ -63,12 +68,15 @@ presets:
       - maccy
       - stats
       - scroll-reverser
+      - rectangle
       - visual-studio-code
       - orbstack
       - google-chrome
       - arc
       - postman
       - notion
+      - tableplus
+      - appcleaner
     npm:
       - typescript
       - tsx
@@ -96,13 +104,18 @@ presets:
       - tldr
       - gh
       - git-delta
+      - git-lfs
       - lazygit
+      - tig
+      - pre-commit
       - stow
       - node
       - go
       - pnpm
       - docker
       - docker-compose
+      - lazydocker
+      - dive
       - tmux
       - neovim
       - httpie
@@ -111,6 +124,7 @@ presets:
       - rustup
       - deno
       - bun
+      - cmake
       - kubectl
       - helm
       - k9s
@@ -128,21 +142,26 @@ presets:
       - maccy
       - stats
       - scroll-reverser
+      - rectangle
       - visual-studio-code
       - cursor
       - orbstack
+      - ngrok
       - google-chrome
       - arc
       - firefox
       - postman
       - proxyman
+      - tableplus
       - notion
       - obsidian
       - figma
       - iina
       - keka
       - aldente
-      - rectangle
+      - appcleaner
+      - shottr
+      - miniconda
     npm:
       - typescript
       - tsx
