@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,7 +55,9 @@ func loadUserConfig() UserConfig {
 	if err != nil {
 		return cfg
 	}
-	json.Unmarshal(data, &cfg)
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return cfg
+	}
 	if cfg.AutoUpdate == "" {
 		cfg.AutoUpdate = AutoUpdateEnabled
 	}
@@ -196,13 +200,41 @@ func isNewerVersion(latest, current string) bool {
 	if latest == "" {
 		return false
 	}
-	// Dev builds (built from source without version injection) never auto-update
 	if current == "dev" {
 		return false
 	}
 	latestClean := trimVersionPrefix(latest)
 	currentClean := trimVersionPrefix(current)
-	return latestClean != currentClean && latestClean > currentClean
+	return compareSemver(latestClean, currentClean) > 0
+}
+
+func compareSemver(a, b string) int {
+	aParts := parseSemver(a)
+	bParts := parseSemver(b)
+	for i := 0; i < 3; i++ {
+		if aParts[i] != bParts[i] {
+			if aParts[i] > bParts[i] {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
+}
+
+func parseSemver(v string) [3]int {
+	var result [3]int
+	parts := strings.SplitN(v, ".", 3)
+	for i, p := range parts {
+		if i >= 3 {
+			break
+		}
+		n, err := strconv.Atoi(p)
+		if err == nil {
+			result[i] = n
+		}
+	}
+	return result
 }
 
 func trimVersionPrefix(v string) string {
