@@ -48,7 +48,7 @@ jobs:
 
       - name: Compress with UPX
         run: |
-          upx --best --lzma openboot-${{ matrix.os }}-${{ matrix.arch }}
+          upx --best --lzma --force-macos openboot-${{ matrix.os }}-${{ matrix.arch }}
           ls -lh openboot-${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Upload artifact

@@ -35,7 +35,7 @@ build-release:
 	@echo "Original size: $$(du -h $(BINARY_PATH) | cut -f1)"
 	@if command -v upx >/dev/null 2>&1; then \
 		echo "Compressing with UPX..."; \
-		upx --best --lzma $(BINARY_PATH); \
+		upx --best --lzma --force-macos $(BINARY_PATH); \
 		echo "Compressed size: $$(du -h $(BINARY_PATH) | cut -f1)"; \
 	else \
 		echo "UPX not found. Install with: brew install upx"; \
