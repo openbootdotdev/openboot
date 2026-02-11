@@ -143,26 +143,36 @@ func pollForApproval(apiBase, codeID string) (*cliPollResponse, error) {
 		case <-timeout:
 			return nil, fmt.Errorf("authentication timed out after 5 minutes")
 		case <-ticker.C:
-			resp, err := httpClient.Get(pollURL)
+			result, done, err := pollOnce(pollURL)
 			if err != nil {
-				continue
+				return nil, err
 			}
-			defer resp.Body.Close()
-
-			var result cliPollResponse
-			decodeErr := json.NewDecoder(resp.Body).Decode(&result)
-			if decodeErr != nil {
-				continue
-			}
-
-			if result.Status == "approved" {
-				return &result, nil
-			}
-			if result.Status == "expired" {
-				return nil, fmt.Errorf("authorization code expired or already used")
+			if done {
+				return result, nil
 			}
 		}
 	}
+}
+
+func pollOnce(pollURL string) (*cliPollResponse, bool, error) {
+	resp, err := httpClient.Get(pollURL)
+	if err != nil {
+		return nil, false, nil
+	}
+	defer resp.Body.Close()
+
+	var result cliPollResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, false, nil
+	}
+
+	if result.Status == "approved" {
+		return &result, true, nil
+	}
+	if result.Status == "expired" {
+		return nil, false, fmt.Errorf("authorization code expired or already used")
+	}
+	return nil, false, nil
 }
 
 func openBrowser(url string) error {
