@@ -15,6 +15,7 @@ import (
 var presetsYAML embed.FS
 
 type Config struct {
+	Version      string
 	Preset       string
 	Silent       bool
 	DryRun       bool

@@ -1,6 +1,6 @@
 # OpenBoot
 
-> Set up your Mac in one command — not one afternoon.
+> Set up your Mac — or capture the one you already have.
 
 [![Release](https://img.shields.io/github/v/release/openbootdotdev/openboot)](https://github.com/openbootdotdev/openboot/releases)
 [![License](https://img.shields.io/github/license/openbootdotdev/openboot)](LICENSE)
@@ -14,7 +14,7 @@
 curl -fsSL openboot.dev/install | bash
 ```
 
-OpenBoot bootstraps your entire macOS development environment in minutes — Homebrew packages, GUI apps, dotfiles, Oh-My-Zsh, and macOS preferences — through an interactive TUI. No config files to write. No manual steps. Just one command.
+OpenBoot bootstraps your entire macOS development environment in minutes — or snapshots the one you already have. Homebrew packages, GUI apps, dotfiles, Oh-My-Zsh, and macOS preferences — through an interactive TUI. No config files to write. No manual steps. Just one command.
 
 ## Why OpenBoot?
 
@@ -36,6 +36,7 @@ Setting up a new Mac still takes hours. You either run `brew install` 50 times, 
 ## Features
 
 - **One-command setup** — `curl | bash` and you're done
+- **Snapshot** — capture your existing Mac's setup and save it locally or share it as a config
 - **Interactive TUI** — search and select from 50+ curated dev tools across 13 categories
 - **3 presets** — minimal (CLI essentials), developer (ready-to-code), full (everything)
 - **Smart install** — detects already-installed packages, only installs what's new
@@ -44,12 +45,13 @@ Setting up a new Mac still takes hours. You either run `brew install` 50 times, 
 - **Oh-My-Zsh** — installs with sensible aliases
 - **macOS preferences** — developer-friendly defaults
 - **Web dashboard** — create, share, and duplicate configs at [openboot.dev](https://openboot.dev)
-- **Snapshot** — capture your existing setup and share it as a config
 - **Dry-run mode** — preview everything before installing
 - **CI/automation** — silent mode with environment variables
 - **No telemetry** — zero analytics, zero tracking
 
 ## Quick Start
+
+### New Mac? Bootstrap it:
 
 ```bash
 curl -fsSL openboot.dev/install | bash
@@ -63,6 +65,14 @@ OpenBoot guides you through:
 5. Shell setup (Oh-My-Zsh + aliases)
 6. Dotfiles deployment (GNU Stow)
 7. macOS preferences
+
+### Already set up? Snapshot it:
+
+```bash
+curl -fsSL openboot.dev/install | bash -s -- snapshot
+```
+
+Captures your Homebrew packages, macOS preferences, shell config, and git settings. Save locally with `--local` or upload to share.
 
 ## Presets
 

@@ -66,6 +66,7 @@ shell configuration, and macOS preferences.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		updater.ShowUpdateNotificationIfAvailable(version)
 		updater.CheckForUpdatesAsync(cmd.Context(), version)
+		cfg.Version = version
 		err := installer.Run(cfg)
 		if err == installer.ErrUserCancelled {
 			return nil
