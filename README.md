@@ -1,53 +1,27 @@
 # OpenBoot
 
-> Set up your Mac — or capture the one you already have.
-
-[![Release](https://img.shields.io/github/v/release/openbootdotdev/openboot)](https://github.com/openbootdotdev/openboot/releases)
-[![License](https://img.shields.io/github/license/openbootdotdev/openboot)](LICENSE)
-[![codecov](https://codecov.io/gh/openbootdotdev/openboot/branch/main/graph/badge.svg)](https://codecov.io/gh/openbootdotdev/openboot)
+> One command. Your Mac is ready to code.
 
 <p align="center">
-  <img src="demo.svg" alt="OpenBoot Demo" width="800" />
+  <img src="demo.gif" alt="OpenBoot Demo" width="800" />
 </p>
 
 ```bash
 curl -fsSL openboot.dev/install | bash
 ```
 
-OpenBoot bootstraps your entire macOS development environment in minutes — or snapshots the one you already have. Homebrew packages, GUI apps, dotfiles, Oh-My-Zsh, and macOS preferences — through an interactive TUI. No config files to write. No manual steps. Just one command.
+**70+ dev tools. Interactive TUI. Parallel installs. Zero config files.**
 
-## Why OpenBoot?
+[![Release](https://img.shields.io/github/v/release/openbootdotdev/openboot)](https://github.com/openbootdotdev/openboot/releases)
+[![License](https://img.shields.io/github/license/openbootdotdev/openboot)](LICENSE)
+[![codecov](https://codecov.io/gh/openbootdotdev/openboot/branch/main/graph/badge.svg)](https://codecov.io/gh/openbootdotdev/openboot)
 
-Setting up a new Mac still takes hours. You either run `brew install` 50 times, maintain a Brewfile, or wrestle with Nix. OpenBoot handles it all:
-
-| | OpenBoot | Brewfile | Strap | chezmoi | nix-darwin |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Homebrew packages | ✅ | ✅ | ✅ | — | ✅ |
-| GUI apps (casks) | ✅ | ✅ | — | — | ✅ |
-| Dotfiles | ✅ | — | — | ✅ | ✅ |
-| Custom scripts | ✅ | — | — | ✅ | ✅ |
-| Interactive TUI | ✅ | — | — | — | — |
-| Web dashboard | ✅ | — | — | — | — |
-| Team config sharing | ✅ | — | — | — | — |
-| Skip already-installed | ✅ | — | ✅ | — | ✅ |
-| One-command setup | ✅ | — | ✅ | ✅ | — |
-| Learning curve | Low | Low | Low | High | Very High |
-
-## Features
-
-- **One-command setup** — `curl | bash` and you're done
-- **Snapshot** — capture your existing Mac's setup and save it locally or share it as a config
-- **Interactive TUI** — search and select from 50+ curated dev tools across 13 categories
-- **3 presets** — minimal (CLI essentials), developer (ready-to-code), full (everything)
-- **Smart install** — detects already-installed packages, only installs what's new
-- **Parallel + sequential** — CLI tools install 4x in parallel, GUI apps install one at a time (for password prompts)
-- **Dotfiles** — clone your repo and deploy configs via GNU Stow
-- **Oh-My-Zsh** — installs with sensible aliases
-- **macOS preferences** — developer-friendly defaults
+- **Interactive TUI** — search and select from 70+ curated dev tools across 13 categories
+- **Snapshot** — capture your existing Mac's setup, share it, or restore it on a new machine
+- **Parallel installs** — CLI tools install 4× in parallel; GUI apps install sequentially for password prompts
+- **Dotfiles & shell** — clone your dotfiles repo, deploy via GNU Stow, install Oh-My-Zsh with aliases
 - **Web dashboard** — create, share, and duplicate configs at [openboot.dev](https://openboot.dev)
-- **Dry-run mode** — preview everything before installing
-- **CI/automation** — silent mode with environment variables
-- **No telemetry** — zero analytics, zero tracking
+- **No telemetry** — zero analytics, zero tracking, fully open source
 
 ## Quick Start
 
@@ -74,6 +48,16 @@ curl -fsSL openboot.dev/install | bash -s -- snapshot
 
 Captures your Homebrew packages, macOS preferences, shell config, and git settings. Save locally with `--local` or upload to share.
 
+### Team onboarding? Share a config:
+
+Create a config at [openboot.dev/dashboard](https://openboot.dev/dashboard), then have your team run:
+
+```bash
+curl -fsSL openboot.dev/YOUR_USERNAME | bash
+```
+
+Import from an existing Brewfile, pick packages from the catalog, or duplicate an existing config.
+
 ## Presets
 
 | Preset | Focus | Includes |
@@ -82,15 +66,20 @@ Captures your Homebrew packages, macOS preferences, shell config, and git settin
 | **developer** | Ready-to-code | + Node, Go, Docker, VS Code, Chrome, OrbStack |
 | **full** | Complete setup | + Python, Rust, kubectl, Terraform, Ollama, Cursor, Figma |
 
-## Custom Configs
+## Why OpenBoot?
 
-Create a config at [openboot.dev/dashboard](https://openboot.dev/dashboard) and share it with your team:
-
-```bash
-curl -fsSL openboot.dev/YOUR_USERNAME | bash
-```
-
-Import from an existing Brewfile, pick packages from the searchable catalog, or duplicate an existing config.
+| | OpenBoot | Brewfile | Strap | chezmoi | nix-darwin |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Homebrew packages | ✅ | ✅ | ✅ | — | ✅ |
+| GUI apps (casks) | ✅ | ✅ | — | — | ✅ |
+| Dotfiles | ✅ | — | — | ✅ | ✅ |
+| Custom scripts | ✅ | — | — | ✅ | ✅ |
+| Interactive TUI | ✅ | — | — | — | — |
+| Web dashboard | ✅ | — | — | — | — |
+| Team config sharing | ✅ | — | — | — | — |
+| Skip already-installed | ✅ | — | ✅ | — | ✅ |
+| One-command setup | ✅ | — | ✅ | ✅ | — |
+| Learning curve | Low | Low | Low | High | Very High |
 
 ## CI / Automation
 
@@ -110,7 +99,8 @@ openboot update --dry-run  # Preview updates
 openboot version         # Print version
 ```
 
-## CLI Options
+<details>
+<summary>CLI Options</summary>
 
 ```
 -p, --preset NAME   Set preset (minimal, developer, full)
@@ -125,7 +115,10 @@ openboot version         # Print version
     --dotfiles MODE Dotfiles: clone, link, skip
 ```
 
-## Environment Variables
+</details>
+
+<details>
+<summary>Environment Variables</summary>
 
 | Variable | Description |
 |----------|-------------|
@@ -134,12 +127,12 @@ openboot version         # Print version
 | `OPENBOOT_PRESET` | Default preset |
 | `OPENBOOT_USER` | Remote config username |
 
+</details>
+
 ## Requirements
 
-- macOS 12.0 (Monterey) or later
-- Apple Silicon or Intel
+- macOS 12.0+ (Monterey or later)
 - Internet connection
-- Admin privileges (for Homebrew)
 
 ## Development
 
