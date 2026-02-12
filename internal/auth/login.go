@@ -132,10 +132,16 @@ func startAuthSession(apiBase, code string) (string, error) {
 	return result.CodeID, nil
 }
 
+// pollTimeout and pollInterval are package-level defaults, overridable in tests.
+var (
+	pollTimeout  = 5 * time.Minute
+	pollInterval = 2 * time.Second
+)
+
 func pollForApproval(apiBase, codeID string) (*cliPollResponse, error) {
 	pollURL := fmt.Sprintf("%s/api/auth/cli/poll?code_id=%s", apiBase, codeID)
-	timeout := time.After(5 * time.Minute)
-	ticker := time.NewTicker(2 * time.Second)
+	timeout := time.After(pollTimeout)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {

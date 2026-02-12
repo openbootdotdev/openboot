@@ -15,6 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func withFastPoll(t *testing.T) {
+	t.Helper()
+	origInterval := pollInterval
+	pollInterval = 50 * time.Millisecond
+	t.Cleanup(func() { pollInterval = origInterval })
+}
+
 func TestStartAuthSession_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "POST", r.Method)
@@ -101,6 +108,8 @@ func TestStartAuthSession_StatusUnauthorized(t *testing.T) {
 }
 
 func TestPollForApproval_Approved(t *testing.T) {
+	withFastPoll(t)
+
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
@@ -125,6 +134,8 @@ func TestPollForApproval_Approved(t *testing.T) {
 }
 
 func TestPollForApproval_Expired(t *testing.T) {
+	withFastPoll(t)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{Status: "expired"}
 		w.Header().Set("Content-Type", "application/json")
@@ -139,6 +150,8 @@ func TestPollForApproval_Expired(t *testing.T) {
 }
 
 func TestPollForApproval_Pending(t *testing.T) {
+	withFastPoll(t)
+
 	callCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
@@ -167,9 +180,14 @@ func TestPollForApproval_Pending(t *testing.T) {
 }
 
 func TestPollForApproval_TimeoutBehavior(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timeout test in short mode")
-	}
+	origTimeout := pollTimeout
+	origInterval := pollInterval
+	pollTimeout = 3 * time.Second
+	pollInterval = 100 * time.Millisecond
+	t.Cleanup(func() {
+		pollTimeout = origTimeout
+		pollInterval = origInterval
+	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{Status: "pending"}
@@ -185,14 +203,19 @@ func TestPollForApproval_TimeoutBehavior(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "timed out")
-	assert.GreaterOrEqual(t, elapsed, 5*time.Minute)
-	assert.Less(t, elapsed, 5*time.Minute+10*time.Second)
+	assert.GreaterOrEqual(t, elapsed, 3*time.Second)
+	assert.Less(t, elapsed, 5*time.Second)
 }
 
 func TestPollForApproval_InvalidResponse(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping timeout test in short mode")
-	}
+	origTimeout := pollTimeout
+	origInterval := pollInterval
+	pollTimeout = 3 * time.Second
+	pollInterval = 100 * time.Millisecond
+	t.Cleanup(func() {
+		pollTimeout = origTimeout
+		pollInterval = origInterval
+	})
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -276,6 +299,7 @@ func TestPollOnce_InvalidJSON(t *testing.T) {
 }
 
 func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -315,6 +339,7 @@ func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
 }
 
 func TestLoginInteractive_SuccessSQLiteFormat(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -359,6 +384,7 @@ func TestLoginInteractive_StartAuthSessionError(t *testing.T) {
 }
 
 func TestLoginInteractive_PollForApprovalError(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -382,6 +408,7 @@ func TestLoginInteractive_PollForApprovalError(t *testing.T) {
 }
 
 func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -410,6 +437,7 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 }
 
 func TestLoginInteractive_SaveTokenError(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	authDir := filepath.Join(tmpDir, ".openboot")
 	require.NoError(t, os.MkdirAll(authDir, 0500))
@@ -444,6 +472,7 @@ func TestLoginInteractive_SaveTokenError(t *testing.T) {
 }
 
 func TestLoginInteractive_CreatedAtTimestamp(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -476,6 +505,7 @@ func TestLoginInteractive_CreatedAtTimestamp(t *testing.T) {
 }
 
 func TestLoginInteractive_TokenPersisted(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -520,6 +550,8 @@ func TestGetAPIBase_EnvOverride(t *testing.T) {
 }
 
 func TestLoginInteractive_MultiplePolls(t *testing.T) {
+	withFastPoll(t)
+
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -571,6 +603,8 @@ func TestStartAuthSession_ContentTypeHeader(t *testing.T) {
 }
 
 func TestPollForApproval_QueryParameter(t *testing.T) {
+	withFastPoll(t)
+
 	queryReceived := ""
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		queryReceived = r.URL.RawQuery
@@ -591,6 +625,7 @@ func TestPollForApproval_QueryParameter(t *testing.T) {
 }
 
 func TestLoginInteractive_ExpiresAtParsing(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -650,6 +685,7 @@ func TestPollOnce_UnknownStatus(t *testing.T) {
 }
 
 func TestLoginInteractive_EmptyUsername(t *testing.T) {
+	withFastPoll(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
