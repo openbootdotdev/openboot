@@ -407,7 +407,7 @@ func runParallelInstallWithProgress(pkgs []string, progress *ui.StickyProgress) 
 func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 	progress.PauseForInteractive()
 
-	cmd := exec.Command("brew", "install", "--cask", pkg)
+	cmd := brewInstallCmd("install", "--cask", pkg)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -430,10 +430,16 @@ func printBrewOutput(output string, progress *ui.StickyProgress) {
 	}
 }
 
+func brewInstallCmd(args ...string) *exec.Cmd {
+	cmd := exec.Command("brew", args...)
+	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
+	return cmd
+}
+
 func installFormulaWithError(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cmd := exec.Command("brew", "install", pkg)
+		cmd := brewInstallCmd("install", pkg)
 		output, err := cmd.CombinedOutput()
 		if err == nil {
 			return ""
@@ -441,7 +447,7 @@ func installFormulaWithError(pkg string) string {
 
 		outputStr := string(output)
 		if strings.Contains(strings.ToLower(outputStr), "try again using") && strings.Contains(strings.ToLower(outputStr), "--cask") {
-			cmd2 := exec.Command("brew", "install", "--cask", pkg)
+			cmd2 := brewInstallCmd("install", "--cask", pkg)
 			output2, err2 := cmd2.CombinedOutput()
 			if err2 == nil {
 				return ""
@@ -467,9 +473,13 @@ func isRetryableError(errMsg string) bool {
 		"connection refused",
 		"no internet connection",
 		"download corrupted",
+		"already running",
+		"Cannot download non-corrupt",
+		"signature mismatch",
 	}
+	lower := strings.ToLower(errMsg)
 	for _, retryable := range retryableErrors {
-		if strings.Contains(errMsg, retryable) {
+		if strings.Contains(lower, strings.ToLower(retryable)) {
 			return true
 		}
 	}
@@ -479,13 +489,13 @@ func isRetryableError(errMsg string) bool {
 func installSmartCaskWithError(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cmd := exec.Command("brew", "install", "--cask", pkg)
+		cmd := brewInstallCmd("install", "--cask", pkg)
 		output, err := cmd.CombinedOutput()
 		if err == nil {
 			return ""
 		}
 
-		cmd2 := exec.Command("brew", "install", pkg)
+		cmd2 := brewInstallCmd("install", pkg)
 		output2, err2 := cmd2.CombinedOutput()
 		if err2 == nil {
 			return ""
@@ -544,11 +554,11 @@ func parseBrewError(output string) string {
 }
 
 func installSmartCask(pkg string) error {
-	cmd := exec.Command("brew", "install", "--cask", pkg)
+	cmd := brewInstallCmd("install", "--cask", pkg)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
-		cmd2 := exec.Command("brew", "install", pkg)
+		cmd2 := brewInstallCmd("install", pkg)
 		cmd2.Stdout = nil
 		cmd2.Stderr = nil
 		return cmd2.Run()
@@ -672,6 +682,14 @@ func PreInstallChecks(packageCount int) error {
 		if availableGB < 5.0 {
 			ui.Warn(fmt.Sprintf("Low disk space: %.1f GB available. Consider freeing up space.", availableGB))
 		}
+	}
+
+	ui.Info("Updating Homebrew index...")
+	updateCmd := exec.Command("brew", "update")
+	updateCmd.Stdout = nil
+	updateCmd.Stderr = nil
+	if err := updateCmd.Run(); err != nil {
+		ui.Warn("brew update failed, continuing anyway...")
 	}
 
 	return nil
