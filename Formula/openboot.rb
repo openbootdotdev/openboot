@@ -1,8 +1,8 @@
 class Openboot < Formula
   desc "Set up your Mac dev environment in one command"
   homepage "https://openboot.dev"
-  url "https://github.com/openbootdotdev/openboot/archive/refs/tags/v0.21.0.tar.gz"
-  sha256 "974eefb9146a8a3eb7fde576212d324a7ae283cc8bce43cf256133495a815ebf"
+  url "https://github.com/openbootdotdev/openboot/archive/refs/tags/v0.22.0.tar.gz"
+  sha256 "6a4f6ae11d24963932599d46ca3f4c53067315da4003ab195aa51d6244b699d7"
   license "MIT"
 
   depends_on "go" => :build
