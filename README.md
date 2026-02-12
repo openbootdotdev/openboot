@@ -4,120 +4,91 @@
 > **[openboot.dev](https://openboot.dev)**
 
 <p align="center">
-  <img src="demo.gif" alt="OpenBoot Demo" width="800" />
-</p>
-
-Setting up a new Mac still wastes hours. You manually install tools one by one, search for that dotfiles repo, configure macOS defaults, set up your shell... and somehow it's 3pm.
-
-**OpenBoot** gives you a CLI and a [Web Dashboard](https://openboot.dev/dashboard) to handle all of it — whether you're setting up a fresh machine, capturing your current one, or standardizing your team's environment.
-
-<p align="center">
   <a href="https://github.com/openbootdotdev/openboot/releases"><img src="https://img.shields.io/github/v/release/openbootdotdev/openboot" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/openbootdotdev/openboot" alt="License"></a>
   <a href="https://codecov.io/gh/openbootdotdev/openboot"><img src="https://codecov.io/gh/openbootdotdev/openboot/branch/main/graph/badge.svg" alt="codecov"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="macOS">
+  <img src="https://img.shields.io/badge/built%20with-Go-00ADD8" alt="Go">
 </p>
 
-## Installation
+Setting up a new Mac takes hours. Homebrew packages, dotfiles, shell config, macOS preferences — you've done it before, and it never gets faster.
 
-### Homebrew (Recommended)
+OpenBoot handles all of it. Pick your tools in a TUI, or snapshot your current setup and share it as a one-line install URL.
+
+Zero telemetry. Fully open source. MIT licensed.
+
+<p align="center">
+  <img src="demo.gif" alt="OpenBoot Demo" width="800" />
+</p>
+
+## Quick Start
 
 ```bash
-brew tap openbootdotdev/tap
-brew install openboot
+brew install openbootdotdev/tap/openboot
+openboot
 ```
 
-### Alternative: One-Line Installer
+<details>
+<summary>Alternative: one-line installer</summary>
 
 ```bash
 curl -fsSL openboot.dev/install.sh | bash
 ```
 
-## Two Paths, One Tool
+</details>
 
-### 🖥️ Fresh Mac? Install everything.
+## What It Does
 
-Pick your tools in the TUI and you're done.
+- **Homebrew packages & GUI apps** — Docker, VS Code, Chrome, Warp, and more
+- **Dotfiles** — Clone your repo, deploy with GNU Stow, or skip
+- **Shell setup** — Oh-My-Zsh with sensible aliases
+- **macOS preferences** — Developer-friendly defaults (Dock, Finder, keyboard)
+- **Git identity** — Configure name and email during setup
+- **Smart installs** — Detects already-installed tools, skips them
 
-```bash
-openboot
-```
+## Web Dashboard
 
-1. Choose a preset (`minimal`, `developer`, or `full`)
-2. Customize your package selection in a searchable TUI
-3. Sit back while everything installs
+[openboot.dev](https://openboot.dev) — manage and share configs visually, no CLI required.
 
-**Done.** Shell, dotfiles, macOS preferences — all configured.
+- **Visual Config Builder** — Create setups by clicking, not typing YAML
+- **Import from Brewfile** — Drop your Brewfile, everything maps automatically
+- **Shareable URLs** — Every config gets a link: `openboot.dev/yourname/my-setup`
+- **Team Configs** — One command to standardize your whole team's environment
 
-### 📸 Already set up? Capture and share.
+## Presets
 
-Snapshot your current Mac and turn it into a shareable config on [openboot.dev](https://openboot.dev).
+Start with a curated preset, customize in the TUI. [Compare presets →](https://openboot.dev/docs/presets)
+
+| Preset | Best For | Includes |
+|--------|----------|----------|
+| **minimal** | CLI essentials | ripgrep, fd, bat, fzf, lazygit, gh, Warp, Raycast, Rectangle |
+| **developer** | Full-stack devs | + Node, Go, Docker, VS Code, Chrome, OrbStack, TablePlus |
+| **full** | Power users | + Python, Rust, kubectl, Terraform, Ollama, Cursor, Figma |
+
+Not sure? Pick **developer** and toggle what you don't need.
+
+## Snapshot
+
+Already set up? Capture your environment and share it.
 
 ```bash
 openboot snapshot
 ```
 
-Captures your Homebrew packages, macOS preferences, shell config, and git settings. Upload to openboot.dev to get a one-line install URL, or save locally with `--local`. [Learn more →](https://openboot.dev/docs/snapshot)
-
----
-
-## Web Dashboard
-
-The [openboot.dev dashboard](https://openboot.dev/dashboard) is where you manage and share your configs — no CLI knowledge required.
-
-- ✨ **Visual Config Builder** — Create setups by clicking, not typing YAML
-- 📦 **Import from Brewfile** — Drop your existing Brewfile and it maps everything automatically
-- 🔗 **One-Line Install URLs** — Every config gets a shareable URL: `openboot.dev/yourname/my-setup`
-- 🔍 **Package Search** — Browse and search thousands of Homebrew packages and casks
-- 👥 **Team Configs** — Create standard environments your whole team installs with one command
-
-Sign in with GitHub at [openboot.dev](https://openboot.dev) to get started.
+Captures Homebrew packages, macOS preferences, shell config, and git settings. Upload to [openboot.dev](https://openboot.dev) for a shareable install URL, or save locally with `--local`. [Learn more →](https://openboot.dev/docs/snapshot)
 
 ## For Teams
 
-Standardize your dev environment so every developer — new or existing — works with the same tools. [Full guide →](https://openboot.dev/docs/teams)
+New developer joins → runs one command → ready to code. [Full guide →](https://openboot.dev/docs/teams)
 
-**How it works:**
+```bash
+brew install openbootdotdev/tap/openboot
+openboot --user yourteam/frontend
+```
 
-1. **Create a team config** on the [dashboard](https://openboot.dev/dashboard) — or snapshot a reference machine and upload it
-2. **Share installation instructions** in your README or onboarding docs:
-   ```bash
-   brew tap openbootdotdev/tap && brew install openboot
-   openboot --user yourteam/frontend
-   ```
-   Or use the one-line installer:
-   ```bash
-   curl -fsSL openboot.dev/yourteam/frontend/install.sh | bash
-   ```
-3. **New developer joins** → runs the command → ready to code in minutes
-4. **Stack changes?** Update the config in the dashboard — the install command stays the same
+Create configs on the [dashboard](https://openboot.dev/dashboard), share the install command in your onboarding docs. Stack changes? Update the config — the command stays the same.
 
----
-
-## Choose Your Preset
-
-Start with a curated preset, then customize it in the TUI or on the [dashboard](https://openboot.dev/dashboard). [Compare presets →](https://openboot.dev/docs/presets)
-
-| Preset | Best For | Includes |
-|--------|----------|----------|
-| **minimal** | CLI essentials | ripgrep, fd, bat, fzf, lazygit, gh, git-lfs, Warp, Raycast, Rectangle |
-| **developer** | Full-stack devs | + Node, Go, Docker, lazydocker, pre-commit, VS Code, Chrome, OrbStack, TablePlus |
-| **full** | Power users | + Python, Rust, kubectl, Terraform, cmake, Ollama, Cursor, Figma, ngrok |
-
-Not sure? Pick **developer** and toggle what you don't need.
-
-## What's Included
-
-OpenBoot handles everything a traditional Mac setup requires:
-
-- ✅ **Homebrew packages & GUI apps** — Docker, VS Code, Chrome, Warp, etc.
-- ✅ **Dotfiles** — Clone your repo, deploy with GNU Stow, or skip
-- ✅ **Shell setup** — Oh-My-Zsh with sensible aliases
-- ✅ **macOS preferences** — Developer-friendly defaults (Dock, Finder, etc.)
-- ✅ **Git identity** — Configure name/email during setup
-- ✅ **Smart installs** — Skips already-installed tools, no wasted time
-
-<details>
-<summary><strong>🤔 Why not Brewfile / chezmoi / nix-darwin?</strong></summary>
+## How It Compares
 
 | | OpenBoot | Brewfile | Strap | chezmoi | nix-darwin |
 |---|:---:|:---:|:---:|:---:|:---:|
@@ -127,27 +98,21 @@ OpenBoot handles everything a traditional Mac setup requires:
 | One-command setup | ✅ | — | ✅ | ✅ | — |
 | Learning curve | Low | Low | Low | High | Very High |
 
-OpenBoot combines the simplicity of Brewfile with the power of dotfiles managers, plus a web dashboard and team sharing built in.
-
-</details>
-
 ---
 
 ## Advanced Usage
 
 <details>
-<summary><strong>🤖 CI / Automation</strong></summary>
-
-**With Homebrew:**
+<summary><strong>CI / Automation</strong></summary>
 
 ```bash
-brew tap openbootdotdev/tap && brew install openboot
+brew install openbootdotdev/tap/openboot
 OPENBOOT_GIT_NAME="Your Name" \
 OPENBOOT_GIT_EMAIL="you@example.com" \
 openboot --preset developer --silent
 ```
 
-**With one-line installer:**
+Or with the one-line installer:
 
 ```bash
 OPENBOOT_GIT_NAME="Your Name" \
@@ -158,7 +123,7 @@ curl -fsSL openboot.dev/install.sh | bash -s -- --preset developer --silent
 </details>
 
 <details>
-<summary><strong>⚙️ Commands</strong></summary>
+<summary><strong>All Commands</strong></summary>
 
 ```bash
 openboot                 # Interactive setup
@@ -172,7 +137,7 @@ openboot version         # Print version
 </details>
 
 <details>
-<summary><strong>🎛️ CLI Options</strong></summary>
+<summary><strong>CLI Options</strong></summary>
 
 ```
 -p, --preset NAME   Set preset (minimal, developer, full)
@@ -190,7 +155,7 @@ openboot version         # Print version
 </details>
 
 <details>
-<summary><strong>🔑 Environment Variables</strong></summary>
+<summary><strong>Environment Variables</strong></summary>
 
 | Variable | Description |
 |----------|-------------|
@@ -205,48 +170,33 @@ openboot version         # Print version
 
 ## FAQ
 
-**Do I need anything installed first?**  
-Just macOS 12.0+ and an internet connection. If using Homebrew installation, you need Homebrew installed first. Otherwise, the one-line installer handles everything including Homebrew setup.
+**Do I need anything installed first?**
+Just macOS 12.0+ and Homebrew. The one-line installer handles Homebrew for you if needed.
 
-**What if I already have some tools installed?**  
-OpenBoot detects them and skips reinstalling. You only get what's new.
+**What if I already have some tools?**
+OpenBoot detects them and skips reinstalling.
 
-**Can I see what will be installed before running?**  
-Yes. Add `--dry-run` to preview everything, or use the interactive TUI to toggle individual packages.
-
-**Is my data tracked?**  
-No. Zero telemetry, zero analytics. Fully open source (MIT license).
-
-**Should I use Homebrew or the one-line installer?**  
-Homebrew (`brew install openboot`) is recommended for most users — it's cleaner and easier to update. The one-line installer (`curl | bash`) is useful for CI environments or if you don't have Homebrew installed yet.
+**Is my data tracked?**
+No. Zero telemetry, zero analytics. Fully open source.
 
 ---
 
-## Docs & Links
+## Docs
 
-📖 Full documentation at **[openboot.dev/docs](https://openboot.dev/docs)** — [Quick Start](https://openboot.dev/docs/quick-start) · [Presets](https://openboot.dev/docs/presets) · [Snapshot](https://openboot.dev/docs/snapshot) · [Custom Configs](https://openboot.dev/docs/custom-configs) · [Teams](https://openboot.dev/docs/teams)
+📖 **[openboot.dev/docs](https://openboot.dev/docs)** — [Quick Start](https://openboot.dev/docs/quick-start) · [Presets](https://openboot.dev/docs/presets) · [Snapshot](https://openboot.dev/docs/snapshot) · [Custom Configs](https://openboot.dev/docs/custom-configs) · [Teams](https://openboot.dev/docs/teams)
 
 ## Contributing
 
-Found a bug or want to add a feature? [Open an issue](https://github.com/openbootdotdev/openboot/issues) or submit a PR.
+Found a bug or want a feature? [Open an issue](https://github.com/openbootdotdev/openboot/issues) or submit a PR.
 
 <details>
-<summary><strong>🛠️ Development Setup</strong></summary>
-
-**From source:**
+<summary><strong>Development Setup</strong></summary>
 
 ```bash
 git clone https://github.com/openbootdotdev/openboot.git
 cd openboot
 go build -o openboot ./cmd/openboot
 ./openboot --dry-run
-```
-
-**Test Homebrew Tap locally:**
-
-```bash
-brew tap openbootdotdev/tap
-brew install openboot --build-from-source
 ```
 
 </details>
