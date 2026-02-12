@@ -35,6 +35,14 @@ func init() {
 }
 
 func runSelfUpdate() error {
+	if updater.IsHomebrewInstall() {
+		fmt.Println()
+		ui.Info("OpenBoot was installed via Homebrew.")
+		ui.Info("Run 'brew upgrade openboot' to update.")
+		fmt.Println()
+		return nil
+	}
+
 	fmt.Println()
 	ui.Header("OpenBoot Self-Update")
 	fmt.Println()

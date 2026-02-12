@@ -31,7 +31,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: 'go.mod'
 
       - name: Get version from tag
         id: version
@@ -76,12 +76,27 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Checkout for source tarball
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Generate source tarball
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_CLEAN="${VERSION#v}"
+          git archive --format=tar.gz --prefix="openboot-${VERSION_CLEAN}/" -o "openboot-${VERSION_CLEAN}.tar.gz" "${VERSION}"
+
       - name: Generate checksums
         run: |
           cd artifacts
           find . -type f -name 'openboot-*' -exec sha256sum {} \; | sed 's|./[^/]*/||' > checksums.txt
-          cat checksums.txt
           mv checksums.txt ..
+          cd ..
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_CLEAN="${VERSION#v}"
+          sha256sum "openboot-${VERSION_CLEAN}.tar.gz" >> checksums.txt
+          cat checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -93,10 +108,17 @@ jobs:
           files: |
             artifacts/openboot-darwin-amd64/openboot-darwin-amd64
             artifacts/openboot-darwin-arm64/openboot-darwin-arm64
+            openboot-*.tar.gz
             checksums.txt
           body: |
             ## Installation
 
+            ### Homebrew
+            ```bash
+            brew install openboot
+            ```
+
+            ### Direct Download
             ```bash
             curl -fsSL https://openboot.dev/install | bash
             ```

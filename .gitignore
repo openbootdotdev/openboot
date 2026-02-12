@@ -31,6 +31,9 @@ __pycache__/
 # Work tracking (internal)
 .sisyphus/
 
+# Go vendor (deps downloaded at build time)
+vendor/
+
 # Go binaries (root level only)
 /openboot
 /openboot-*

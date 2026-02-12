@@ -72,8 +72,32 @@ func getUserConfigPath() (string, error) {
 	return filepath.Join(home, ".openboot", "config.json"), nil
 }
 
+func isHomebrewPath(binPath string) bool {
+	return strings.Contains(binPath, "/Cellar/") ||
+		strings.HasPrefix(binPath, "/opt/homebrew/") ||
+		strings.HasPrefix(binPath, "/usr/local/Homebrew/") ||
+		strings.HasPrefix(binPath, "/home/linuxbrew/")
+}
+
+// IsHomebrewInstall reports whether the running binary was installed via Homebrew.
+func IsHomebrewInstall() bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return false
+	}
+	return isHomebrewPath(exe)
+}
+
 func AutoUpgrade(currentVersion string) {
 	if os.Getenv("OPENBOOT_DISABLE_AUTOUPDATE") == "1" {
+		return
+	}
+
+	if IsHomebrewInstall() {
 		return
 	}
 
@@ -109,6 +133,10 @@ func AutoUpgrade(currentVersion string) {
 }
 
 func DownloadAndReplace() error {
+	if IsHomebrewInstall() {
+		return fmt.Errorf("openboot is managed by Homebrew — run 'brew upgrade openboot' instead")
+	}
+
 	arch := runtime.GOARCH
 	if arch == "" {
 		arch = "arm64"

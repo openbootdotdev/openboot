@@ -71,6 +71,27 @@ func TestIsNewerVersion(t *testing.T) {
 	}
 }
 
+func TestIsHomebrewPath(t *testing.T) {
+	homebrewPaths := []string{
+		"/opt/homebrew/Cellar/openboot/0.21.0/bin/openboot",
+		"/usr/local/Homebrew/Cellar/openboot/0.21.0/bin/openboot",
+		"/opt/homebrew/bin/openboot",
+		"/home/linuxbrew/.linuxbrew/Cellar/openboot/0.21.0/bin/openboot",
+	}
+	for _, p := range homebrewPaths {
+		assert.True(t, isHomebrewPath(p), "should detect Homebrew path: %s", p)
+	}
+
+	nonHomebrewPaths := []string{
+		"/usr/local/bin/openboot",
+		"/Users/user/.openboot/bin/openboot",
+		"/tmp/openboot",
+	}
+	for _, p := range nonHomebrewPaths {
+		assert.False(t, isHomebrewPath(p), "should not detect as Homebrew: %s", p)
+	}
+}
+
 func TestTrimVersionPrefix(t *testing.T) {
 	tests := []struct {
 		name     string
