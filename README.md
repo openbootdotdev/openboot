@@ -24,7 +24,7 @@ Setting up a new Mac still wastes hours. You manually install tools one by one, 
 Run one command, pick your tools in the TUI, and you're done.
 
 ```bash
-curl -fsSL openboot.dev/install | bash
+curl -fsSL openboot.dev/install.sh | bash
 ```
 
 1. Choose a preset (`minimal`, `developer`, or `full`)
@@ -38,7 +38,7 @@ curl -fsSL openboot.dev/install | bash
 Snapshot your current Mac and turn it into a shareable config on [openboot.dev](https://openboot.dev).
 
 ```bash
-curl -fsSL openboot.dev/install | bash -s -- snapshot
+curl -fsSL openboot.dev/install.sh | bash -s -- snapshot
 ```
 
 Captures your Homebrew packages, macOS preferences, shell config, and git settings. Upload to openboot.dev to get a one-line install URL, or save locally with `--local`. [Learn more →](https://openboot.dev/docs/snapshot)
@@ -66,7 +66,7 @@ Standardize your dev environment so every developer — new or existing — work
 1. **Create a team config** on the [dashboard](https://openboot.dev/dashboard) — or snapshot a reference machine and upload it
 2. **Share one URL** in your README or onboarding docs:
    ```bash
-   curl -fsSL openboot.dev/yourteam/frontend/install | bash
+   curl -fsSL openboot.dev/yourteam/frontend/install.sh | bash
    ```
 3. **New developer joins** → runs the command → ready to code in minutes
 4. **Stack changes?** Update the config in the dashboard — the URL stays the same
@@ -79,9 +79,9 @@ Start with a curated preset, then customize it in the TUI or on the [dashboard](
 
 | Preset | Best For | Includes |
 |--------|----------|----------|
-| **minimal** | CLI essentials | ripgrep, fd, bat, fzf, lazygit, gh, Warp, Raycast |
-| **developer** | Full-stack devs | + Node, Go, Docker, VS Code, Chrome, OrbStack |
-| **full** | Power users | + Python, Rust, kubectl, Terraform, Ollama, Cursor, Figma |
+| **minimal** | CLI essentials | ripgrep, fd, bat, fzf, lazygit, gh, git-lfs, Warp, Raycast, Rectangle |
+| **developer** | Full-stack devs | + Node, Go, Docker, lazydocker, pre-commit, VS Code, Chrome, OrbStack, TablePlus |
+| **full** | Power users | + Python, Rust, kubectl, Terraform, cmake, Ollama, Cursor, Figma, ngrok |
 
 Not sure? Pick **developer** and toggle what you don't need.
 
@@ -121,7 +121,7 @@ OpenBoot combines the simplicity of Brewfile with the power of dotfiles managers
 ```bash
 OPENBOOT_GIT_NAME="Your Name" \
 OPENBOOT_GIT_EMAIL="you@example.com" \
-curl -fsSL openboot.dev/install | bash -s -- --preset developer --silent
+curl -fsSL openboot.dev/install.sh | bash -s -- --preset developer --silent
 ```
 
 </details>
