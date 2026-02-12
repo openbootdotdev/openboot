@@ -62,6 +62,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -75,11 +78,6 @@ jobs:
           else
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
-
-      - name: Checkout for source tarball
-        uses: actions/checkout@v4
-        with:
-          clean: false
 
       - name: Generate source tarball
         run: |
