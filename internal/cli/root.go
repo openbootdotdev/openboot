@@ -102,6 +102,7 @@ func init() {
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(snapshotCmd)
+	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 
