@@ -1,6 +1,7 @@
 # OpenBoot
 
-> One command. Your Mac is ready to code.
+> The only Mac setup tool with a web dashboard and interactive TUI.
+>
 > **[openboot.dev](https://openboot.dev)**
 
 <p align="center">
@@ -11,15 +12,32 @@
   <img src="https://img.shields.io/badge/built%20with-Go-00ADD8" alt="Go">
 </p>
 
-Setting up a new Mac takes hours. Homebrew packages, dotfiles, shell config, macOS preferences — you've done it before, and it never gets faster.
-
-OpenBoot handles all of it. Pick your tools in a TUI, or snapshot your current setup and share it as a one-line install URL.
-
-Zero telemetry. Fully open source. MIT licensed.
-
 <p align="center">
   <img src="demo.gif" alt="OpenBoot Demo" width="800" />
 </p>
+
+**Without OpenBoot:**
+
+```
+brew install git node go python rust docker kubectl terraform
+brew install --cask visual-studio-code docker iterm2 chrome slack figma
+npm install -g typescript eslint prettier
+# ...copy .zshrc from old machine
+# ...configure git name/email
+# ...set macOS defaults
+# ...2 hours later, something is still missing
+```
+
+**With OpenBoot:**
+
+```bash
+brew install openbootdotdev/tap/openboot
+openboot
+```
+
+Pick your tools in a TUI. Done in minutes. Or snapshot your current Mac and share it as a one-line install URL for your whole team.
+
+Zero telemetry. Fully open source. MIT licensed.
 
 ## Quick Start
 
@@ -36,6 +54,18 @@ curl -fsSL openboot.dev/install.sh | bash
 ```
 
 </details>
+
+## Why OpenBoot
+
+Other tools make you write YAML, learn Nix, or manage dotfile repos. OpenBoot gives you a visual TUI to pick packages, a web dashboard to manage configs, and shareable URLs so your whole team runs one command.
+
+| | OpenBoot | Brewfile | chezmoi | nix-darwin |
+|---|:---:|:---:|:---:|:---:|
+| Interactive package picker | **TUI** | manual edit | — | — |
+| Web dashboard | **[openboot.dev](https://openboot.dev)** | — | — | — |
+| Shareable install URL | `openboot -u you` | — | — | — |
+| Snapshot & restore | full environment | — | dotfiles only | full (steep curve) |
+| Learning curve | **Low** | Low | High | Very High |
 
 ## What It Does
 
@@ -102,18 +132,6 @@ openboot --user yourteam/frontend
 ```
 
 Create configs on the [dashboard](https://openboot.dev/dashboard), share the install command in your onboarding docs. Stack changes? Update the config — the command stays the same.
-
-## How It Compares
-
-| | OpenBoot | Brewfile | Strap | chezmoi | nix-darwin |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Web dashboard | ✅ | — | — | — | — |
-| Interactive TUI | ✅ | — | — | — | — |
-| Team config sharing | ✅ | — | — | — | — |
-| One-command setup | ✅ | — | ✅ | ✅ | — |
-| Learning curve | Low | Low | Low | High | Very High |
-
----
 
 ## Advanced Usage
 
