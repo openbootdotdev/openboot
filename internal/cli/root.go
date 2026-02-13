@@ -98,6 +98,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
 	rootCmd.Flags().BoolVar(&cfg.Rollback, "rollback", false, "restore backed-up config files")
 
+	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(doctorCmd)
