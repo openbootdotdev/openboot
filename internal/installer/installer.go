@@ -761,13 +761,22 @@ func stepRestoreGit(cfg *config.Config) error {
 		return nil
 	}
 
+	nameToSet := existingName
+	emailToSet := existingEmail
 	if existingName == "" && git.UserName != "" {
-		if err := system.ConfigureGit(git.UserName, git.UserEmail); err != nil {
+		nameToSet = git.UserName
+	}
+	if existingEmail == "" && git.UserEmail != "" {
+		emailToSet = git.UserEmail
+	}
+
+	if nameToSet != existingName || emailToSet != existingEmail {
+		if err := system.ConfigureGit(nameToSet, emailToSet); err != nil {
 			return fmt.Errorf("failed to restore git config: %w", err)
 		}
 	}
 
-	ui.Success(fmt.Sprintf("Git restored: %s <%s>", git.UserName, git.UserEmail))
+	ui.Success(fmt.Sprintf("Git restored: %s <%s>", nameToSet, emailToSet))
 	fmt.Println()
 	return nil
 }

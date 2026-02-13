@@ -113,7 +113,7 @@ go vet ./...                  # Lint check
 Tag-driven. CI handles everything. **Never edit root.go for version bumps.**
 
 ```bash
-git tag v0.19.0
+git tag v0.24.0
 git push --tags
 # CI builds binaries with version injected via ldflags, creates GitHub release
 ```
@@ -123,6 +123,91 @@ git push --tags
 - CI workflow: `.github/workflows/release.yml` extracts version from git tag
 
 **When to release**: Only for user-facing changes (features, bug fixes, package updates). Skip for docs, AGENTS.md, CI config, test-only changes.
+
+### Writing Release Notes (Changelog)
+
+CI creates a release with a generic install-only body. After CI completes, update it with a proper changelog using `gh release edit`.
+
+**Step 1: Gather commits since last release**
+
+```bash
+PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p')
+git log ${PREV_TAG}..HEAD --oneline
+```
+
+**Step 2: Write the changelog**
+
+Follow this exact format:
+
+```markdown
+## What's New
+- **Feature name** — One sentence user-facing description (`openboot <command>`)
+- **Feature name** — One sentence user-facing description
+
+## Improvements
+- **Area** — What changed and why users care
+
+## Bug Fixes
+- **What was broken** — What's fixed now
+
+## Installation
+
+\`\`\`bash
+curl -fsSL https://openboot.dev/install | bash
+\`\`\`
+
+## Binaries
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+| macOS | Intel | `openboot-darwin-amd64` |
+```
+
+**Rules:**
+
+- Omit empty sections (no "Bug Fixes" if there are none)
+- Write for **users**, not developers. No internal refactors, no test-only changes
+- Each bullet is one line, starts with **bold name** — description
+- Include the CLI command if it's a new/changed command
+- Keep Installation and Binaries sections at the bottom (always)
+
+**Step 3: Update the release on GitHub**
+
+```bash
+gh release edit v0.24.0 --repo openbootdotdev/openboot --notes "$(cat <<'EOF'
+## What's New
+- ...
+
+## Installation
+...
+EOF
+)"
+```
+
+**Example (v0.24.0):**
+
+```markdown
+## What's New
+- **Clean command** — Remove packages not in your config or snapshot (`openboot clean`)
+- **Full snapshot restore** — Importing a snapshot now restores git identity, Oh-My-Zsh theme, and plugins
+
+## Improvements
+- **Brew & npm uninstall** — Internal support for package removal, used by `openboot clean`
+
+## Installation
+
+\`\`\`bash
+curl -fsSL https://openboot.dev/install | bash
+\`\`\`
+
+## Binaries
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+| macOS | Intel | `openboot-darwin-amd64` |
+```
 
 ## NOTES
 
