@@ -84,6 +84,7 @@ cli (root)
 - **Dry-run**: All destructive operations check `cfg.DryRun` first
 - **Version string**: Default `"dev"` in `internal/cli/root.go` — injected via ldflags at build time, never edit manually
 - **Config storage**: `~/.openboot/` directory for auth, state, snapshots
+- **CLI backward compatibility**: All CLI changes (commands, flags, arguments) must maintain backward compatibility. Old syntax must continue to work when adding new features
 
 ## ANTI-PATTERNS
 
