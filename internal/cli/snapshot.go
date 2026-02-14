@@ -212,9 +212,28 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 		configName = "My Mac Setup"
 	}
 
+	fmt.Fprintln(os.Stderr)
+	visibilityOptions := []string{
+		"Public - Anyone can discover and use this config",
+		"Unlisted - Only people with the link can access",
+		"Private - Only you can see this config",
+	}
+	visibilityChoice, err := ui.SelectOption("Who can see this config?", visibilityOptions)
+	if err != nil {
+		return fmt.Errorf("failed to select visibility: %w", err)
+	}
+
+	visibility := "unlisted"
+	if strings.HasPrefix(visibilityChoice, "Public") {
+		visibility = "public"
+	} else if strings.HasPrefix(visibilityChoice, "Private") {
+		visibility = "private"
+	}
+
 	reqBody := map[string]interface{}{
-		"name":     configName,
-		"snapshot": snap,
+		"name":       configName,
+		"snapshot":   snap,
+		"visibility": visibility,
 	}
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -258,18 +277,32 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config uploaded successfully!"))
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  View your config:"))
-	fmt.Fprintf(os.Stderr, "    %s\n", configURL)
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with others:"))
-	fmt.Fprintf(os.Stderr, "    %s\n", installURL)
-	fmt.Fprintln(os.Stderr)
 
-	// Auto-open browser
-	if err := exec.Command("open", configURL).Start(); err != nil {
-		ui.Warn(fmt.Sprintf("Could not open browser: %v", err))
+	if visibility == "public" {
+		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  View your config:"))
+		fmt.Fprintf(os.Stderr, "    %s\n", configURL)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with others:"))
+		fmt.Fprintf(os.Stderr, "    %s\n", installURL)
+		fmt.Fprintln(os.Stderr)
+		if err := exec.Command("open", configURL).Start(); err != nil {
+			ui.Warn(fmt.Sprintf("Could not open browser: %v", err))
+		}
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Opening in browser..."))
+	} else if visibility == "unlisted" {
+		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  View your config:"))
+		fmt.Fprintf(os.Stderr, "    %s\n", configURL)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with people who have the link:"))
+		fmt.Fprintf(os.Stderr, "    %s\n", installURL)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  (This config is unlisted - only people with the link can access it)"))
+	} else {
+		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Manage your config:"))
+		fmt.Fprintf(os.Stderr, "    %s\n", configURL)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  (This config is private - only you can see it)"))
 	}
-	fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Opening in browser..."))
 	fmt.Fprintln(os.Stderr)
 
 	return nil
