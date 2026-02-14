@@ -272,7 +272,7 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 
 	// --- SUCCESS SCREEN ---
 	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, result.Slug)
-	installURL := fmt.Sprintf("curl -fsSL %s/%s/%s/install | bash", apiBase, stored.Username, result.Slug)
+	installURL := fmt.Sprintf("curl -fsSL %s/%s/%s | bash", apiBase, stored.Username, result.Slug)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config uploaded successfully!"))
