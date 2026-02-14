@@ -104,9 +104,7 @@ func runSnapshot(cmd *cobra.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to save snapshot: %w", err)
 		}
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Snapshot saved to "+path))
-		fmt.Fprintln(os.Stderr)
+		showLocalSaveSummary(snap, path)
 		return nil
 	}
 
@@ -130,6 +128,9 @@ func runSnapshot(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// --- SUMMARY PHASE ---
+	showSnapshotSummary(edited)
+
 	// --- CONFIRM PHASE ---
 	fmt.Fprintln(os.Stderr)
 	upload, err := ui.Confirm("Upload this snapshot to openboot.dev?", false)
@@ -138,7 +139,7 @@ func runSnapshot(cmd *cobra.Command) error {
 	}
 
 	if !upload {
-		// Offer local save as fallback
+		fmt.Fprintln(os.Stderr)
 		saveLocal, err := ui.Confirm("Save snapshot locally instead?", true)
 		if err != nil {
 			return err
@@ -148,11 +149,12 @@ func runSnapshot(cmd *cobra.Command) error {
 			if err != nil {
 				return fmt.Errorf("failed to save snapshot: %w", err)
 			}
-			fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Snapshot saved to "+path))
+			showLocalSaveSummary(edited, path)
 		} else {
+			fmt.Fprintln(os.Stderr)
 			fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Snapshot discarded."))
+			fmt.Fprintln(os.Stderr)
 		}
-		fmt.Fprintln(os.Stderr)
 		return nil
 	}
 
@@ -164,7 +166,7 @@ func runSnapshot(cmd *cobra.Command) error {
 func captureWithUI() (*snapshot.Snapshot, error) {
 	fmt.Fprintln(os.Stderr)
 
-	progress := ui.NewScanProgress(7)
+	progress := ui.NewScanProgress(8)
 
 	snap, err := snapshot.CaptureWithProgress(func(step snapshot.ScanStep) {
 		progress.Update(step)
@@ -271,6 +273,110 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	fmt.Fprintln(os.Stderr)
 
 	return nil
+}
+
+func showLocalSaveSummary(snap *snapshot.Snapshot, path string) {
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Snapshot saved successfully!"))
+	fmt.Fprintln(os.Stderr)
+
+	totalFormulae := len(snap.Packages.Formulae)
+	totalCasks := len(snap.Packages.Casks)
+	totalTaps := len(snap.Packages.Taps)
+	totalNpm := len(snap.Packages.Npm)
+
+	fmt.Fprintf(os.Stderr, "  %s %d formulae, %d casks, %d taps, %d npm\n",
+		snapBoldStyle.Render("Saved:"),
+		totalFormulae, totalCasks, totalTaps, totalNpm)
+
+	if snap.MatchedPreset != "" {
+		matchRate := int(snap.CatalogMatch.MatchRate * 100)
+		fmt.Fprintf(os.Stderr, "  %s Matches \"%s\" (%d%% similarity)\n",
+			snapBoldStyle.Render("Preset:"),
+			snap.MatchedPreset, matchRate)
+	}
+
+	fmt.Fprintf(os.Stderr, "  %s %s\n",
+		snapBoldStyle.Render("Location:"),
+		path)
+
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Restore this snapshot:"))
+	fmt.Fprintf(os.Stderr, "    %s\n", snapMutedStyle.Render("openboot snapshot --import "+path))
+	fmt.Fprintln(os.Stderr)
+}
+
+func showSnapshotSummary(snap *snapshot.Snapshot) {
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Snapshot Summary ==="))
+	fmt.Fprintln(os.Stderr)
+
+	totalFormulae := len(snap.Packages.Formulae)
+	totalCasks := len(snap.Packages.Casks)
+	totalTaps := len(snap.Packages.Taps)
+	totalNpm := len(snap.Packages.Npm)
+
+	fmt.Fprintf(os.Stderr, "  %s %d formulae, %d casks, %d taps, %d npm packages\n",
+		snapBoldStyle.Render("Packages:"),
+		totalFormulae, totalCasks, totalTaps, totalNpm)
+
+	if snap.MatchedPreset != "" {
+		matchRate := int(snap.CatalogMatch.MatchRate * 100)
+		fmt.Fprintf(os.Stderr, "  %s Matches \"%s\" (%d%% similarity)\n",
+			snapBoldStyle.Render("Preset:"),
+			snap.MatchedPreset, matchRate)
+	} else {
+		fmt.Fprintf(os.Stderr, "  %s Custom configuration\n",
+			snapBoldStyle.Render("Preset:"))
+	}
+
+	omzStatus := "not installed"
+	if snap.Shell.OhMyZsh {
+		theme := snap.Shell.Theme
+		if theme == "" {
+			theme = "default"
+		}
+		pluginCount := len(snap.Shell.Plugins)
+		omzStatus = fmt.Sprintf("Oh-My-Zsh (%s theme, %d plugins)", theme, pluginCount)
+	}
+	fmt.Fprintf(os.Stderr, "  %s %s + %s\n",
+		snapBoldStyle.Render("Shell:"),
+		snap.Shell.Default, omzStatus)
+
+	if snap.Git.UserName != "" || snap.Git.UserEmail != "" {
+		fmt.Fprintf(os.Stderr, "  %s %s <%s>\n",
+			snapBoldStyle.Render("Git:"),
+			snap.Git.UserName, snap.Git.UserEmail)
+	} else {
+		fmt.Fprintf(os.Stderr, "  %s Not configured\n",
+			snapBoldStyle.Render("Git:"))
+	}
+
+	if len(snap.DevTools) > 0 {
+		var toolNames []string
+		for _, tool := range snap.DevTools {
+			toolNames = append(toolNames, tool.Name)
+		}
+		fmt.Fprintf(os.Stderr, "  %s %s\n",
+			snapBoldStyle.Render("Dev Tools:"),
+			strings.Join(toolNames, ", "))
+	} else {
+		fmt.Fprintf(os.Stderr, "  %s None detected\n",
+			snapBoldStyle.Render("Dev Tools:"))
+	}
+
+	prefCount := len(snap.MacOSPrefs)
+	fmt.Fprintf(os.Stderr, "  %s %d preferences captured\n",
+		snapBoldStyle.Render("macOS:"),
+		prefCount)
+
+	fmt.Fprintln(os.Stderr)
+	capturedTime := snap.CapturedAt.Format("2006-01-02 15:04:05")
+	fmt.Fprintf(os.Stderr, "  %s %s\n",
+		snapMutedStyle.Render("Captured:"),
+		snapMutedStyle.Render(capturedTime))
+
+	fmt.Fprintln(os.Stderr)
 }
 
 func showSnapshotPreview(snap *snapshot.Snapshot) {
