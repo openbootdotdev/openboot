@@ -1,6 +1,6 @@
 # OpenBoot
 
-> The only Mac setup tool with a web dashboard and interactive TUI.
+> Setting up a new Mac shouldn't take two hours of your weekend.
 >
 > **[openboot.dev](https://openboot.dev)**
 
@@ -16,28 +16,28 @@
   <img src="demo.gif" alt="OpenBoot Demo" width="800" />
 </p>
 
-**Without OpenBoot:**
+You know the drill. New Mac, same two-hour ritual:
 
-```
+```bash
 brew install git node go python rust docker kubectl terraform
 brew install --cask visual-studio-code docker iterm2 chrome slack figma
 npm install -g typescript eslint prettier
-# ...copy .zshrc from old machine
-# ...configure git name/email
-# ...set macOS defaults
-# ...2 hours later, something is still missing
+# dig through old laptop for .zshrc
+# re-configure git identity
+# tweak macOS settings one by one
+# two hours later, still missing something
 ```
 
-**With OpenBoot:**
+Here's the alternative:
 
 ```bash
 brew install openbootdotdev/tap/openboot
 openboot
 ```
 
-Pick your tools in a TUI. Done in minutes. Or snapshot your current Mac and share it as a one-line install URL for your whole team.
+Pick what you need in a terminal UI. Takes minutes. Or snapshot your current Mac and share it—your whole team gets the same setup with one command.
 
-Zero telemetry. Fully open source. MIT licensed.
+No tracking. No telemetry. Just works.
 
 ## Quick Start
 
@@ -55,9 +55,11 @@ curl -fsSL openboot.dev/install.sh | bash
 
 </details>
 
-## Why OpenBoot
+## Why This Exists
 
-Other tools make you write YAML, learn Nix, or manage dotfile repos. OpenBoot gives you a visual TUI to pick packages, a web dashboard to manage configs, and shareable URLs so your whole team runs one command.
+Brewfiles are manual YAML editing. Nix has a brutal learning curve. Dotfile repos become unmaintainable after six months.
+
+I wanted something simple: a visual way to pick packages, a dashboard to manage configs without touching files, and URLs you can share. One command, same environment for everyone on your team.
 
 | | OpenBoot | Brewfile | chezmoi | nix-darwin |
 |---|:---:|:---:|:---:|:---:|
@@ -69,69 +71,69 @@ Other tools make you write YAML, learn Nix, or manage dotfile repos. OpenBoot gi
 
 ## What It Does
 
-- **Homebrew packages & GUI apps** — Docker, VS Code, Chrome, Warp, and more
-- **Dotfiles** — Clone your repo, deploy with GNU Stow, or skip
-- **Shell setup** — Oh-My-Zsh with sensible aliases
-- **macOS preferences** — Developer-friendly defaults (Dock, Finder, keyboard)
-- **Git identity** — Configure name and email during setup
-- **Smart installs** — Detects already-installed tools, skips them
-- **Clean up** — Remove packages not in your config with `openboot clean`
-- **Full snapshot restore** — Restores packages, git config, shell theme & plugins
+- **Homebrew packages & apps** — Installs Docker, VS Code, Chrome, whatever you need
+- **Dotfiles** — Clone your repo and symlink with GNU Stow, or skip it
+- **Shell config** — Sets up Oh-My-Zsh with useful aliases
+- **macOS settings** — Developer-friendly defaults for Dock, Finder, keyboard
+- **Git setup** — Asks for your name and email, configures git
+- **Smart about duplicates** — Detects what's already installed, skips it
+- **Clean command** — Remove packages that drifted from your config
+- **Full restore** — Snapshots save everything: packages, git config, shell theme, plugins
 
 ## Web Dashboard
 
-[openboot.dev](https://openboot.dev) — manage and share configs visually, no CLI required.
+[openboot.dev](https://openboot.dev) — if you'd rather click than type commands.
 
-- **Visual Config Builder** — Create setups by clicking, not typing YAML
-- **Import from Brewfile** — Drop your Brewfile, everything maps automatically
-- **Shareable URLs** — Every config gets a link: `openboot.dev/yourname/my-setup`
-- **Team Configs** — One command to standardize your whole team's environment
+- **Visual builder** — Pick packages with checkboxes instead of editing YAML
+- **Brewfile import** — Already have a Brewfile? Drop it in, it maps automatically
+- **Shareable links** — Every config gets a URL: `openboot.dev/yourname/my-setup`
+- **Team configs** — Share one link, everyone gets the same environment
 
 ## Presets
 
-Start with a curated preset, customize in the TUI. [Compare presets →](https://openboot.dev/docs/presets)
+Three starting points. Pick one, adjust in the TUI. [Full list →](https://openboot.dev/docs/presets)
 
-| Preset | Best For | Includes |
-|--------|----------|----------|
-| **minimal** | CLI essentials | ripgrep, fd, bat, fzf, lazygit, gh, Warp, Raycast, Rectangle |
-| **developer** | Full-stack devs | + Node, Go, Docker, VS Code, Chrome, OrbStack, TablePlus |
-| **full** | Power users | + Python, Rust, kubectl, Terraform, Ollama, Cursor, Figma |
+| Preset | What's In It |
+|--------|--------------|
+| **minimal** | CLI tools: ripgrep, fd, bat, fzf, lazygit, gh, Warp, Raycast, Rectangle |
+| **developer** | Minimal + Node, Go, Docker, VS Code, Chrome, OrbStack, TablePlus |
+| **full** | Developer + Python, Rust, kubectl, Terraform, Ollama, Cursor, Figma |
 
-Not sure? Pick **developer** and toggle what you don't need.
+Most people start with **developer** and uncheck what they don't need.
 
 ## Snapshot
 
-Already set up? Capture your environment and share it.
+Already have a Mac set up the way you like? Save it.
 
 ```bash
 openboot snapshot
 ```
 
-Captures Homebrew packages, macOS preferences, shell config (Oh-My-Zsh theme & plugins), and git settings. Upload to [openboot.dev](https://openboot.dev) for a shareable install URL, or save locally with `--local`.
+This captures everything: Homebrew packages, macOS settings, shell config, git identity. Upload it to [openboot.dev](https://openboot.dev) for a shareable URL, or save it locally with `--local`.
 
-Restoring from a snapshot now fully restores your environment — packages, git identity, shell theme, and plugins. [Learn more →](https://openboot.dev/docs/snapshot)
+When you restore a snapshot, you get everything back exactly as it was. [Docs →](https://openboot.dev/docs/snapshot)
 
 ### Clean
 
-Drifted from your config? Remove extra packages.
+Installed too much? Clean up what's not in your config.
 
 ```bash
 openboot clean                        # Compare against local snapshot
 openboot clean --user yourname        # Compare against cloud config
 openboot clean --from my-setup.json   # Compare against a snapshot file
-openboot clean --dry-run              # Preview what would be removed
+openboot clean --dry-run              # See what would be removed
 ```
 
 ## For Teams
 
-New developer joins → runs one command → ready to code. [Full guide →](https://openboot.dev/docs/teams)
+New hire runs one command, gets the same environment as everyone else. [Guide →](https://openboot.dev/docs/teams)
 
 ```bash
 brew install openbootdotdev/tap/openboot
 openboot --user yourteam/frontend
 ```
 
-Create configs on the [dashboard](https://openboot.dev/dashboard), share the install command in your onboarding docs. Stack changes? Update the config — the command stays the same.
+Make your config on the [dashboard](https://openboot.dev/dashboard), put this in your onboarding docs. When your stack changes, update the config. The install command stays the same.
 
 ## Advanced Usage
 
@@ -204,14 +206,14 @@ openboot version         # Print version
 
 ## FAQ
 
-**Do I need anything installed first?**
-Just macOS 12.0+ and Homebrew. The one-line installer handles Homebrew for you if needed.
+**Do I need anything installed first?**  
+macOS 12.0 or newer. Homebrew if you have it, but the installer will get it for you if not.
 
-**What if I already have some tools?**
-OpenBoot detects them and skips reinstalling.
+**What if I already have some of these tools?**  
+It checks what's installed and skips anything you already have.
 
-**Is my data tracked?**
-No. Zero telemetry, zero analytics. Fully open source.
+**Is my data tracked?**  
+No. No telemetry, no analytics. Code is open source, check for yourself.
 
 ---
 
@@ -221,7 +223,7 @@ No. Zero telemetry, zero analytics. Fully open source.
 
 ## Contributing
 
-Found a bug or want a feature? [Open an issue](https://github.com/openbootdotdev/openboot/issues) or submit a PR.
+Bug reports and feature requests: [open an issue](https://github.com/openbootdotdev/openboot/issues). Pull requests welcome.
 
 <details>
 <summary><strong>Development Setup</strong></summary>
