@@ -29,8 +29,6 @@ type Config struct {
 	Silent       bool
 	DryRun       bool
 	Update       bool
-	Rollback     bool
-	Resume       bool
 	Shell        string
 	Macos        string
 	Dotfiles     string

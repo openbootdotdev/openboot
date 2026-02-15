@@ -87,7 +87,6 @@ func init() {
 	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "install from openboot.dev/username config")
 	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
 	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "preview changes without installing")
-	rootCmd.Flags().BoolVar(&cfg.Resume, "resume", false, "resume an incomplete installation")
 	rootCmd.Flags().BoolVar(&cfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
 
 	rootCmd.Flags().StringVar(&cfg.Shell, "shell", "", "shell setup: install, skip")
@@ -95,7 +94,6 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
 
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
-	rootCmd.Flags().BoolVar(&cfg.Rollback, "rollback", false, "restore backed-up config files")
 
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(versionCmd)

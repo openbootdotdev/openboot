@@ -110,14 +110,6 @@ func TestRun_UpdateRoute(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestRun_RollbackRoute(t *testing.T) {
-	cfg := &config.Config{
-		Rollback: true,
-	}
-	err := Run(cfg)
-	assert.NoError(t, err)
-}
-
 func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	cfg := &config.Config{
 		DryRun: true,
@@ -357,12 +349,6 @@ func TestStepMacOS_Skip(t *testing.T) {
 		Macos: "skip",
 	}
 	err := stepMacOS(cfg)
-	assert.NoError(t, err)
-}
-
-func TestRunRollback(t *testing.T) {
-	cfg := &config.Config{}
-	err := runRollback(cfg)
 	assert.NoError(t, err)
 }
 

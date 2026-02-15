@@ -30,10 +30,6 @@ func Run(cfg *config.Config) error {
 		return runUpdate(cfg)
 	}
 
-	if cfg.Rollback {
-		return runRollback(cfg)
-	}
-
 	return runInstall(cfg)
 }
 
@@ -823,13 +819,6 @@ func runUpdate(cfg *config.Config) error {
 
 	fmt.Println()
 	ui.Header("Update Complete!")
-	return nil
-}
-
-func runRollback(cfg *config.Config) error {
-	ui.Header("OpenBoot Rollback")
-	fmt.Println()
-	ui.Muted("Rollback functionality coming soon...")
 	return nil
 }
 

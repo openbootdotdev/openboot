@@ -186,8 +186,6 @@ openboot version         # Print version
 -s, --silent        Non-interactive mode (requires env vars)
     --dry-run       Preview what would be installed
     --update        Update Homebrew and packages
-    --rollback      Restore backed up files
-    --resume        Resume incomplete installation
     --shell MODE    Shell setup: install, skip
     --macos MODE    macOS prefs: configure, skip
     --dotfiles MODE Dotfiles: clone, link, skip
