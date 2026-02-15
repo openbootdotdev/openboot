@@ -5,6 +5,7 @@
 > **[openboot.dev](https://openboot.dev)**
 
 <p align="center">
+  <a href="https://github.com/openbootdotdev/openboot/stargazers"><img src="https://img.shields.io/github/stars/openbootdotdev/openboot?style=social" alt="GitHub stars"></a>
   <a href="https://github.com/openbootdotdev/openboot/releases"><img src="https://img.shields.io/github/v/release/openbootdotdev/openboot" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/openbootdotdev/openboot" alt="License"></a>
   <a href="https://codecov.io/gh/openbootdotdev/openboot"><img src="https://codecov.io/gh/openbootdotdev/openboot/branch/main/graph/badge.svg" alt="codecov"></a>
@@ -39,6 +40,14 @@ Pick what you need in a terminal UI. Takes minutes. Or snapshot your current Mac
 
 No tracking. No telemetry. Just works.
 
+## Why OpenBoot?
+
+**Fresh project, proven demand** — 2 weeks old, already trending on Reddit (100K+ views) and growing fast.
+
+Brewfiles are manual YAML editing. Nix has a brutal learning curve. Shell scripts break silently. Dotfile repos become unmaintainable after six months.
+
+OpenBoot is the first tool that handles **everything** — packages, dotfiles, shell config, macOS preferences, git identity — in an interactive TUI you can actually navigate. No config files to learn. No YAML to write. Just pick what you need and go.
+
 ## Quick Start
 
 ```bash
@@ -55,11 +64,7 @@ curl -fsSL openboot.dev/install.sh | bash
 
 </details>
 
-## Why This Exists
-
-Brewfiles are manual YAML editing. Nix has a brutal learning curve. Dotfile repos become unmaintainable after six months.
-
-I wanted something simple: a visual way to pick packages, a dashboard to manage configs without touching files, and URLs you can share. One command, same environment for everyone on your team.
+## How It Compares
 
 | | OpenBoot | Brewfile | chezmoi | nix-darwin |
 |---|:---:|:---:|:---:|:---:|
@@ -206,13 +211,13 @@ openboot version         # Print version
 
 ## FAQ
 
-**Do I need anything installed first?**  
+**Do I need anything installed first?**
 macOS 12.0 or newer. Homebrew if you have it, but the installer will get it for you if not.
 
-**What if I already have some of these tools?**  
+**What if I already have some of these tools?**
 It checks what's installed and skips anything you already have.
 
-**Is my data tracked?**  
+**Is my data tracked?**
 No. No telemetry, no analytics. Code is open source, check for yourself.
 
 ---
