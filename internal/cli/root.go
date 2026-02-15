@@ -96,6 +96,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
 
 	rootCmd.AddCommand(installCmd)
+	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(doctorCmd)
