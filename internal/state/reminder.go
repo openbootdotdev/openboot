@@ -13,7 +13,6 @@ type ReminderState struct {
 	Skipped   bool `json:"skipped"`
 }
 
-// DefaultStatePath returns the path to the reminder state file (~/.openboot/state.json).
 func DefaultStatePath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -22,9 +21,8 @@ func DefaultStatePath() string {
 	return filepath.Join(home, ".openboot", "state.json")
 }
 
-// LoadState reads and unmarshals the reminder state from disk.
-// If the file does not exist, returns a default state with no error.
-// If the file exists but contains invalid JSON, logs a warning to stderr and returns default state.
+// LoadState reads reminder state. Returns default state if file is missing
+// or contains invalid JSON (logs warning to stderr in the latter case).
 func LoadState(path string) (*ReminderState, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -44,8 +42,7 @@ func LoadState(path string) (*ReminderState, error) {
 	return &state, nil
 }
 
-// SaveState persists the reminder state to disk with atomic write semantics.
-// Creates parent directory if missing and writes with indented JSON for readability.
+// SaveState writes reminder state atomically (temp file + rename).
 func SaveState(path string, s *ReminderState) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -72,18 +69,14 @@ func SaveState(path string, s *ReminderState) error {
 	return nil
 }
 
-// ShouldShowReminder returns true if the reminder should be shown.
-// Returns false if the reminder has been dismissed.
 func ShouldShowReminder(s *ReminderState) bool {
 	return !s.Dismissed
 }
 
-// MarkDismissed sets the Dismissed flag to true.
 func MarkDismissed(s *ReminderState) {
 	s.Dismissed = true
 }
 
-// MarkSkipped sets the Skipped flag to true.
 func MarkSkipped(s *ReminderState) {
 	s.Skipped = true
 }

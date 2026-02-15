@@ -16,13 +16,10 @@ type CleanResult struct {
 	ExtraNpm      []string
 }
 
-// TotalExtra returns the total number of packages to remove.
 func (r *CleanResult) TotalExtra() int {
 	return len(r.ExtraFormulae) + len(r.ExtraCasks) + len(r.ExtraNpm)
 }
 
-// DiffFromSnapshot compares the current system against a snapshot and returns packages
-// that are installed but not in the snapshot (i.e. candidates for removal).
 func DiffFromSnapshot(snap *snapshot.Snapshot) (*CleanResult, error) {
 	desiredFormulae := toSet(snap.Packages.Formulae)
 	desiredCasks := toSet(snap.Packages.Casks)
@@ -31,7 +28,6 @@ func DiffFromSnapshot(snap *snapshot.Snapshot) (*CleanResult, error) {
 	return diff(desiredFormulae, desiredCasks, desiredNpm)
 }
 
-// DiffFromLists compares the current system against explicit package lists.
 func DiffFromLists(formulae, casks, npmPkgs []string) (*CleanResult, error) {
 	return diff(toSet(formulae), toSet(casks), toSet(npmPkgs))
 }

@@ -18,7 +18,6 @@ type StoredAuth struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// TokenPath returns the path to the auth token file (~/.openboot/auth.json).
 func TokenPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -27,8 +26,8 @@ func TokenPath() string {
 	return filepath.Join(home, ".openboot", "auth.json")
 }
 
-// LoadToken reads and unmarshals the stored auth token from disk.
-// Returns nil, nil if the file does not exist or the token is expired.
+// LoadToken reads the auth token from disk. Returns nil if the file
+// doesn't exist or the token is expired.
 func LoadToken() (*StoredAuth, error) {
 	path := TokenPath()
 	data, err := os.ReadFile(path)
@@ -51,7 +50,7 @@ func LoadToken() (*StoredAuth, error) {
 	return &auth, nil
 }
 
-// SaveToken persists the auth token to disk with restrictive permissions.
+// SaveToken writes the auth token to disk with 0600 permissions.
 func SaveToken(auth *StoredAuth) error {
 	path := TokenPath()
 
@@ -72,7 +71,6 @@ func SaveToken(auth *StoredAuth) error {
 	return nil
 }
 
-// DeleteToken removes the stored auth token file.
 func DeleteToken() error {
 	path := TokenPath()
 	err := os.Remove(path)
@@ -82,14 +80,12 @@ func DeleteToken() error {
 	return nil
 }
 
-// IsAuthenticated returns true if a valid, non-expired token exists on disk.
 func IsAuthenticated() bool {
 	auth, err := LoadToken()
 	return err == nil && auth != nil
 }
 
-// GenerateCode produces an 8-character uppercase alphanumeric code using
-// crypto/rand for secure randomness.
+// GenerateCode returns an 8-character code using crypto/rand (ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789).
 func GenerateCode() string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, 8)

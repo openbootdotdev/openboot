@@ -13,7 +13,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
-// Capture orchestrates a full environment snapshot.
 func Capture() (*Snapshot, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -92,134 +91,55 @@ type ScanStep struct {
 	Count  int    `json:"count"`  // items found (only meaningful on "done")
 }
 
-// CaptureWithProgress orchestrates a full environment snapshot with progress callbacks.
-// The callback is invoked before and after each capture step.
-// If callback is nil, it is not invoked.
+type captureStep struct {
+	name    string
+	capture func() (interface{}, error)
+	count   func(interface{}) int
+}
+
 func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
 	}
 
-	// Step 0: Homebrew Formulae
-	if callback != nil {
-		callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 8, Status: "scanning", Count: 0})
+	steps := []captureStep{
+		{"Homebrew Formulae", func() (interface{}, error) { return CaptureFormulae() }, func(v interface{}) int { return len(v.([]string)) }},
+		{"Homebrew Casks", func() (interface{}, error) { return CaptureCasks() }, func(v interface{}) int { return len(v.([]string)) }},
+		{"Homebrew Taps", func() (interface{}, error) { return CaptureTaps() }, func(v interface{}) int { return len(v.([]string)) }},
+		{"NPM Global Packages", func() (interface{}, error) { return CaptureNpm() }, func(v interface{}) int { return len(v.([]string)) }},
+		{"macOS Preferences", func() (interface{}, error) { return CaptureMacOSPrefs() }, func(v interface{}) int { return len(v.([]MacOSPref)) }},
+		{"Shell Environment", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int { return 1 }},
+		{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
+		{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int { return len(v.([]DevTool)) }},
 	}
-	formulae, err := CaptureFormulae()
-	if err != nil {
+
+	results := make([]interface{}, len(steps))
+	for i, step := range steps {
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 8, Status: "error", Count: 0})
+			callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "scanning", Count: 0})
 		}
-	} else {
+
+		result, err := step.capture()
+		results[i] = result
+
 		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Formulae", Index: 0, Total: 8, Status: "done", Count: len(formulae)})
+			if err != nil {
+				callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "error", Count: 0})
+			} else {
+				callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "done", Count: step.count(result)})
+			}
 		}
 	}
 
-	// Step 1: Homebrew Casks
-	if callback != nil {
-		callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 8, Status: "scanning", Count: 0})
-	}
-	casks, err := CaptureCasks()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Casks", Index: 1, Total: 8, Status: "done", Count: len(casks)})
-		}
-	}
-
-	// Step 2: Homebrew Taps
-	if callback != nil {
-		callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 8, Status: "scanning", Count: 0})
-	}
-	taps, err := CaptureTaps()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "Homebrew Taps", Index: 2, Total: 8, Status: "done", Count: len(taps)})
-		}
-	}
-
-	// Step 3: NPM Global Packages
-	if callback != nil {
-		callback(ScanStep{Name: "NPM Global Packages", Index: 3, Total: 8, Status: "scanning", Count: 0})
-	}
-	npmPkgs, err := CaptureNpm()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "NPM Global Packages", Index: 3, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "NPM Global Packages", Index: 3, Total: 8, Status: "done", Count: len(npmPkgs)})
-		}
-	}
-
-	// Step 4: macOS Preferences
-	if callback != nil {
-		callback(ScanStep{Name: "macOS Preferences", Index: 4, Total: 8, Status: "scanning", Count: 0})
-	}
-	prefs, err := CaptureMacOSPrefs()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "macOS Preferences", Index: 4, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "macOS Preferences", Index: 4, Total: 8, Status: "done", Count: len(prefs)})
-		}
-	}
-
-	// Step 5: Shell Environment
-	if callback != nil {
-		callback(ScanStep{Name: "Shell Environment", Index: 5, Total: 8, Status: "scanning", Count: 0})
-	}
-	shellSnap, err := CaptureShell()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "Shell Environment", Index: 5, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "Shell Environment", Index: 5, Total: 8, Status: "done", Count: 1})
-		}
-	}
-
-	// Step 6: Git Configuration
-	if callback != nil {
-		callback(ScanStep{Name: "Git Configuration", Index: 6, Total: 8, Status: "scanning", Count: 0})
-	}
-	gitSnap, err := CaptureGit()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "Git Configuration", Index: 6, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "Git Configuration", Index: 6, Total: 8, Status: "done", Count: 1})
-		}
-	}
-
-	// Step 7: Dev Tools
-	if callback != nil {
-		callback(ScanStep{Name: "Dev Tools", Index: 7, Total: 8, Status: "scanning", Count: 0})
-	}
-	devTools, err := CaptureDevTools()
-	if err != nil {
-		if callback != nil {
-			callback(ScanStep{Name: "Dev Tools", Index: 7, Total: 8, Status: "error", Count: 0})
-		}
-	} else {
-		if callback != nil {
-			callback(ScanStep{Name: "Dev Tools", Index: 7, Total: 8, Status: "done", Count: len(devTools)})
-		}
-	}
+	formulae := results[0].([]string)
+	casks := results[1].([]string)
+	taps := results[2].([]string)
+	npmPkgs := results[3].([]string)
+	prefs := results[4].([]MacOSPref)
+	shellSnap := results[5].(*ShellSnapshot)
+	gitSnap := results[6].(*GitSnapshot)
+	devTools := results[7].([]DevTool)
 
 	return &Snapshot{
 		Version:    1,
@@ -284,7 +204,7 @@ func isBrewInstalled() bool {
 	return err == nil
 }
 
-// CaptureFormulae returns user-intentional formulae via `brew leaves`.
+// CaptureFormulae returns user-installed formulae (via `brew leaves`, excludes dependencies).
 func CaptureFormulae() ([]string, error) {
 	if !isBrewInstalled() {
 		return []string{}, nil
@@ -299,7 +219,6 @@ func CaptureFormulae() ([]string, error) {
 	return parseLines(string(output)), nil
 }
 
-// CaptureCasks returns installed casks via `brew list --cask`.
 func CaptureCasks() ([]string, error) {
 	if !isBrewInstalled() {
 		return []string{}, nil
@@ -314,7 +233,6 @@ func CaptureCasks() ([]string, error) {
 	return parseLines(string(output)), nil
 }
 
-// CaptureTaps returns active Homebrew taps.
 func CaptureTaps() ([]string, error) {
 	if !isBrewInstalled() {
 		return []string{}, nil
@@ -329,7 +247,6 @@ func CaptureTaps() ([]string, error) {
 	return parseLines(string(output)), nil
 }
 
-// CaptureMacOSPrefs reads the current values of whitelisted macOS preferences.
 func CaptureMacOSPrefs() ([]MacOSPref, error) {
 	prefs := []MacOSPref{}
 
@@ -351,7 +268,6 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 	return prefs, nil
 }
 
-// CaptureShell detects the default shell, Oh-My-Zsh, plugins, and theme.
 func CaptureShell() (*ShellSnapshot, error) {
 	snap := &ShellSnapshot{
 		Default: os.Getenv("SHELL"),
@@ -393,7 +309,6 @@ func CaptureShell() (*ShellSnapshot, error) {
 	return snap, nil
 }
 
-// CaptureGit reads global git user.name and user.email.
 func CaptureGit() (*GitSnapshot, error) {
 	snap := &GitSnapshot{}
 
@@ -408,7 +323,7 @@ func CaptureGit() (*GitSnapshot, error) {
 	return snap, nil
 }
 
-// RestoreGit writes global git user.name and user.email from a snapshot, skipping values already configured.
+// RestoreGit sets git user.name/email if not already configured.
 func RestoreGit(git GitSnapshot) error {
 	existingName, existingEmail := system.GetExistingGitConfig()
 
@@ -444,7 +359,6 @@ var devToolCommands = []struct {
 	{"docker", []string{"--version"}},
 }
 
-// CaptureDevTools detects installed development tools and their versions.
 func CaptureDevTools() ([]DevTool, error) {
 	tools := []DevTool{}
 

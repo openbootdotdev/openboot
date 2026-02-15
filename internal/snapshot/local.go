@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 )
 
-// LocalPath returns the path to the local snapshot file (~/.openboot/snapshot.json).
 func LocalPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -16,8 +15,6 @@ func LocalPath() string {
 	return filepath.Join(home, ".openboot", "snapshot.json")
 }
 
-// SaveLocal persists the snapshot to ~/.openboot/snapshot.json.
-// Returns the path where the snapshot was saved.
 func SaveLocal(snap *Snapshot) (string, error) {
 	path := LocalPath()
 
@@ -38,12 +35,10 @@ func SaveLocal(snap *Snapshot) (string, error) {
 	return path, nil
 }
 
-// LoadLocal reads and unmarshals the snapshot from ~/.openboot/snapshot.json.
 func LoadLocal() (*Snapshot, error) {
 	return LoadFile(LocalPath())
 }
 
-// LoadFile reads and unmarshals a snapshot from the given file path.
 func LoadFile(path string) (*Snapshot, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

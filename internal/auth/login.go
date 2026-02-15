@@ -23,8 +23,7 @@ var httpClient = &http.Client{
 
 const DefaultAPIBase = "https://openboot.dev"
 
-// GetAPIBase returns the API base URL, checking the OPENBOOT_API_URL
-// environment variable first and falling back to DefaultAPIBase.
+// GetAPIBase returns OPENBOOT_API_URL env var or DefaultAPIBase.
 func GetAPIBase() string {
 	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
 		return base
@@ -47,9 +46,8 @@ type cliPollResponse struct {
 	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
-// LoginInteractive performs the full CLI-to-browser authentication flow:
-// generates a code, starts the auth session, opens the browser for approval,
-// and polls until approved or timed out.
+// LoginInteractive runs CLI→browser auth flow: generates code, opens browser,
+// polls for approval.
 func LoginInteractive(apiBase string) (*StoredAuth, error) {
 	code := GenerateCode()
 
