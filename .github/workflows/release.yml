@@ -118,7 +118,7 @@ jobs:
           cat checksums.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: OpenBoot ${{ steps.version.outputs.version }}
@@ -133,7 +133,7 @@ jobs:
             ## Installation
 
             ```bash
-            curl -fsSL https://openboot.dev/install | bash
+            brew install openbootdotdev/tap/openboot
             ```
 
             ## Binaries
