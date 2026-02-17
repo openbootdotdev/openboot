@@ -1,6 +1,7 @@
 package cleaner
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
@@ -13,10 +14,26 @@ type CleanResult struct {
 	ExtraFormulae []string
 	ExtraCasks    []string
 	ExtraNpm      []string
+
+	RemovedFormulae []string
+	RemovedCasks    []string
+	RemovedNpm      []string
+
+	FailedFormulae []string
+	FailedCasks    []string
+	FailedNpm      []string
 }
 
 func (r *CleanResult) TotalExtra() int {
 	return len(r.ExtraFormulae) + len(r.ExtraCasks) + len(r.ExtraNpm)
+}
+
+func (r *CleanResult) TotalRemoved() int {
+	return len(r.RemovedFormulae) + len(r.RemovedCasks) + len(r.RemovedNpm)
+}
+
+func (r *CleanResult) TotalFailed() int {
+	return len(r.FailedFormulae) + len(r.FailedCasks) + len(r.FailedNpm)
 }
 
 func DiffFromSnapshot(snap *snapshot.Snapshot) (*CleanResult, error) {
@@ -67,47 +84,60 @@ func diff(desiredFormulae, desiredCasks, desiredNpm map[string]bool) (*CleanResu
 	return result, nil
 }
 
-func Execute(result *CleanResult, dryRun bool) error {
-	type uninstallOp struct {
-		label     string
-		pkgs      []string
-		uninstall func([]string, bool) error
-	}
+type uninstallOneFn func(pkg string, dryRun bool) error
 
+type uninstallOp struct {
+	label        string
+	pkgs         []string
+	uninstallOne uninstallOneFn
+	removed      *[]string
+	failed       *[]string
+}
+
+func Execute(result *CleanResult, dryRun bool) error {
 	ops := []uninstallOp{
 		{
-			label:     "Removing extra formulae",
-			pkgs:      result.ExtraFormulae,
-			uninstall: brew.Uninstall,
+			label:        "Removing extra formulae",
+			pkgs:         result.ExtraFormulae,
+			uninstallOne: func(pkg string, dry bool) error { return brew.Uninstall([]string{pkg}, dry) },
+			removed:      &result.RemovedFormulae,
+			failed:       &result.FailedFormulae,
 		},
 		{
-			label:     "Removing extra casks",
-			pkgs:      result.ExtraCasks,
-			uninstall: brew.UninstallCask,
+			label:        "Removing extra casks",
+			pkgs:         result.ExtraCasks,
+			uninstallOne: func(pkg string, dry bool) error { return brew.UninstallCask([]string{pkg}, dry) },
+			removed:      &result.RemovedCasks,
+			failed:       &result.FailedCasks,
 		},
 		{
-			label:     "Removing extra npm packages",
-			pkgs:      result.ExtraNpm,
-			uninstall: npm.Uninstall,
+			label:        "Removing extra npm packages",
+			pkgs:         result.ExtraNpm,
+			uninstallOne: func(pkg string, dry bool) error { return npm.Uninstall([]string{pkg}, dry) },
+			removed:      &result.RemovedNpm,
+			failed:       &result.FailedNpm,
 		},
 	}
 
 	var errs []error
 	for _, op := range ops {
-		if len(op.pkgs) > 0 {
-			fmt.Println()
-			ui.Header(op.label)
-			fmt.Println()
-			if err := op.uninstall(op.pkgs, dryRun); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", op.label, err))
+		if len(op.pkgs) == 0 {
+			continue
+		}
+		fmt.Println()
+		ui.Header(op.label)
+		fmt.Println()
+		for _, pkg := range op.pkgs {
+			if err := op.uninstallOne(pkg, dryRun); err != nil {
+				*op.failed = append(*op.failed, pkg)
+				errs = append(errs, fmt.Errorf("%s: %w", pkg, err))
+			} else {
+				*op.removed = append(*op.removed, pkg)
 			}
 		}
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("%d cleanup steps had failures", len(errs))
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func toSet(items []string) map[string]bool {
