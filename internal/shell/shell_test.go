@@ -3,6 +3,7 @@ package shell
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -266,4 +267,88 @@ source $ZSH/oh-my-zsh.sh
 	require.NoError(t, err)
 	assert.Contains(t, string(result), `ZSH_THEME="robbyrussell"`)
 	assert.Contains(t, string(result), `plugins=(git)`)
+}
+
+func TestConfigureZshrc_Idempotent(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	require.NoError(t, ConfigureZshrc(false))
+	require.NoError(t, ConfigureZshrc(false))
+	require.NoError(t, ConfigureZshrc(false))
+
+	zshrcPath := filepath.Join(tmpHome, ".zshrc")
+	content, err := os.ReadFile(zshrcPath)
+	require.NoError(t, err)
+
+	count := strings.Count(string(content), openbootZshrcSentinel)
+	assert.Equal(t, 1, count, "OpenBoot block should appear exactly once after multiple calls")
+}
+
+func TestRestoreFromSnapshot_NoTrailingNewline(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	zshrcPath := filepath.Join(home, ".zshrc")
+	require.NoError(t, os.WriteFile(zshrcPath, []byte(`source $ZSH/oh-my-zsh.sh`), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0755))
+
+	require.NoError(t, RestoreFromSnapshot(true, "agnoster", []string{"git"}, false))
+
+	content, err := os.ReadFile(zshrcPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(content), restoreBlockStart)
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		if strings.HasSuffix(line, "oh-my-zsh.sh") {
+			assert.NotContains(t, line, restoreBlockStart,
+				"block sentinel must not be joined to previous line (line %d)", i)
+			break
+		}
+	}
+}
+
+func TestRestoreFromSnapshot_Idempotent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	zshrcPath := filepath.Join(home, ".zshrc")
+	initial := `export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="robbyrussell"
+plugins=(git)
+source $ZSH/oh-my-zsh.sh
+`
+	require.NoError(t, os.WriteFile(zshrcPath, []byte(initial), 0644))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0755))
+
+	require.NoError(t, RestoreFromSnapshot(true, "agnoster", []string{"git", "docker"}, false))
+	require.NoError(t, RestoreFromSnapshot(true, "agnoster", []string{"git", "docker"}, false))
+	require.NoError(t, RestoreFromSnapshot(true, "agnoster", []string{"git", "docker"}, false))
+
+	content, err := os.ReadFile(zshrcPath)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, strings.Count(string(content), restoreBlockStart),
+		"restore block should appear exactly once after repeated calls")
+	assert.Contains(t, string(content), `ZSH_THEME="agnoster"`)
+	assert.NotContains(t, string(content), `ZSH_THEME="robbyrussell"`)
+}
+
+func TestConfigureZshrc_IdempotentPreservesExisting(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	zshrcPath := filepath.Join(tmpHome, ".zshrc")
+	existing := "# My existing config\nexport EDITOR=vim\n"
+	require.NoError(t, os.WriteFile(zshrcPath, []byte(existing), 0644))
+
+	require.NoError(t, ConfigureZshrc(false))
+	require.NoError(t, ConfigureZshrc(false))
+
+	content, err := os.ReadFile(zshrcPath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(content), "My existing config")
+	assert.Equal(t, 1, strings.Count(string(content), openbootZshrcSentinel))
 }

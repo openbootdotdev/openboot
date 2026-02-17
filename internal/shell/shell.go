@@ -48,14 +48,9 @@ func InstallOhMyZsh(dryRun bool) error {
 	return nil
 }
 
-func ConfigureZshrc(dryRun bool) error {
-	home, err := system.HomeDir()
-	if err != nil {
-		return err
-	}
-	zshrcPath := filepath.Join(home, ".zshrc")
+const openbootZshrcSentinel = "# OpenBoot additions"
 
-	additions := `
+const openbootZshrcBlock = `
 # OpenBoot additions
 # Homebrew (must come before /usr/bin)
 if [ -f /opt/homebrew/bin/brew ]; then
@@ -85,9 +80,21 @@ eval "$(zoxide init zsh)"
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 `
 
+func ConfigureZshrc(dryRun bool) error {
+	home, err := system.HomeDir()
+	if err != nil {
+		return err
+	}
+	zshrcPath := filepath.Join(home, ".zshrc")
+
 	if dryRun {
 		fmt.Println("[DRY-RUN] Would add to .zshrc:")
-		fmt.Println(additions)
+		fmt.Print(openbootZshrcBlock)
+		return nil
+	}
+
+	existing, _ := os.ReadFile(zshrcPath)
+	if strings.Contains(string(existing), openbootZshrcSentinel) {
 		return nil
 	}
 
@@ -97,7 +104,7 @@ eval "$(zoxide init zsh)"
 	}
 	defer f.Close()
 
-	if _, err := f.WriteString(additions); err != nil {
+	if _, err := f.WriteString(openbootZshrcBlock); err != nil {
 		return fmt.Errorf("failed to write to .zshrc: %w", err)
 	}
 
@@ -120,6 +127,59 @@ func SetDefaultShell(dryRun bool) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
+}
+
+const restoreBlockStart = "# >>> OpenBoot-Restore"
+const restoreBlockEnd = "# <<< OpenBoot-Restore"
+
+var restoreBlockRe = regexp.MustCompile(`(?s)# >>> OpenBoot-Restore\n.*?# <<< OpenBoot-Restore\n?`)
+
+func buildRestoreBlock(theme string, plugins []string) string {
+	var sb strings.Builder
+	sb.WriteString(restoreBlockStart + "\n")
+	if theme != "" {
+		sb.WriteString(fmt.Sprintf("ZSH_THEME=\"%s\"\n", theme))
+	}
+	if len(plugins) > 0 {
+		sb.WriteString(fmt.Sprintf("plugins=(%s)\n", strings.Join(plugins, " ")))
+	}
+	sb.WriteString(restoreBlockEnd + "\n")
+	return sb.String()
+}
+
+var (
+	looseThemeRe   = regexp.MustCompile(`(?m)^ZSH_THEME="[^"]*"\n?`)
+	loosePluginsRe = regexp.MustCompile(`(?m)^plugins=\([^)]*\)\n?`)
+)
+
+func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
+	raw, err := os.ReadFile(zshrcPath)
+	if err != nil {
+		return fmt.Errorf("failed to read .zshrc: %w", err)
+	}
+
+	block := buildRestoreBlock(theme, plugins)
+	content := string(raw)
+
+	if restoreBlockRe.MatchString(content) {
+		content = restoreBlockRe.ReplaceAllString(content, block)
+	} else {
+		if theme != "" {
+			content = looseThemeRe.ReplaceAllString(content, "")
+		}
+		if len(plugins) > 0 {
+			content = loosePluginsRe.ReplaceAllString(content, "")
+		}
+		if len(content) > 0 && content[len(content)-1] != '\n' {
+			content = content + "\n"
+		}
+		content = content + block
+	}
+
+	if err := os.WriteFile(zshrcPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write .zshrc: %w", err)
+	}
+	return nil
 }
 
 func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bool) error {
@@ -169,36 +229,9 @@ source $ZSH/oh-my-zsh.sh
 		return nil
 	}
 
-	content, err := os.ReadFile(zshrcPath)
-	if err != nil {
-		return fmt.Errorf("failed to read .zshrc: %w", err)
+	if theme == "" && len(plugins) == 0 {
+		return nil
 	}
 
-	updated := string(content)
-
-	if theme != "" {
-		themeRe := regexp.MustCompile(`ZSH_THEME="[^"]*"`)
-		newTheme := fmt.Sprintf(`ZSH_THEME="%s"`, theme)
-		if themeRe.MatchString(updated) {
-			updated = themeRe.ReplaceAllString(updated, newTheme)
-		} else {
-			updated = newTheme + "\n" + updated
-		}
-	}
-
-	if len(plugins) > 0 {
-		pluginsRe := regexp.MustCompile(`plugins=\([^)]*\)`)
-		newPlugins := fmt.Sprintf("plugins=(%s)", strings.Join(plugins, " "))
-		if pluginsRe.MatchString(updated) {
-			updated = pluginsRe.ReplaceAllString(updated, newPlugins)
-		} else {
-			updated = newPlugins + "\n" + updated
-		}
-	}
-
-	if err := os.WriteFile(zshrcPath, []byte(updated), 0644); err != nil {
-		return fmt.Errorf("failed to write .zshrc: %w", err)
-	}
-
-	return nil
+	return patchZshrcBlock(zshrcPath, theme, plugins)
 }
