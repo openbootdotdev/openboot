@@ -1,9 +1,11 @@
 package snapshot
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestParseLines tests the parseLines function.
@@ -306,4 +308,57 @@ func TestParseVersion_EdgeCases(t *testing.T) {
 			assert.IsType(t, "", result)
 		})
 	}
+}
+
+func TestCaptureWithProgress_HealthTracksFailedSteps(t *testing.T) {
+	steps := []captureStep{
+		{
+			name:    "Step A",
+			capture: func() (interface{}, error) { return []string{"pkg"}, nil },
+			count:   func(v interface{}) int { return len(v.([]string)) },
+		},
+		{
+			name:    "Step B",
+			capture: func() (interface{}, error) { return []string{}, errors.New("simulated failure") },
+			count:   func(v interface{}) int { return 0 },
+		},
+		{
+			name:    "Step C",
+			capture: func() (interface{}, error) { return []string{"other"}, nil },
+			count:   func(v interface{}) int { return len(v.([]string)) },
+		},
+	}
+
+	results := make([]interface{}, len(steps))
+	var failedSteps []string
+	for i, step := range steps {
+		result, err := step.capture()
+		results[i] = result
+		if err != nil {
+			failedSteps = append(failedSteps, step.name)
+		}
+	}
+
+	require.Equal(t, []string{"Step B"}, failedSteps)
+	assert.True(t, len(failedSteps) > 0)
+}
+
+func TestCaptureWithProgress_HealthEmptyOnSuccess(t *testing.T) {
+	steps := []captureStep{
+		{
+			name:    "Step A",
+			capture: func() (interface{}, error) { return []string{"pkg"}, nil },
+			count:   func(v interface{}) int { return len(v.([]string)) },
+		},
+	}
+
+	var failedSteps []string
+	for _, step := range steps {
+		_, err := step.capture()
+		if err != nil {
+			failedSteps = append(failedSteps, step.name)
+		}
+	}
+
+	assert.Empty(t, failedSteps)
 }

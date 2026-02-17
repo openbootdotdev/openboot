@@ -115,6 +115,7 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	}
 
 	results := make([]interface{}, len(steps))
+	var failedSteps []string
 	for i, step := range steps {
 		if callback != nil {
 			callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "scanning", Count: 0})
@@ -123,12 +124,13 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 		result, err := step.capture()
 		results[i] = result
 
-		if callback != nil {
-			if err != nil {
+		if err != nil {
+			failedSteps = append(failedSteps, step.name)
+			if callback != nil {
 				callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "error", Count: 0})
-			} else {
-				callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "done", Count: step.count(result)})
 			}
+		} else if callback != nil {
+			callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "done", Count: step.count(result)})
 		}
 	}
 
@@ -160,6 +162,10 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			Matched:   []string{},
 			Unmatched: []string{},
 			MatchRate: 0,
+		},
+		Health: CaptureHealth{
+			FailedSteps: failedSteps,
+			Partial:     len(failedSteps) > 0,
 		},
 	}, nil
 }
@@ -204,7 +210,6 @@ func isBrewInstalled() bool {
 	return err == nil
 }
 
-// captureBrewList runs a brew command and returns parsed output lines.
 func captureBrewList(args ...string) ([]string, error) {
 	if !isBrewInstalled() {
 		return []string{}, nil
@@ -213,7 +218,7 @@ func captureBrewList(args ...string) ([]string, error) {
 	cmd := exec.Command("brew", args...)
 	output, err := cmd.Output()
 	if err != nil {
-		return []string{}, nil
+		return []string{}, fmt.Errorf("brew %s: %w", args[0], err)
 	}
 
 	return parseLines(string(output)), nil

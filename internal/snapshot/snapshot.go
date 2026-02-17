@@ -2,6 +2,11 @@ package snapshot
 
 import "time"
 
+type CaptureHealth struct {
+	FailedSteps []string `json:"failed_steps"`
+	Partial     bool     `json:"partial"`
+}
+
 type Snapshot struct {
 	Version       int             `json:"version"`
 	CapturedAt    time.Time       `json:"captured_at"`
@@ -13,6 +18,7 @@ type Snapshot struct {
 	DevTools      []DevTool       `json:"dev_tools"`
 	MatchedPreset string          `json:"matched_preset"`
 	CatalogMatch  CatalogMatch    `json:"catalog_match"`
+	Health        CaptureHealth   `json:"health"`
 }
 
 type PackageSnapshot struct {

@@ -357,6 +357,26 @@ func TestSnapshot_CatalogMatchWithHighRate(t *testing.T) {
 	assert.Equal(t, 1.0, snap.CatalogMatch.MatchRate)
 }
 
+// TestCaptureHealth_DefaultIsHealthy verifies a zero-value CaptureHealth is not partial.
+func TestCaptureHealth_DefaultIsHealthy(t *testing.T) {
+	snap := &Snapshot{Version: 1}
+	assert.False(t, snap.Health.Partial)
+	assert.Empty(t, snap.Health.FailedSteps)
+}
+
+// TestCaptureHealth_PartialWhenStepsFail verifies Health reflects failed steps.
+func TestCaptureHealth_PartialWhenStepsFail(t *testing.T) {
+	snap := &Snapshot{
+		Health: CaptureHealth{
+			FailedSteps: []string{"Homebrew Formulae", "Homebrew Casks"},
+			Partial:     true,
+		},
+	}
+	assert.True(t, snap.Health.Partial)
+	assert.Equal(t, 2, len(snap.Health.FailedSteps))
+	assert.Contains(t, snap.Health.FailedSteps, "Homebrew Formulae")
+}
+
 // TestSnapshot_CatalogMatchWithLowRate tests catalog match with low match rate.
 func TestSnapshot_CatalogMatchWithLowRate(t *testing.T) {
 	snap := &Snapshot{
