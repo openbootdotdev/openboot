@@ -155,13 +155,24 @@ func TestInstallTaps_DryRun(t *testing.T) {
 }
 
 func TestInstallWithProgress_EmptyPackages(t *testing.T) {
-	err := InstallWithProgress([]string{}, []string{}, false)
+	formulae, casks, err := InstallWithProgress([]string{}, []string{}, false)
 	assert.NoError(t, err)
+	assert.Empty(t, formulae)
+	assert.Empty(t, casks)
 }
 
 func TestInstallWithProgress_DryRun(t *testing.T) {
-	err := InstallWithProgress([]string{"git", "curl"}, []string{"firefox"}, true)
+	formulae, casks, err := InstallWithProgress([]string{"git", "curl"}, []string{"firefox"}, true)
 	assert.NoError(t, err)
+	assert.Empty(t, formulae)
+	assert.Empty(t, casks)
+}
+
+func TestInstallWithProgress_DryRunReturnsNoInstalledPackages(t *testing.T) {
+	formulae, casks, err := InstallWithProgress([]string{"ripgrep", "fd"}, []string{"visual-studio-code"}, true)
+	assert.NoError(t, err)
+	assert.Empty(t, formulae, "dry-run should not report packages as installed")
+	assert.Empty(t, casks, "dry-run should not report casks as installed")
 }
 
 func TestUpdate_DryRun(t *testing.T) {

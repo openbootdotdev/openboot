@@ -199,10 +199,10 @@ type installResult struct {
 	errMsg string
 }
 
-func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
+func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedFormulae []string, installedCasks []string, err error) {
 	total := len(cliPkgs) + len(caskPkgs)
 	if total == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
 	if dryRun {
@@ -213,24 +213,28 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 		for _, p := range caskPkgs {
 			fmt.Printf("    brew install --cask %s\n", p)
 		}
-		return nil
+		return nil, nil, nil
 	}
 
-	installedFormulae, installedCasks, err := GetInstalledPackages()
-	if err != nil {
-		return fmt.Errorf("failed to check installed packages: %w", err)
+	alreadyFormulae, alreadyCasks, checkErr := GetInstalledPackages()
+	if checkErr != nil {
+		return nil, nil, fmt.Errorf("failed to check installed packages: %w", checkErr)
 	}
 
 	var newCli []string
 	for _, p := range cliPkgs {
-		if !installedFormulae[p] {
+		if !alreadyFormulae[p] {
 			newCli = append(newCli, p)
+		} else {
+			installedFormulae = append(installedFormulae, p)
 		}
 	}
 	var newCask []string
 	for _, p := range caskPkgs {
-		if !installedCasks[p] {
+		if !alreadyCasks[p] {
 			newCask = append(newCask, p)
+		} else {
+			installedCasks = append(installedCasks, p)
 		}
 	}
 
@@ -242,11 +246,11 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 
 	if len(newCli)+len(newCask) == 0 {
 		ui.Success("All packages already installed!")
-		return nil
+		return installedFormulae, installedCasks, nil
 	}
 
-	if err := PreInstallChecks(len(newCli) + len(newCask)); err != nil {
-		return err
+	if preErr := PreInstallChecks(len(newCli) + len(newCask)); preErr != nil {
+		return installedFormulae, installedCasks, preErr
 	}
 
 	progress := ui.NewStickyProgress(len(newCli) + len(newCask))
@@ -257,6 +261,15 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 
 	if len(newCli) > 0 {
 		failed := runParallelInstallWithProgress(newCli, progress)
+		failedSet := make(map[string]bool, len(failed))
+		for _, f := range failed {
+			failedSet[f.name] = true
+		}
+		for _, p := range newCli {
+			if !failedSet[p] {
+				installedFormulae = append(installedFormulae, p)
+			}
+		}
 		allFailed = append(allFailed, failed...)
 	}
 
@@ -271,10 +284,9 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 			duration := ui.FormatDuration(elapsed)
 			if errMsg == "" {
 				progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
+				installedCasks = append(installedCasks, pkg)
 			} else {
 				progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
-			}
-			if errMsg != "" {
 				allFailed = append(allFailed, failedJob{
 					installJob: installJob{name: pkg, isCask: true},
 					errMsg:     errMsg,
@@ -288,8 +300,6 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 	if len(allFailed) > 0 {
 		fmt.Printf("\nRetrying %d failed packages...\n", len(allFailed))
 
-		retriedSuccessfully := make(map[string]bool)
-
 		for _, f := range allFailed {
 			var errMsg string
 			if f.isCask {
@@ -299,15 +309,30 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 			}
 			if errMsg == "" {
 				fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)
-				retriedSuccessfully[f.name] = true
+				if f.isCask {
+					installedCasks = append(installedCasks, f.name)
+				} else {
+					installedFormulae = append(installedFormulae, f.name)
+				}
 			} else {
 				fmt.Printf("  ✗ %s (still failed)\n", f.name)
 			}
 		}
 
+		type pkgKey struct {
+			name   string
+			isCask bool
+		}
+		succeeded := make(map[pkgKey]bool)
+		for _, p := range installedFormulae {
+			succeeded[pkgKey{p, false}] = true
+		}
+		for _, p := range installedCasks {
+			succeeded[pkgKey{p, true}] = true
+		}
 		var stillFailed []failedJob
 		for _, f := range allFailed {
-			if !retriedSuccessfully[f.name] {
+			if !succeeded[pkgKey{f.name, f.isCask}] {
 				stillFailed = append(stillFailed, f)
 			}
 		}
@@ -316,7 +341,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) error {
 
 	handleFailedJobs(allFailed)
 
-	return nil
+	return installedFormulae, installedCasks, nil
 }
 
 func handleFailedJobs(failed []failedJob) {
