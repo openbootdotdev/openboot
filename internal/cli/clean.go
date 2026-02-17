@@ -88,15 +88,16 @@ func runClean(cmd *cobra.Command) error {
 		}
 	}
 
-	// Execute
 	if err := cleaner.Execute(result, dryRun); err != nil {
-		ui.Error(fmt.Sprintf("Some packages failed to remove: %v", err))
+		showCleanSummary(result)
+		return fmt.Errorf("some packages failed to remove: %w", err)
 	}
 
 	fmt.Println()
 	if dryRun {
 		ui.Muted("Dry run complete — no changes were made.")
 	} else {
+		showCleanSummary(result)
 		ui.Success("Clean complete!")
 	}
 	fmt.Println()
@@ -142,6 +143,34 @@ func cleanFromLocalSnapshot() (*cleaner.CleanResult, error) {
 	}
 
 	return cleaner.DiffFromSnapshot(snap)
+}
+
+func showCleanSummary(result *cleaner.CleanResult) {
+	fmt.Println()
+	if result.TotalRemoved() > 0 {
+		ui.Success(fmt.Sprintf("Removed %d package(s):", result.TotalRemoved()))
+		if len(result.RemovedFormulae) > 0 {
+			fmt.Printf("  formulae: %s\n", strings.Join(result.RemovedFormulae, ", "))
+		}
+		if len(result.RemovedCasks) > 0 {
+			fmt.Printf("  casks: %s\n", strings.Join(result.RemovedCasks, ", "))
+		}
+		if len(result.RemovedNpm) > 0 {
+			fmt.Printf("  npm: %s\n", strings.Join(result.RemovedNpm, ", "))
+		}
+	}
+	if result.TotalFailed() > 0 {
+		ui.Warn(fmt.Sprintf("Failed to remove %d package(s):", result.TotalFailed()))
+		if len(result.FailedFormulae) > 0 {
+			fmt.Printf("  formulae: %s\n", strings.Join(result.FailedFormulae, ", "))
+		}
+		if len(result.FailedCasks) > 0 {
+			fmt.Printf("  casks: %s\n", strings.Join(result.FailedCasks, ", "))
+		}
+		if len(result.FailedNpm) > 0 {
+			fmt.Printf("  npm: %s\n", strings.Join(result.FailedNpm, ", "))
+		}
+	}
 }
 
 func showCleanPreview(result *cleaner.CleanResult) {
