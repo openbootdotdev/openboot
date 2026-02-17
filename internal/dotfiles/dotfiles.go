@@ -1,6 +1,7 @@
 package dotfiles
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/system"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 const defaultDotfilesDir = ".dotfiles"
@@ -77,6 +79,26 @@ func hasStowPackages(dotfilesPath string) bool {
 	return false
 }
 
+func backupFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("failed to read %s for backup: %w", src, err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("failed to write backup %s: %w", dst, err)
+	}
+	return nil
+}
+
+func restoreFile(backup, original string) {
+	if _, err := os.Stat(backup); os.IsNotExist(err) {
+		return
+	}
+	if err := os.Rename(backup, original); err != nil {
+		fmt.Printf("Warning: failed to restore %s from backup: %v\n", original, err)
+	}
+}
+
 func linkWithStow(dotfilesPath string, dryRun bool) error {
 	entries, err := os.ReadDir(dotfilesPath)
 	if err != nil {
@@ -87,6 +109,8 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
+
+	var errs []error
 
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
@@ -99,11 +123,22 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 			continue
 		}
 
+		// For the zsh package: back up .zshrc before removing it so we can
+		// restore it if stow fails, preventing an unrecoverable loss of shell config.
+		var zshrcBackedUp bool
+		var zshrcPath, zshrcBackupPath string
 		if pkg == "zsh" {
-			zshrc := filepath.Join(home, ".zshrc")
-			zshrcBackup := filepath.Join(home, ".zshrc.pre-oh-my-zsh")
-			os.Remove(zshrc)
-			os.Remove(zshrcBackup)
+			zshrcPath = filepath.Join(home, ".zshrc")
+			zshrcBackupPath = zshrcPath + ".openboot.bak"
+			if _, statErr := os.Stat(zshrcPath); statErr == nil {
+				if err := backupFile(zshrcPath, zshrcBackupPath); err != nil {
+					errs = append(errs, fmt.Errorf("stow %s: %w", pkg, err))
+					continue
+				}
+				zshrcBackedUp = true
+			}
+			os.Remove(zshrcPath)
+			os.Remove(filepath.Join(home, ".zshrc.pre-oh-my-zsh"))
 		}
 
 		cmd := exec.Command("stow", "-v", "-t", home, pkg)
@@ -111,11 +146,22 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("Warning: failed to stow %s: %v\n", pkg, err)
+			// Restore .zshrc backup so the user isn't left without a shell config.
+			if zshrcBackedUp {
+				restoreFile(zshrcBackupPath, zshrcPath)
+			}
+			errs = append(errs, fmt.Errorf("failed to stow %s: %w", pkg, err))
+			continue
+		}
+
+		if zshrcBackedUp {
+			if err := os.Remove(zshrcBackupPath); err != nil {
+				ui.Warn(fmt.Sprintf("could not remove .zshrc backup: %v", err))
+			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func linkDirect(dotfilesPath string, dryRun bool) error {

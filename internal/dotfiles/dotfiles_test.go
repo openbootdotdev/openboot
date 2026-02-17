@@ -216,3 +216,67 @@ func TestLinkWithStow_SkipsFiles(t *testing.T) {
 	err = linkWithStow(dotfilesPath, true)
 	assert.NoError(t, err)
 }
+
+func TestBackupFile_CreatesBackup(t *testing.T) {
+	tmpDir := t.TempDir()
+	src := filepath.Join(tmpDir, "original")
+	dst := filepath.Join(tmpDir, "backup")
+
+	require.NoError(t, os.WriteFile(src, []byte("hello"), 0644))
+
+	require.NoError(t, backupFile(src, dst))
+
+	data, err := os.ReadFile(dst)
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(data))
+}
+
+func TestBackupFile_MissingSrcReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := backupFile(filepath.Join(tmpDir, "nonexistent"), filepath.Join(tmpDir, "backup"))
+	assert.Error(t, err)
+}
+
+func TestRestoreFile_MovesBackToOriginal(t *testing.T) {
+	tmpDir := t.TempDir()
+	backup := filepath.Join(tmpDir, "file.bak")
+	original := filepath.Join(tmpDir, "file")
+
+	require.NoError(t, os.WriteFile(backup, []byte("restored"), 0644))
+
+	restoreFile(backup, original)
+
+	data, err := os.ReadFile(original)
+	require.NoError(t, err)
+	assert.Equal(t, "restored", string(data))
+
+	_, err = os.Stat(backup)
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestRestoreFile_NoopWhenBackupMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	restoreFile(filepath.Join(tmpDir, "nonexistent.bak"), filepath.Join(tmpDir, "original"))
+}
+
+func TestLinkWithStow_ZshBackupRestoredOnFailure(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+	zshPkg := filepath.Join(dotfilesPath, "zsh")
+	require.NoError(t, os.MkdirAll(zshPkg, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(zshPkg, ".zshrc"), []byte("zsh pkg zshrc"), 0644))
+
+	zshrcPath := filepath.Join(tmpHome, ".zshrc")
+	originalContent := "# original zshrc\n"
+	require.NoError(t, os.WriteFile(zshrcPath, []byte(originalContent), 0644))
+
+	err := linkWithStow(dotfilesPath, false)
+
+	if err != nil {
+		content, readErr := os.ReadFile(zshrcPath)
+		require.NoError(t, readErr)
+		assert.Equal(t, originalContent, string(content), ".zshrc should be restored after stow failure")
+	}
+}
