@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -159,25 +160,37 @@ func runInteractiveInstall(cfg *config.Config) error {
 		return err
 	}
 
+	var softErrs []error
+
 	if err := stepInstallNpmWithRetry(cfg); err != nil {
 		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
 	}
 
 	if !cfg.PackagesOnly {
 		if err := stepShell(cfg); err != nil {
 			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
 		}
 
 		if err := stepDotfiles(cfg); err != nil {
 			ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
 		}
 
 		if err := stepMacOS(cfg); err != nil {
 			ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
 		}
 	}
 
 	showCompletion(cfg)
+
+	if len(softErrs) > 0 {
+		fmt.Println()
+		ui.Warn(fmt.Sprintf("%d setup step(s) had errors — run 'openboot doctor' to diagnose.", len(softErrs)))
+		return errors.Join(softErrs...)
+	}
 	return nil
 }
 
@@ -371,15 +384,16 @@ func stepInstallPackages(cfg *config.Config) error {
 	ui.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
 	fmt.Println()
 
-	if err := brew.InstallWithProgress(cliPkgs, caskPkgs, cfg.DryRun); err != nil {
-		ui.Error(fmt.Sprintf("Some packages failed: %v", err))
+	installedCli, installedCask, brewErr := brew.InstallWithProgress(cliPkgs, caskPkgs, cfg.DryRun)
+	if brewErr != nil {
+		ui.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
 	}
 
 	if !cfg.DryRun {
-		for _, pkg := range cliPkgs {
+		for _, pkg := range installedCli {
 			state.markFormula(pkg)
 		}
-		for _, pkg := range caskPkgs {
+		for _, pkg := range installedCask {
 			state.markCask(pkg)
 		}
 		ui.Success("Package installation complete")
@@ -703,27 +717,39 @@ func RunFromSnapshot(cfg *config.Config) error {
 		ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
 	}
 
+	var softErrs []error
+
 	if cfg.SnapshotGit != nil {
 		if err := stepRestoreGit(cfg); err != nil {
 			ui.Error(fmt.Sprintf("Git restore failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("git restore: %w", err))
 		}
 	}
 
 	if cfg.SnapshotShell != nil && cfg.SnapshotShell.OhMyZsh {
 		if err := stepRestoreShell(cfg); err != nil {
 			ui.Error(fmt.Sprintf("Shell restore failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("shell restore: %w", err))
 		}
 	} else {
 		if err := stepShell(cfg); err != nil {
 			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
 		}
 	}
 
 	if err := stepMacOS(cfg); err != nil {
 		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
 	}
 
 	showCompletion(cfg)
+
+	if len(softErrs) > 0 {
+		fmt.Println()
+		ui.Warn(fmt.Sprintf("%d restore step(s) had errors — run 'openboot doctor' to diagnose.", len(softErrs)))
+		return errors.Join(softErrs...)
+	}
 	return nil
 }
 

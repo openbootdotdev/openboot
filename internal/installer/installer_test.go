@@ -357,3 +357,59 @@ func TestInstallTimeConstants(t *testing.T) {
 	assert.Equal(t, 30, estimatedSecondsPerCask)
 	assert.Equal(t, 5, estimatedSecondsPerNpm)
 }
+
+func TestInstallState_OnlySuccessfulPackagesMarked(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	s := newInstallState()
+
+	require.NoError(t, s.markFormula("git"))
+	require.NoError(t, s.markFormula("curl"))
+
+	assert.True(t, s.isFormulaInstalled("git"))
+	assert.True(t, s.isFormulaInstalled("curl"))
+	assert.False(t, s.isFormulaInstalled("ripgrep"), "ripgrep was never marked as installed")
+
+	loaded, err := loadState()
+	require.NoError(t, err)
+
+	assert.True(t, loaded.isFormulaInstalled("git"))
+	assert.True(t, loaded.isFormulaInstalled("curl"))
+	assert.False(t, loaded.isFormulaInstalled("ripgrep"), "ripgrep should not appear in persisted state")
+}
+
+func TestRunInteractiveInstall_HardFailOnBrew(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfg := &config.Config{
+		DryRun:       true,
+		Preset:       "minimal",
+		PackagesOnly: true,
+		SelectedPkgs: map[string]bool{},
+	}
+
+	err := runInteractiveInstall(cfg)
+	assert.NoError(t, err)
+}
+
+func TestRunFromSnapshot_SoftFailuresReturnError(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfg := &config.Config{
+		DryRun:        true,
+		Silent:        true,
+		Preset:        "minimal",
+		Shell:         "skip",
+		Macos:         "skip",
+		Dotfiles:      "skip",
+		SelectedPkgs:  map[string]bool{},
+		SnapshotGit:   nil,
+		SnapshotShell: nil,
+	}
+
+	err := RunFromSnapshot(cfg)
+	assert.NoError(t, err)
+}

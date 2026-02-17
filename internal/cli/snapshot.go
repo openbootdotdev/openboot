@@ -175,6 +175,14 @@ func captureWithUI() (*snapshot.Snapshot, error) {
 		return nil, fmt.Errorf("failed to capture snapshot: %w", err)
 	}
 
+	if snap.Health.Partial {
+		fmt.Fprintln(os.Stderr)
+		ui.Warn(fmt.Sprintf("Snapshot is partial — %d step(s) failed: %s",
+			len(snap.Health.FailedSteps),
+			strings.Join(snap.Health.FailedSteps, ", ")))
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  The snapshot was saved but may be incomplete."))
+	}
+
 	return snap, nil
 }
 
