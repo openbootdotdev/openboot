@@ -843,8 +843,8 @@ func RunFromSnapshot(cfg *config.Config) error {
 		}
 	}
 
-	if err := stepMacOS(cfg); err != nil {
-		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+	if err := stepRestoreMacOS(cfg); err != nil {
+		ui.Error(fmt.Sprintf("macOS restore failed: %v", err))
 		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
 	}
 
@@ -932,6 +932,47 @@ func stepRestoreShell(cfg *config.Config) error {
 	if !cfg.DryRun {
 		ui.Success("Shell configuration restored")
 	}
+	fmt.Println()
+	return nil
+}
+
+func stepRestoreMacOS(cfg *config.Config) error {
+	ui.Header("Restore: macOS Preferences")
+	fmt.Println()
+
+	if len(cfg.SnapshotMacOS) == 0 {
+		ui.Muted("No macOS preferences in snapshot, skipping")
+		fmt.Println()
+		return nil
+	}
+
+	prefs := make([]macos.Preference, 0, len(cfg.SnapshotMacOS))
+	for _, p := range cfg.SnapshotMacOS {
+		prefs = append(prefs, macos.Preference{
+			Domain: p.Domain,
+			Key:    p.Key,
+			Type:   macos.InferPreferenceType(p.Value),
+			Value:  p.Value,
+			Desc:   p.Desc,
+		})
+	}
+
+	if cfg.DryRun {
+		ui.Info(fmt.Sprintf("[DRY-RUN] Would restore %d macOS preferences from snapshot", len(prefs)))
+		fmt.Println()
+		return nil
+	}
+
+	if err := macos.Configure(prefs, cfg.DryRun); err != nil {
+		return err
+	}
+
+	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
+		ui.Warn(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
+	}
+
+	macos.RestartAffectedApps(cfg.DryRun)
+	ui.Success(fmt.Sprintf("macOS preferences restored (%d settings)", len(prefs)))
 	fmt.Println()
 	return nil
 }
