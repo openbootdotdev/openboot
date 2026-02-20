@@ -3,6 +3,8 @@ package installer
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -155,6 +157,11 @@ func runCustomInstall(cfg *config.Config) error {
 	if err := stepMacOS(cfg); err != nil {
 		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
 		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
+	}
+
+	if err := stepPostInstall(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Post-install script failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("post-install: %w", err))
 	}
 
 	fmt.Println()
@@ -672,6 +679,71 @@ func stepMacOS(cfg *config.Config) error {
 
 	fmt.Println()
 	return nil
+}
+
+func stepPostInstall(cfg *config.Config) error {
+	if cfg.PostInstall == "skip" {
+		return nil
+	}
+
+	if cfg.RemoteConfig == nil || len(cfg.RemoteConfig.PostInstall) == 0 {
+		return nil
+	}
+
+	ui.Header("Step 8: Post-Install Script")
+	fmt.Println()
+
+	commands := cfg.RemoteConfig.PostInstall
+	ui.Info(fmt.Sprintf("%d command(s) to run:", len(commands)))
+	for i, cmd := range commands {
+		fmt.Printf("  %d. %s\n", i+1, cmd)
+	}
+	fmt.Println()
+
+	if !cfg.Silent && !cfg.DryRun && system.HasTTY() {
+		run, err := ui.Confirm("Run post-install script?", true)
+		if err != nil {
+			return err
+		}
+		if !run {
+			ui.Muted("Skipping post-install script")
+			fmt.Println()
+			return nil
+		}
+	}
+
+	var home string
+	if !cfg.DryRun {
+		var err error
+		home, err = system.HomeDir()
+		if err != nil {
+			return fmt.Errorf("cannot determine home directory: %w", err)
+		}
+	}
+
+	var errs []error
+	for _, command := range commands {
+		if cfg.DryRun {
+			fmt.Printf("[DRY-RUN] Would run: %s\n", command)
+			continue
+		}
+
+		cmd := exec.Command("/bin/zsh", "-c", command)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Dir = home
+
+		if err := cmd.Run(); err != nil {
+			ui.Error(fmt.Sprintf("Command failed: %s", command))
+			errs = append(errs, fmt.Errorf("post-install %q: %w", command, err))
+		}
+	}
+
+	if len(errs) == 0 && !cfg.DryRun {
+		ui.Success("Post-install script complete")
+	}
+	fmt.Println()
+	return errors.Join(errs...)
 }
 
 func showCompletion(cfg *config.Config) {

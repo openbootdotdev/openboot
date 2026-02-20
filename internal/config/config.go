@@ -45,6 +45,7 @@ type Config struct {
 	SnapshotGit      *SnapshotGitConfig
 	SnapshotDotfiles string
 	DotfilesURL      string
+	PostInstall      string
 }
 
 type SnapshotShellConfig struct {
@@ -68,6 +69,7 @@ type RemoteConfig struct {
 	Taps         []string `json:"taps"`
 	Npm          []string `json:"npm"`
 	DotfilesRepo string   `json:"dotfiles_repo"`
+	PostInstall  []string `json:"post_install"`
 }
 
 type Preset struct {

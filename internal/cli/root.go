@@ -92,6 +92,7 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.Shell, "shell", "", "shell setup: install, skip")
 	rootCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS preferences: configure, skip")
 	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
+	rootCmd.Flags().StringVar(&cfg.PostInstall, "post-install", "", "post-install script: skip")
 
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
 
