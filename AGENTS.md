@@ -164,6 +164,8 @@ curl -fsSL https://openboot.dev/install | bash
 | macOS | Intel | `openboot-darwin-amd64` |
 ```
 
+> **Note:** The `\`\`\`` above is how triple backticks are shown inside a Markdown code block. In the actual `gh release edit` command, use real unescaped triple backticks (` ``` `).
+
 **Rules:**
 
 - Omit empty sections (no "Bug Fixes" if there are none)
@@ -185,13 +187,25 @@ curl -fsSL https://openboot.dev/install | bash
 
 **Step 3: Update the release on GitHub**
 
+Use a `'EOF'` heredoc so the shell doesn't interpret backticks — this is the only safe way to embed triple backtick code blocks:
+
 ```bash
 gh release edit v0.24.0 --repo openbootdotdev/openboot --notes "$(cat <<'EOF'
 ## What's New
-- ...
+- **Feature name** — One sentence description (`openboot <command>`)
 
 ## Installation
-...
+
+```bash
+curl -fsSL https://openboot.dev/install | bash
+```
+
+## Binaries
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+| macOS | Intel | `openboot-darwin-amd64` |
 EOF
 )"
 ```
