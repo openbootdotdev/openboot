@@ -15,14 +15,7 @@ import (
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Check system health and diagnose issues",
-	Long: `Run diagnostic checks on your development environment.
-
-Checks performed:
-- Homebrew installation and health
-- Git configuration
-- Shell configuration (Oh-My-Zsh)
-- Common development tools
-- Outdated packages`,
+	Long:  "Run diagnostic checks on your development environment.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runDoctor()
 	},

@@ -62,7 +62,7 @@ func TestLoadToken_InvalidJSON(t *testing.T) {
 	loaded, err := LoadToken()
 	assert.Error(t, err)
 	assert.Nil(t, loaded)
-	assert.Contains(t, err.Error(), "failed to parse auth file")
+	assert.Contains(t, err.Error(), "parse auth")
 }
 
 func TestLoadToken_ExpiredToken(t *testing.T) {

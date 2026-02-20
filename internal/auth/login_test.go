@@ -73,7 +73,7 @@ func TestStartAuthSession_InvalidResponse(t *testing.T) {
 	codeID, err := startAuthSession(server.URL, "ABCD1234")
 	assert.Error(t, err)
 	assert.Equal(t, "", codeID)
-	assert.Contains(t, err.Error(), "failed to parse auth start response")
+	assert.Contains(t, err.Error(), "parse auth response")
 }
 
 func TestStartAuthSession_MissingCodeID(t *testing.T) {
@@ -93,7 +93,7 @@ func TestStartAuthSession_NetworkError(t *testing.T) {
 	codeID, err := startAuthSession("http://invalid-host-that-does-not-exist-12345.local", "ABCD1234")
 	assert.Error(t, err)
 	assert.Equal(t, "", codeID)
-	assert.Contains(t, err.Error(), "failed to start auth session")
+	assert.Contains(t, err.Error(), "start auth session")
 }
 
 func TestStartAuthSession_BadURL(t *testing.T) {
@@ -445,7 +445,7 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 	auth, err := LoginInteractive(server.URL)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
-	assert.Contains(t, err.Error(), "failed to parse expiration time")
+	assert.Contains(t, err.Error(), "parse expiration")
 }
 
 func TestLoginInteractive_SaveTokenError(t *testing.T) {
@@ -481,7 +481,7 @@ func TestLoginInteractive_SaveTokenError(t *testing.T) {
 	auth, err := LoginInteractive(server.URL)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
-	assert.Contains(t, err.Error(), "failed to save auth token")
+	assert.Contains(t, err.Error(), "save auth token")
 }
 
 func TestLoginInteractive_CreatedAtTimestamp(t *testing.T) {

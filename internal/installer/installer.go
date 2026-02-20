@@ -618,7 +618,7 @@ func stepShell(cfg *config.Config) error {
 			ui.Muted("Oh-My-Zsh already installed")
 		} else {
 			if err := shell.InstallOhMyZsh(cfg.DryRun); err != nil {
-				return fmt.Errorf("failed to install Oh-My-Zsh: %w", err)
+				return fmt.Errorf("install oh-my-zsh: %w", err)
 			}
 			if !cfg.DryRun {
 				ui.Success("Oh-My-Zsh installed")
@@ -626,7 +626,7 @@ func stepShell(cfg *config.Config) error {
 		}
 
 		if err := shell.ConfigureZshrc(cfg.DryRun); err != nil {
-			return fmt.Errorf("failed to configure .zshrc: %w", err)
+			return fmt.Errorf("configure .zshrc: %w", err)
 		}
 		if !cfg.DryRun {
 			ui.Success("Shell aliases configured")
@@ -717,7 +717,7 @@ func stepPostInstall(cfg *config.Config) error {
 		var err error
 		home, err = system.HomeDir()
 		if err != nil {
-			return fmt.Errorf("cannot determine home directory: %w", err)
+			return fmt.Errorf("home dir: %w", err)
 		}
 	}
 
@@ -899,7 +899,7 @@ func stepRestoreGit(cfg *config.Config) error {
 
 	if nameToSet != existingName || emailToSet != existingEmail {
 		if err := system.ConfigureGit(nameToSet, emailToSet); err != nil {
-			return fmt.Errorf("failed to restore git config: %w", err)
+			return fmt.Errorf("restore git config: %w", err)
 		}
 	}
 
@@ -926,7 +926,7 @@ func stepRestoreShell(cfg *config.Config) error {
 	}
 
 	if err := shell.ConfigureZshrc(cfg.DryRun); err != nil {
-		return fmt.Errorf("failed to configure .zshrc: %w", err)
+		return fmt.Errorf("configure .zshrc: %w", err)
 	}
 
 	if !cfg.DryRun {

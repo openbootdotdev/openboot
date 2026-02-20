@@ -27,7 +27,7 @@ func newInstallState() *InstallState {
 func getStatePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
+		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return filepath.Join(home, ".openboot", "install_state.json"), nil
 }
@@ -72,7 +72,7 @@ func (s *InstallState) save() error {
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+		return fmt.Errorf("mkdir: %w", err)
 	}
 
 	s.LastUpdated = time.Now()

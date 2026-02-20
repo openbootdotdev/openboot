@@ -235,7 +235,7 @@ func TestFetchRemoteConfig_InvalidJSON(t *testing.T) {
 	result, err := FetchRemoteConfig("testuser/myconfig", "")
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to parse config")
+	assert.Contains(t, err.Error(), "parse config")
 }
 
 func TestFetchRemoteConfig_NetworkError(t *testing.T) {
@@ -244,5 +244,5 @@ func TestFetchRemoteConfig_NetworkError(t *testing.T) {
 	result, err := FetchRemoteConfig("testuser/myconfig", "")
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to fetch config")
+	assert.Contains(t, err.Error(), "fetch config")
 }

@@ -81,13 +81,12 @@ func Capture() (*Snapshot, error) {
 	}, nil
 }
 
-// ScanStep represents progress information for a single capture step.
 type ScanStep struct {
-	Name   string `json:"name"`   // e.g. "Homebrew Formulae"
-	Index  int    `json:"index"`  // 0-7
-	Total  int    `json:"total"`  // always 8
+	Name   string `json:"name"`
+	Index  int    `json:"index"`
+	Total  int    `json:"total"`
 	Status string `json:"status"` // "scanning" | "done" | "error"
-	Count  int    `json:"count"`  // items found (only meaningful on "done")
+	Count  int    `json:"count"`
 }
 
 type captureStep struct {
@@ -223,7 +222,6 @@ func captureBrewList(args ...string) ([]string, error) {
 	return parseLines(string(output)), nil
 }
 
-// CaptureFormulae returns user-installed formulae (via `brew leaves`, excludes dependencies).
 func CaptureFormulae() ([]string, error) {
 	return captureBrewList("leaves")
 }

@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// StoredAuth represents the persisted authentication state for the CLI.
 type StoredAuth struct {
 	Token     string    `json:"token"`
 	Username  string    `json:"username"`
@@ -26,8 +25,6 @@ func TokenPath() string {
 	return filepath.Join(home, ".openboot", "auth.json")
 }
 
-// LoadToken reads the auth token from disk. Returns nil if the file
-// doesn't exist or the token is expired.
 func LoadToken() (*StoredAuth, error) {
 	path := TokenPath()
 	data, err := os.ReadFile(path)
@@ -35,12 +32,12 @@ func LoadToken() (*StoredAuth, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to read auth file: %w", err)
+		return nil, fmt.Errorf("read auth: %w", err)
 	}
 
 	var auth StoredAuth
 	if err := json.Unmarshal(data, &auth); err != nil {
-		return nil, fmt.Errorf("failed to parse auth file: %w", err)
+		return nil, fmt.Errorf("parse auth: %w", err)
 	}
 
 	if time.Now().After(auth.ExpiresAt) {
@@ -50,22 +47,21 @@ func LoadToken() (*StoredAuth, error) {
 	return &auth, nil
 }
 
-// SaveToken writes the auth token to disk with 0600 permissions.
 func SaveToken(auth *StoredAuth) error {
 	path := TokenPath()
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("failed to create auth directory: %w", err)
+		return fmt.Errorf("create auth dir: %w", err)
 	}
 
 	data, err := json.MarshalIndent(auth, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal auth data: %w", err)
+		return fmt.Errorf("marshal auth: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0600); err != nil {
-		return fmt.Errorf("failed to write auth file: %w", err)
+		return fmt.Errorf("write auth: %w", err)
 	}
 
 	return nil
@@ -75,7 +71,7 @@ func DeleteToken() error {
 	path := TokenPath()
 	err := os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to delete auth file: %w", err)
+		return fmt.Errorf("delete auth: %w", err)
 	}
 	return nil
 }
@@ -85,7 +81,6 @@ func IsAuthenticated() bool {
 	return err == nil && auth != nil
 }
 
-// GenerateCode returns an 8-character code using crypto/rand (ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789).
 func GenerateCode() string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, 8)

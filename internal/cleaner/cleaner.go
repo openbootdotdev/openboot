@@ -57,7 +57,7 @@ func diff(desiredFormulae, desiredCasks, desiredNpm, desiredTaps map[string]bool
 
 	installedFormulae, installedCasks, err := brew.GetInstalledPackages()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get installed brew packages: %w", err)
+		return nil, fmt.Errorf("list brew packages: %w", err)
 	}
 
 	for pkg := range installedFormulae {

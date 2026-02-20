@@ -100,12 +100,12 @@ func ConfigureZshrc(dryRun bool) error {
 
 	f, err := os.OpenFile(zshrcPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open .zshrc: %w", err)
+		return fmt.Errorf("open .zshrc: %w", err)
 	}
 	defer f.Close()
 
 	if _, err := f.WriteString(openbootZshrcBlock); err != nil {
-		return fmt.Errorf("failed to write to .zshrc: %w", err)
+		return fmt.Errorf("write .zshrc: %w", err)
 	}
 
 	return nil
@@ -155,7 +155,7 @@ var (
 func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 	raw, err := os.ReadFile(zshrcPath)
 	if err != nil {
-		return fmt.Errorf("failed to read .zshrc: %w", err)
+		return fmt.Errorf("read .zshrc: %w", err)
 	}
 
 	block := buildRestoreBlock(theme, plugins)
@@ -177,7 +177,7 @@ func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 	}
 
 	if err := os.WriteFile(zshrcPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write .zshrc: %w", err)
+		return fmt.Errorf("write .zshrc: %w", err)
 	}
 	return nil
 }
@@ -192,7 +192,7 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 			fmt.Println("[DRY-RUN] Would install Oh-My-Zsh")
 		} else {
 			if err := InstallOhMyZsh(dryRun); err != nil {
-				return fmt.Errorf("failed to install Oh-My-Zsh: %w", err)
+				return fmt.Errorf("install oh-my-zsh: %w", err)
 			}
 		}
 	}
@@ -214,7 +214,7 @@ plugins=(%s)
 source $ZSH/oh-my-zsh.sh
 `, theme, strings.Join(plugins, " "))
 		if err := os.WriteFile(zshrcPath, []byte(template), 0644); err != nil {
-			return fmt.Errorf("failed to create .zshrc: %w", err)
+			return fmt.Errorf("create .zshrc: %w", err)
 		}
 		return nil
 	}

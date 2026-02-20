@@ -35,7 +35,7 @@ run init scripts, and verify the environment is ready.`,
 
 		absDir, err := filepath.Abs(dir)
 		if err != nil {
-			return fmt.Errorf("failed to resolve directory: %w", err)
+			return fmt.Errorf("resolve directory: %w", err)
 		}
 
 		if _, err := os.Stat(absDir); os.IsNotExist(err) {

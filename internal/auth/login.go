@@ -23,7 +23,6 @@ var httpClient = &http.Client{
 
 const DefaultAPIBase = "https://openboot.dev"
 
-// GetAPIBase returns OPENBOOT_API_URL env var or DefaultAPIBase.
 func GetAPIBase() string {
 	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
 		return base
@@ -46,8 +45,6 @@ type cliPollResponse struct {
 	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
-// LoginInteractive runs CLI→browser auth flow: generates code, opens browser,
-// polls for approval.
 func LoginInteractive(apiBase string) (*StoredAuth, error) {
 	code := GenerateCode()
 
@@ -81,7 +78,7 @@ func LoginInteractive(apiBase string) (*StoredAuth, error) {
 		if err2 == nil {
 			expiresAt = t
 		} else {
-			return nil, fmt.Errorf("failed to parse expiration time '%s': %w (also tried SQLite format: %v)", result.ExpiresAt, err, err2)
+			return nil, fmt.Errorf("parse expiration %q: %w (sqlite fallback: %v)", result.ExpiresAt, err, err2)
 		}
 	}
 
@@ -93,7 +90,7 @@ func LoginInteractive(apiBase string) (*StoredAuth, error) {
 	}
 
 	if err := SaveToken(stored); err != nil {
-		return nil, fmt.Errorf("failed to save auth token: %w", err)
+		return nil, fmt.Errorf("save auth token: %w", err)
 	}
 
 	ui.Success(fmt.Sprintf("Authenticated as %s", stored.Username))
@@ -103,18 +100,18 @@ func LoginInteractive(apiBase string) (*StoredAuth, error) {
 func startAuthSession(apiBase, code string) (string, error) {
 	body, err := json.Marshal(cliStartRequest{Code: code})
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal start request: %w", err)
+		return "", fmt.Errorf("marshal start request: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/auth/cli/start", apiBase), bytes.NewReader(body))
 	if err != nil {
-		return "", fmt.Errorf("failed to create start request: %w", err)
+		return "", fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to start auth session: %w", err)
+		return "", fmt.Errorf("start auth session: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -124,7 +121,7 @@ func startAuthSession(apiBase, code string) (string, error) {
 
 	var result cliStartResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to parse auth start response: %w", err)
+		return "", fmt.Errorf("parse auth response: %w", err)
 	}
 
 	return result.CodeID, nil

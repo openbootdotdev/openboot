@@ -82,10 +82,10 @@ func hasStowPackages(dotfilesPath string) bool {
 func backupFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return fmt.Errorf("failed to read %s for backup: %w", src, err)
+		return fmt.Errorf("read %s: %w", src, err)
 	}
 	if err := os.WriteFile(dst, data, 0644); err != nil {
-		return fmt.Errorf("failed to write backup %s: %w", dst, err)
+		return fmt.Errorf("write backup %s: %w", dst, err)
 	}
 	return nil
 }
@@ -150,7 +150,7 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 			if zshrcBackedUp {
 				restoreFile(zshrcBackupPath, zshrcPath)
 			}
-			errs = append(errs, fmt.Errorf("failed to stow %s: %w", pkg, err))
+			errs = append(errs, fmt.Errorf("stow %s: %w", pkg, err))
 			continue
 		}
 

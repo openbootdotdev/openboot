@@ -138,7 +138,7 @@ func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 
 	if token != "" {
@@ -147,7 +147,7 @@ func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 
 	resp, err := remoteHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch config: %w", err)
+		return nil, fmt.Errorf("fetch config: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -167,12 +167,12 @@ func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to fetch config %s/%s (status: %d)", username, slug, resp.StatusCode)
+		return nil, fmt.Errorf("fetch config %s/%s: status %d", username, slug, resp.StatusCode)
 	}
 
 	var rc RemoteConfig
 	if err := json.NewDecoder(resp.Body).Decode(&rc); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
 	return &rc, nil

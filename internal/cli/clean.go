@@ -110,7 +110,7 @@ func cleanFromFile(path string) (*cleaner.CleanResult, error) {
 
 	snap, err := snapshot.LoadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load snapshot: %w", err)
+		return nil, fmt.Errorf("load snapshot: %w", err)
 	}
 
 	return cleaner.DiffFromSnapshot(snap)
@@ -127,7 +127,7 @@ func cleanFromRemote(userSlug string) (*cleaner.CleanResult, error) {
 
 	rc, err := config.FetchRemoteConfig(userSlug, token)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch remote config: %w", err)
+		return nil, fmt.Errorf("fetch remote config: %w", err)
 	}
 
 	return cleaner.DiffFromLists(rc.Packages, rc.Casks, rc.Npm, rc.Taps)

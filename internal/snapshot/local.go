@@ -20,16 +20,16 @@ func SaveLocal(snap *Snapshot) (string, error) {
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create snapshot directory: %w", err)
+		return "", fmt.Errorf("create snapshot dir: %w", err)
 	}
 
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal snapshot: %w", err)
+		return "", fmt.Errorf("marshal snapshot: %w", err)
 	}
 
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return "", fmt.Errorf("failed to write snapshot file: %w", err)
+		return "", fmt.Errorf("write snapshot: %w", err)
 	}
 
 	return path, nil
@@ -45,12 +45,12 @@ func LoadFile(path string) (*Snapshot, error) {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("snapshot file not found: %s", path)
 		}
-		return nil, fmt.Errorf("failed to read snapshot file: %w", err)
+		return nil, fmt.Errorf("read snapshot: %w", err)
 	}
 
 	var snap Snapshot
 	if err := json.Unmarshal(data, &snap); err != nil {
-		return nil, fmt.Errorf("failed to parse snapshot file: %w", err)
+		return nil, fmt.Errorf("parse snapshot: %w", err)
 	}
 
 	return &snap, nil

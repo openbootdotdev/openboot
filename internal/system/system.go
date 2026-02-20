@@ -11,7 +11,7 @@ import (
 func HomeDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("cannot determine home directory: %w", err)
+		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return home, nil
 }
@@ -81,10 +81,10 @@ func GetExistingGitConfig() (name, email string) {
 
 func ConfigureGit(name, email string) error {
 	if err := RunCommand("git", "config", "--global", "user.name", name); err != nil {
-		return fmt.Errorf("failed to set git name: %w", err)
+		return fmt.Errorf("set git name: %w", err)
 	}
 	if err := RunCommand("git", "config", "--global", "user.email", email); err != nil {
-		return fmt.Errorf("failed to set git email: %w", err)
+		return fmt.Errorf("set git email: %w", err)
 	}
 	return nil
 }

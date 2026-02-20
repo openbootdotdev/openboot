@@ -122,7 +122,7 @@ func TestLoadFile_MalformedJSON(t *testing.T) {
 	loaded, err := LoadFile(testFile)
 	assert.Error(t, err)
 	assert.Nil(t, loaded)
-	assert.Contains(t, err.Error(), "failed to parse snapshot file")
+	assert.Contains(t, err.Error(), "parse snapshot")
 }
 
 // TestLoadFile_EmptyFile tests loading an empty file.

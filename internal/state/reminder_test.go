@@ -189,7 +189,7 @@ func TestLoadState_ReadError(t *testing.T) {
 	state, err := LoadState(statePath)
 	assert.Error(t, err)
 	assert.Nil(t, state)
-	assert.Contains(t, err.Error(), "failed to read state file")
+	assert.Contains(t, err.Error(), "read state")
 }
 
 func TestSaveState_AtomicWrite(t *testing.T) {

@@ -78,7 +78,7 @@ func runSnapshot(cmd *cobra.Command) error {
 	if localFlag {
 		path, err := snapshot.SaveLocal(snap)
 		if err != nil {
-			return fmt.Errorf("failed to save snapshot: %w", err)
+			return fmt.Errorf("save snapshot: %w", err)
 		}
 		showLocalSaveSummary(snap, path)
 		return nil
@@ -115,7 +115,7 @@ func runSnapshot(cmd *cobra.Command) error {
 		if saveLocal {
 			path, err := snapshot.SaveLocal(edited)
 			if err != nil {
-				return fmt.Errorf("failed to save snapshot: %w", err)
+				return fmt.Errorf("save snapshot: %w", err)
 			}
 			showLocalSaveSummary(edited, path)
 		} else {
@@ -141,7 +141,7 @@ func captureJSONSnapshot() error {
 	snap.MatchedPreset = snapshot.DetectBestPreset(snap)
 	data, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal snapshot: %w", err)
+		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 	fmt.Fprintln(os.Stderr, "✓ Snapshot complete")
 	fmt.Println(string(data))
@@ -172,7 +172,7 @@ func captureWithUI() (*snapshot.Snapshot, error) {
 	progress.Finish()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to capture snapshot: %w", err)
+		return nil, fmt.Errorf("capture snapshot: %w", err)
 	}
 
 	if snap.Health.Partial {
@@ -216,7 +216,7 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 
 	stored, err := auth.LoadToken()
 	if err != nil {
-		return fmt.Errorf("failed to load auth token: %w", err)
+		return fmt.Errorf("load auth token: %w", err)
 	}
 	if stored == nil {
 		return fmt.Errorf("no valid auth token found — please log in again")
@@ -248,7 +248,7 @@ func promptConfigDetails() (string, string, error) {
 	fmt.Fprintln(os.Stderr)
 	configName, err := ui.Input("Config name", "My Mac Setup")
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get config name: %w", err)
+		return "", "", fmt.Errorf("get config name: %w", err)
 	}
 	configName = strings.TrimSpace(configName)
 	if configName == "" {
@@ -263,7 +263,7 @@ func promptConfigDetails() (string, string, error) {
 	}
 	visibilityChoice, err := ui.SelectOption("Who can see this config?", visibilityOptions)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to select visibility: %w", err)
+		return "", "", fmt.Errorf("select visibility: %w", err)
 	}
 
 	visibility := "unlisted"
@@ -284,13 +284,13 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, visibility, token, a
 	}
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request body: %w", err)
+		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
 	uploadURL := fmt.Sprintf("%s/api/configs/from-snapshot", apiBase)
 	req, err := http.NewRequest("POST", uploadURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return "", fmt.Errorf("failed to create upload request: %w", err)
+		return "", fmt.Errorf("create upload request: %w", err)
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	req.Header.Set("Content-Type", "application/json")
@@ -298,14 +298,14 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, visibility, token, a
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to upload snapshot: %w", err)
+		return "", fmt.Errorf("upload snapshot: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return "", fmt.Errorf("upload failed (status %d): failed to read response: %w", resp.StatusCode, err)
+			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, err)
 		}
 		return "", fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
@@ -314,7 +314,7 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, visibility, token, a
 		Slug string `json:"slug"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to parse upload response: %w", err)
+		return "", fmt.Errorf("parse upload response: %w", err)
 	}
 	return result.Slug, nil
 }
@@ -568,19 +568,19 @@ func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 		client := &http.Client{Timeout: 30 * time.Second}
 		resp, err := client.Get(importPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to download snapshot: %w", err)
+			return nil, fmt.Errorf("download snapshot: %w", err)
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("failed to download snapshot: HTTP %d", resp.StatusCode)
+			return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
 		}
 		tmpFile := filepath.Join(os.TempDir(), "openboot-snapshot-import.json")
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read snapshot response: %w", err)
+			return nil, fmt.Errorf("read snapshot response: %w", err)
 		}
 		if err := os.WriteFile(tmpFile, data, 0644); err != nil {
-			return nil, fmt.Errorf("failed to save snapshot: %w", err)
+			return nil, fmt.Errorf("save snapshot: %w", err)
 		}
 		defer os.Remove(tmpFile)
 		localPath = tmpFile

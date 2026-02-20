@@ -218,7 +218,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 
 	alreadyFormulae, alreadyCasks, checkErr := GetInstalledPackages()
 	if checkErr != nil {
-		return nil, nil, fmt.Errorf("failed to check installed packages: %w", checkErr)
+		return nil, nil, fmt.Errorf("list installed packages: %w", checkErr)
 	}
 
 	var newCli []string
@@ -729,7 +729,7 @@ func CheckNetwork() error {
 			return fmt.Errorf("cannot reach %s: %v", host, err)
 		}
 		if err := conn.Close(); err != nil {
-			return fmt.Errorf("failed to close connection to %s: %w", host, err)
+			return fmt.Errorf("close %s: %w", host, err)
 		}
 	}
 	return nil

@@ -156,35 +156,35 @@ func DownloadAndReplace() error {
 
 	binPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("cannot determine binary path: %w", err)
+		return fmt.Errorf("binary path: %w", err)
 	}
 
 	binPath, err = filepath.EvalSymlinks(binPath)
 	if err != nil {
-		return fmt.Errorf("cannot resolve binary path: %w", err)
+		return fmt.Errorf("resolve binary path: %w", err)
 	}
 
 	tmpPath := binPath + ".tmp"
 	f, err := os.Create(tmpPath)
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+		return fmt.Errorf("create temp file: %w", err)
 	}
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
 		os.Remove(tmpPath)
-		return fmt.Errorf("failed to write binary: %w", err)
+		return fmt.Errorf("write binary: %w", err)
 	}
 	f.Close()
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("failed to set permissions: %w", err)
+		return fmt.Errorf("chmod: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, binPath); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("failed to replace binary: %w", err)
+		return fmt.Errorf("replace binary: %w", err)
 	}
 
 	return nil
@@ -308,7 +308,7 @@ func GetLatestVersion() (string, error) {
 func getCheckFilePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
+		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return filepath.Join(home, ".openboot", "update_state.json"), nil
 }
@@ -340,7 +340,7 @@ func SaveState(state *CheckState) error {
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+		return fmt.Errorf("mkdir: %w", err)
 	}
 
 	data, err := json.MarshalIndent(state, "", "  ")

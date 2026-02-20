@@ -54,7 +54,7 @@ verify:
 			name:        "invalid yaml",
 			content:     `version: "1.0"\ninvalid yaml content [[[`,
 			wantErr:     true,
-			errContains: "failed to parse",
+			errContains: "parse",
 		},
 	}
 

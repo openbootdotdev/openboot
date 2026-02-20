@@ -111,7 +111,7 @@ func Install(packages []string, dryRun bool) error {
 
 	installed, err := GetInstalledPackages()
 	if err != nil {
-		return fmt.Errorf("failed to check installed packages: %w", err)
+		return fmt.Errorf("list installed packages: %w", err)
 	}
 
 	var toInstall []string
@@ -148,7 +148,7 @@ func Install(packages []string, dryRun bool) error {
 
 		nowInstalled, err := GetInstalledPackages()
 		if err != nil {
-			return fmt.Errorf("failed to check installed packages after batch install: %w", err)
+			return fmt.Errorf("list packages after batch: %w", err)
 		}
 
 		var remaining []string

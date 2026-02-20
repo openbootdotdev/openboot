@@ -135,7 +135,7 @@ func stepInstallPackages(cfg *Config) error {
 			ui.Info(fmt.Sprintf("Installing %d Homebrew packages...", len(pc.Brew.Packages)))
 			if !cfg.DryRun {
 				if err := brew.Install(pc.Brew.Packages, cfg.DryRun); err != nil {
-					return fmt.Errorf("failed to install Homebrew packages: %w", err)
+					return fmt.Errorf("install brew packages: %w", err)
 				}
 			} else {
 				for _, pkg := range pc.Brew.Packages {
@@ -149,7 +149,7 @@ func stepInstallPackages(cfg *Config) error {
 			ui.Info(fmt.Sprintf("Installing %d Homebrew casks...", len(pc.Brew.Casks)))
 			if !cfg.DryRun {
 				if err := brew.InstallCask(pc.Brew.Casks, cfg.DryRun); err != nil {
-					return fmt.Errorf("failed to install Homebrew casks: %w", err)
+					return fmt.Errorf("install brew casks: %w", err)
 				}
 			} else {
 				for _, cask := range pc.Brew.Casks {
@@ -164,7 +164,7 @@ func stepInstallPackages(cfg *Config) error {
 		ui.Info(fmt.Sprintf("Installing %d npm packages...", len(pc.Npm)))
 		if !cfg.DryRun {
 			if err := npm.Install(pc.Npm, cfg.DryRun); err != nil {
-				return fmt.Errorf("failed to install npm packages: %w", err)
+				return fmt.Errorf("install npm packages: %w", err)
 			}
 		} else {
 			for _, pkg := range pc.Npm {
