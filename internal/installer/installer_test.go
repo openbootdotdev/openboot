@@ -2,6 +2,7 @@ package installer
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -412,4 +413,109 @@ func TestRunFromSnapshot_SoftFailuresReturnError(t *testing.T) {
 
 	err := RunFromSnapshot(cfg)
 	assert.NoError(t, err)
+}
+
+func TestRunCustomInstall_RunsShellDotfilesMacOS(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("OPENBOOT_DOTFILES", "")
+
+	cfg := &config.Config{
+		DryRun: true,
+		Shell:  "skip",
+		Macos:  "skip",
+		RemoteConfig: &config.RemoteConfig{
+			Username: "testuser",
+			Slug:     "default",
+			Packages: []string{"git"},
+		},
+	}
+
+	err := runCustomInstall(cfg)
+	assert.NoError(t, err)
+}
+
+func TestRunCustomInstall_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfg := &config.Config{
+		DryRun:   true,
+		Shell:    "skip",
+		Macos:    "skip",
+		Dotfiles: "skip",
+		RemoteConfig: &config.RemoteConfig{
+			Username:     "testuser",
+			Slug:         "default",
+			Packages:     []string{"git"},
+			DotfilesRepo: "https://github.com/testuser/dotfiles",
+		},
+	}
+
+	err := runCustomInstall(cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, "https://github.com/testuser/dotfiles", cfg.DotfilesURL)
+}
+
+func TestRunCustomInstall_SoftErrorsAreReturned(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfg := &config.Config{
+		DryRun: true,
+		Shell:  "skip",
+		Macos:  "skip",
+		RemoteConfig: &config.RemoteConfig{
+			Username: "testuser",
+			Slug:     "default",
+			Packages: []string{"git"},
+		},
+		Dotfiles: "link",
+	}
+
+	err := runCustomInstall(cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "dotfiles")
+}
+
+func TestStepDotfiles_UsesDotfilesURLFromConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("OPENBOOT_DOTFILES", "")
+
+	cfg := &config.Config{
+		DryRun:      true,
+		Dotfiles:    "clone",
+		DotfilesURL: "https://github.com/testuser/dotfiles",
+	}
+
+	err := stepDotfiles(cfg)
+	assert.NoError(t, err)
+}
+
+func TestStepDotfiles_EnvVarTakesPriorityOverConfigURL(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("OPENBOOT_DOTFILES", "https://github.com/from-env/dotfiles")
+
+	r, w, _ := os.Pipe()
+	origStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := &config.Config{
+		DryRun:      true,
+		Dotfiles:    "clone",
+		DotfilesURL: "https://github.com/from-config/dotfiles",
+	}
+
+	err := stepDotfiles(cfg)
+
+	w.Close()
+	os.Stdout = origStdout
+	out, _ := io.ReadAll(r)
+	output := string(out)
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, "from-env")
+	assert.NotContains(t, output, "from-config")
 }
