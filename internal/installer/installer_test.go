@@ -519,3 +519,133 @@ func TestStepDotfiles_EnvVarTakesPriorityOverConfigURL(t *testing.T) {
 	assert.Contains(t, output, "from-env")
 	assert.NotContains(t, output, "from-config")
 }
+
+func TestStepPostInstall_SkipFlag(t *testing.T) {
+	cfg := &config.Config{
+		PostInstall: "skip",
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{"echo hello"},
+		},
+	}
+	err := stepPostInstall(cfg)
+	assert.NoError(t, err)
+}
+
+func TestStepPostInstall_NilRemoteConfig(t *testing.T) {
+	cfg := &config.Config{}
+	err := stepPostInstall(cfg)
+	assert.NoError(t, err)
+}
+
+func TestStepPostInstall_EmptyCommands(t *testing.T) {
+	cfg := &config.Config{
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{},
+		},
+	}
+	err := stepPostInstall(cfg)
+	assert.NoError(t, err)
+}
+
+func TestStepPostInstall_DryRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	r, w, _ := os.Pipe()
+	origStdout := os.Stdout
+	os.Stdout = w
+
+	cfg := &config.Config{
+		DryRun: true,
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{"mise install", "npm install -g pnpm"},
+		},
+	}
+
+	err := stepPostInstall(cfg)
+
+	w.Close()
+	os.Stdout = origStdout
+	out, _ := io.ReadAll(r)
+	output := string(out)
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, "mise install")
+	assert.Contains(t, output, "npm install -g pnpm")
+	assert.Contains(t, output, "[DRY-RUN]")
+}
+
+func TestStepPostInstall_RunsCommandsInSilentMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	markerFile := tmpDir + "/post-install-ran"
+	cfg := &config.Config{
+		Silent: true,
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{"touch " + markerFile},
+		},
+	}
+
+	err := stepPostInstall(cfg)
+	assert.NoError(t, err)
+
+	_, statErr := os.Stat(markerFile)
+	assert.NoError(t, statErr, "marker file should exist after post-install ran")
+}
+
+func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfg := &config.Config{
+		Silent: true,
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{"exit 1"},
+		},
+	}
+
+	err := stepPostInstall(cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "post-install")
+}
+
+func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	markerFile := tmpDir + "/second-ran"
+	cfg := &config.Config{
+		Silent: true,
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{"exit 1", "touch " + markerFile},
+		},
+	}
+
+	err := stepPostInstall(cfg)
+	assert.Error(t, err)
+
+	_, statErr := os.Stat(markerFile)
+	assert.NoError(t, statErr, "second command should still run after first fails")
+}
+
+func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("OPENBOOT_DOTFILES", "")
+
+	cfg := &config.Config{
+		DryRun: true,
+		Shell:  "skip",
+		Macos:  "skip",
+		RemoteConfig: &config.RemoteConfig{
+			Username:    "testuser",
+			Slug:        "default",
+			Packages:    []string{"git"},
+			PostInstall: []string{"mise install", "npm install -g pnpm"},
+		},
+	}
+
+	err := runCustomInstall(cfg)
+	assert.NoError(t, err)
+}
