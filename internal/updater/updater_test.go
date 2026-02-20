@@ -217,7 +217,7 @@ func TestSaveState_And_LoadState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v1.2.3", loaded.LatestVersion)
 	assert.True(t, loaded.UpdateAvailable)
-	assert.Equal(t, now, loaded.LastCheck.Truncate(time.Second))
+	assert.True(t, now.Equal(loaded.LastCheck.Truncate(time.Second)), "expected %v, got %v", now, loaded.LastCheck)
 }
 
 func TestLoadUserConfig_Default_NoFile(t *testing.T) {
