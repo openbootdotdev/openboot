@@ -142,8 +142,7 @@ Follow this exact format:
 
 ```markdown
 ## What's New
-- **Feature name** — One sentence user-facing description (`openboot <command>`)
-- **Feature name** — One sentence user-facing description
+- **Feature name** — One sentence, user-facing benefit only (`openboot <command>`)
 
 ## Improvements
 - **Area** — What changed and why users care
@@ -169,9 +168,20 @@ curl -fsSL https://openboot.dev/install | bash
 
 - Omit empty sections (no "Bug Fixes" if there are none)
 - Write for **users**, not developers. No internal refactors, no test-only changes
-- Each bullet is one line, starts with **bold name** — description
-- Include the CLI command if it's a new/changed command
+- **Bold name**: 2–4 words max, noun form. Not a sentence.
+- **Description**: ONE sentence, ~10–15 words max. User benefit only — no implementation details, no "how it works".
+- Include the CLI command at the end if it's a new/changed command
 - Keep Installation and Binaries sections at the bottom (always)
+
+**Do / Don't:**
+
+```
+✓ - **Post-install script** — Run custom shell commands after your environment is set up (`openboot -u <user>`)
+✗ - **Post-install script** — Run custom shell commands after your environment is set up. Add a post_install array to your config on openboot.dev and each command runs sequentially in your home directory after packages, shell, dotfiles, and macOS preferences are applied.
+
+✓ - **Custom config install** — Shell, dotfiles, and macOS setup now run correctly when installing from a remote config
+✗ - **Custom config installs now run shell, dotfiles, and macOS setup** — When installing via openboot -u <user>, shell configuration (Oh-My-Zsh), dotfiles cloning, and macOS preferences were silently skipped. All three steps now run as expected.
+```
 
 **Step 3: Update the release on GitHub**
 
