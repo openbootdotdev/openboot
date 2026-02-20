@@ -44,6 +44,7 @@ type Config struct {
 	SnapshotShell    *SnapshotShellConfig
 	SnapshotGit      *SnapshotGitConfig
 	SnapshotDotfiles string
+	DotfilesURL      string
 }
 
 type SnapshotShellConfig struct {

@@ -129,15 +129,45 @@ func runCustomInstall(cfg *config.Config) error {
 		return err
 	}
 
+	var softErrs []error
+
 	if len(cfg.RemoteConfig.Npm) > 0 {
 		if err := stepInstallNpmWithRetry(cfg); err != nil {
 			ui.Error(fmt.Sprintf("npm package installation failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
 		}
 	}
 
+	if cfg.RemoteConfig.DotfilesRepo != "" {
+		cfg.DotfilesURL = cfg.RemoteConfig.DotfilesRepo
+	}
+
+	if err := stepShell(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+	}
+
+	if err := stepDotfiles(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
+	}
+
+	if err := stepMacOS(cfg); err != nil {
+		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
+	}
+
 	fmt.Println()
-	ui.Muted("Dotfiles and shell setup will be handled by the install script.")
+	ui.Header("Installation Complete!")
 	fmt.Println()
+	ui.Success("OpenBoot has successfully configured your Mac.")
+	fmt.Println()
+
+	if len(softErrs) > 0 {
+		fmt.Println()
+		ui.Warn(fmt.Sprintf("%d setup step(s) had errors — run 'openboot doctor' to diagnose.", len(softErrs)))
+		return errors.Join(softErrs...)
+	}
 	return nil
 }
 
@@ -498,6 +528,9 @@ func stepDotfiles(cfg *config.Config) error {
 	fmt.Println()
 
 	dotfilesURL := dotfiles.GetDotfilesURL()
+	if dotfilesURL == "" {
+		dotfilesURL = cfg.DotfilesURL
+	}
 
 	if cfg.Dotfiles == "" && dotfilesURL == "" {
 		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
