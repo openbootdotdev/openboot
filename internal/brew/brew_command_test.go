@@ -89,3 +89,119 @@ func TestUpdateAndCleanup_UsesBrew(t *testing.T) {
 	err = Cleanup()
 	assert.NoError(t, err)
 }
+
+func TestUninstall_Empty(t *testing.T) {
+	err := Uninstall([]string{}, false)
+	assert.NoError(t, err)
+}
+
+func TestUninstall_DryRun(t *testing.T) {
+	err := Uninstall([]string{"git", "curl"}, true)
+	assert.NoError(t, err)
+}
+
+func TestUninstall_Success(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\nexit 0\n")
+	err := Uninstall([]string{"wget", "jq"}, false)
+	assert.NoError(t, err)
+}
+
+func TestUninstall_Failure(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\necho 'Error: No such keg'\nexit 1\n")
+	err := Uninstall([]string{"nonexistent"}, false)
+	assert.Error(t, err)
+}
+
+func TestUninstall_PartialFailure(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$2\" = \"bad-pkg\" ]; then\n"+
+		"  echo 'Error: No such keg'\n"+
+		"  exit 1\n"+
+		"fi\n"+
+		"exit 0\n")
+	err := Uninstall([]string{"good-pkg", "bad-pkg"}, false)
+	assert.Error(t, err)
+}
+
+func TestUninstallCask_Empty(t *testing.T) {
+	err := UninstallCask([]string{}, false)
+	assert.NoError(t, err)
+}
+
+func TestUninstallCask_DryRun(t *testing.T) {
+	err := UninstallCask([]string{"firefox", "slack"}, true)
+	assert.NoError(t, err)
+}
+
+func TestUninstallCask_Success(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\nexit 0\n")
+	err := UninstallCask([]string{"firefox"}, false)
+	assert.NoError(t, err)
+}
+
+func TestUninstallCask_Failure(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\necho 'Error: Cask not found'\nexit 1\n")
+	err := UninstallCask([]string{"nonexistent-cask"}, false)
+	assert.Error(t, err)
+}
+
+func TestDoctorDiagnose_ReadyToBrew(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\nif [ \"$1\" = \"doctor\" ]; then\n  echo 'Your system is ready to brew.'\n  exit 0\nfi\nexit 0\n")
+	suggestions, err := DoctorDiagnose()
+	require.NoError(t, err)
+	assert.Nil(t, suggestions)
+}
+
+func TestDoctorDiagnose_Failure(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\nif [ \"$1\" = \"doctor\" ]; then\n  exit 1\nfi\nexit 0\n")
+	_, err := DoctorDiagnose()
+	assert.Error(t, err)
+}
+
+func TestDoctorDiagnose_MultipleWarnings(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"doctor\" ]; then\n"+
+		"  echo 'Warning: Unbrewed dylibs were found in /usr/local/lib'\n"+
+		"  echo 'Warning: Your Homebrew/homebrew/core tap is not a full clone'\n"+
+		"  echo 'Warning: Git origin remote mismatch'\n"+
+		"  echo 'Warning: Uncommitted modifications to Homebrew'\n"+
+		"  echo 'Warning: outdated Xcode command line tools'\n"+
+		"  echo 'Warning: Broken symlinks were found'\n"+
+		"  echo 'Warning: permission issues'\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+	suggestions, err := DoctorDiagnose()
+	require.NoError(t, err)
+	assert.NotEmpty(t, suggestions)
+	assert.Contains(t, suggestions, "Run: brew doctor --list-checks and review linked libraries")
+	assert.Contains(t, suggestions, "Run: brew untap homebrew/core homebrew/cask")
+	assert.Contains(t, suggestions, "Run: brew update-reset")
+	assert.Contains(t, suggestions, "Run: xcode-select --install")
+	assert.Contains(t, suggestions, "Run: brew cleanup --prune=all")
+	assert.Contains(t, suggestions, "Run: sudo chown -R $(whoami) $(brew --prefix)/*")
+}
+
+func TestDoctorDiagnose_UnknownWarnings(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"doctor\" ]; then\n"+
+		"  echo 'Warning: Some unknown issue'\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+	suggestions, err := DoctorDiagnose()
+	require.NoError(t, err)
+	assert.Contains(t, suggestions, "Run 'brew doctor' to see full diagnostic output")
+}
+
+func TestBrewInstallCmd_SetsNoAutoUpdate(t *testing.T) {
+	cmd := brewInstallCmd("install", "git")
+	assert.Equal(t, []string{"brew", "install", "git"}, cmd.Args)
+	found := false
+	for _, env := range cmd.Env {
+		if env == "HOMEBREW_NO_AUTO_UPDATE=1" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected HOMEBREW_NO_AUTO_UPDATE=1 in env")
+}

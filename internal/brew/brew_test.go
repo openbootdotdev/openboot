@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -222,4 +223,15 @@ func TestIsInstalled(t *testing.T) {
 
 func TestMaxWorkersConstant(t *testing.T) {
 	assert.Equal(t, 1, maxWorkers)
+}
+
+func TestPrintBrewOutput_Lines(t *testing.T) {
+	p := ui.NewStickyProgress(1)
+	printBrewOutput("line one\nline two\n  line three  \n", p)
+}
+
+func TestPrintBrewOutput_Empty(t *testing.T) {
+	p := ui.NewStickyProgress(1)
+	printBrewOutput("", p)
+	printBrewOutput("   \n   ", p)
 }

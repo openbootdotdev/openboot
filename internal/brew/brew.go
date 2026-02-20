@@ -652,6 +652,52 @@ func UninstallCask(packages []string, dryRun bool) error {
 	return nil
 }
 
+func GetInstalledTaps() ([]string, error) {
+	cmd := exec.Command("brew", "tap")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("brew tap: %w", err)
+	}
+	var taps []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			taps = append(taps, line)
+		}
+	}
+	return taps, nil
+}
+
+func Untap(taps []string, dryRun bool) error {
+	if len(taps) == 0 {
+		return nil
+	}
+
+	if dryRun {
+		ui.Info("Would remove taps:")
+		for _, t := range taps {
+			fmt.Printf("    brew untap %s\n", t)
+		}
+		return nil
+	}
+
+	var failed []string
+	for _, tap := range taps {
+		cmd := exec.Command("brew", "untap", tap)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			ui.Warn(fmt.Sprintf("Failed to remove tap %s: %s", tap, strings.TrimSpace(string(output))))
+			failed = append(failed, tap)
+		} else {
+			ui.Success(fmt.Sprintf("  ✔ Removed tap %s", tap))
+		}
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("%d tap(s) failed to remove", len(failed))
+	}
+	return nil
+}
+
 func Update(dryRun bool) error {
 	if dryRun {
 		ui.Info("Would run: brew update && brew upgrade")
