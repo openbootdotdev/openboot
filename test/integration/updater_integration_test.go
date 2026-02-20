@@ -123,8 +123,10 @@ func TestIntegration_Updater_GetLatestVersion_RealAPI(t *testing.T) {
 	// When: we fetch the latest release tag
 	version, err := updater.GetLatestVersion()
 
-	// Then: returns a semver-like tag without error
-	require.NoError(t, err)
+	// Then: returns a semver-like tag; skip on API errors (rate limits, network issues on CI)
+	if err != nil {
+		t.Skipf("GitHub API unavailable (rate limit or network): %v", err)
+	}
 	assert.NotEmpty(t, version, "latest version should not be empty")
 	assert.Regexp(t, `^v?\d+\.\d+\.\d+`, version, "version should be semver")
 	t.Logf("Latest release: %s", version)
