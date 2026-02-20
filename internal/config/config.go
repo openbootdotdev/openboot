@@ -43,6 +43,7 @@ type Config struct {
 
 	SnapshotShell    *SnapshotShellConfig
 	SnapshotGit      *SnapshotGitConfig
+	SnapshotMacOS    []SnapshotMacOSPref
 	SnapshotDotfiles string
 	DotfilesURL      string
 	PostInstall      string
@@ -57,6 +58,13 @@ type SnapshotShellConfig struct {
 type SnapshotGitConfig struct {
 	UserName  string
 	UserEmail string
+}
+
+type SnapshotMacOSPref struct {
+	Domain string
+	Key    string
+	Value  string
+	Desc   string
 }
 
 type RemoteConfig struct {

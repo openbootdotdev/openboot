@@ -50,6 +50,36 @@ var DefaultPreferences = []Preference{
 	{"com.apple.TimeMachine", "DoNotOfferNewDisksForBackup", "bool", "true", "Don't prompt for Time Machine on new disks"},
 }
 
+func InferPreferenceType(value string) string {
+	switch strings.ToLower(value) {
+	case "true", "false", "1", "0", "yes", "no":
+		return "bool"
+	}
+	allDigits := true
+	for _, c := range value {
+		if c < '0' || c > '9' {
+			allDigits = false
+			break
+		}
+	}
+	if allDigits && value != "" {
+		return "int"
+	}
+	if strings.Contains(value, ".") {
+		allNumeric := true
+		for _, c := range strings.ReplaceAll(value, ".", "") {
+			if c < '0' || c > '9' {
+				allNumeric = false
+				break
+			}
+		}
+		if allNumeric {
+			return "float"
+		}
+	}
+	return "string"
+}
+
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()
