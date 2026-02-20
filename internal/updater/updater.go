@@ -280,7 +280,14 @@ func getHTTPClient() *http.Client {
 
 func GetLatestVersion() (string, error) {
 	client := getHTTPClient()
-	resp, err := client.Get("https://api.github.com/repos/openbootdotdev/openboot/releases/latest")
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/openbootdotdev/openboot/releases/latest", nil)
+	if err != nil {
+		return "", err
+	}
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
