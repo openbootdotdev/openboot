@@ -77,7 +77,7 @@ func runClean(cmd *cobra.Command) error {
 	showCleanPreview(result)
 
 	if !dryRun {
-		proceed, err := ui.Confirm(fmt.Sprintf("Remove %d packages?", result.TotalExtra()), false)
+		proceed, err := ui.Confirm(fmt.Sprintf("Remove %d item(s)?", result.TotalExtra()), false)
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func cleanFromRemote(userSlug string) (*cleaner.CleanResult, error) {
 		return nil, fmt.Errorf("failed to fetch remote config: %w", err)
 	}
 
-	return cleaner.DiffFromLists(rc.Packages, rc.Casks, rc.Npm)
+	return cleaner.DiffFromLists(rc.Packages, rc.Casks, rc.Npm, rc.Taps)
 }
 
 func cleanFromLocalSnapshot() (*cleaner.CleanResult, error) {
@@ -158,6 +158,9 @@ func showCleanSummary(result *cleaner.CleanResult) {
 		if len(result.RemovedNpm) > 0 {
 			fmt.Printf("  npm: %s\n", strings.Join(result.RemovedNpm, ", "))
 		}
+		if len(result.RemovedTaps) > 0 {
+			fmt.Printf("  taps: %s\n", strings.Join(result.RemovedTaps, ", "))
+		}
 	}
 	if result.TotalFailed() > 0 {
 		ui.Warn(fmt.Sprintf("Failed to remove %d package(s):", result.TotalFailed()))
@@ -170,11 +173,14 @@ func showCleanSummary(result *cleaner.CleanResult) {
 		if len(result.FailedNpm) > 0 {
 			fmt.Printf("  npm: %s\n", strings.Join(result.FailedNpm, ", "))
 		}
+		if len(result.FailedTaps) > 0 {
+			fmt.Printf("  taps: %s\n", strings.Join(result.FailedTaps, ", "))
+		}
 	}
 }
 
 func showCleanPreview(result *cleaner.CleanResult) {
-	ui.Info(fmt.Sprintf("Found %d extra packages not in your config:", result.TotalExtra()))
+	ui.Info(fmt.Sprintf("Found %d extra item(s) not in your config:", result.TotalExtra()))
 	fmt.Println()
 
 	if len(result.ExtraFormulae) > 0 {
@@ -188,6 +194,10 @@ func showCleanPreview(result *cleaner.CleanResult) {
 	if len(result.ExtraNpm) > 0 {
 		ui.Info(fmt.Sprintf("  NPM (%d):", len(result.ExtraNpm)))
 		fmt.Printf("    %s\n", strings.Join(result.ExtraNpm, ", "))
+	}
+	if len(result.ExtraTaps) > 0 {
+		ui.Info(fmt.Sprintf("  Taps (%d):", len(result.ExtraTaps)))
+		fmt.Printf("    %s\n", strings.Join(result.ExtraTaps, ", "))
 	}
 	fmt.Println()
 }
