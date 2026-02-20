@@ -2,11 +2,23 @@ package cleaner
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func setupFakeBrew(t *testing.T, script string) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	brewPath := filepath.Join(tmpDir, "brew")
+	require.NoError(t, os.WriteFile(brewPath, []byte(script), 0755))
+	originalPath := os.Getenv("PATH")
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+originalPath)
+}
 
 func TestToSet(t *testing.T) {
 	tests := []struct {
@@ -197,4 +209,153 @@ func TestExecute_DryRun_PassedThrough(t *testing.T) {
 	require.NoError(t, runOp(op, true))
 	assert.True(t, sawDryRun)
 	assert.Equal(t, []string{"typescript", "eslint"}, result.RemovedNpm)
+}
+
+func TestExecute_EmptyResult(t *testing.T) {
+	result := &CleanResult{}
+	err := Execute(result, false)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, result.TotalRemoved())
+	assert.Equal(t, 0, result.TotalFailed())
+}
+
+func TestExecute_DryRun_Formulae(t *testing.T) {
+	result := &CleanResult{
+		ExtraFormulae: []string{"wget", "curl"},
+	}
+	err := Execute(result, true)
+	assert.NoError(t, err)
+}
+
+func TestExecute_WithFakeBrew_Success(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\nexit 0\n")
+	result := &CleanResult{
+		ExtraFormulae: []string{"wget"},
+		ExtraCasks:    []string{"firefox"},
+	}
+	err := Execute(result, false)
+	assert.NoError(t, err)
+	assert.Contains(t, result.RemovedFormulae, "wget")
+	assert.Contains(t, result.RemovedCasks, "firefox")
+	assert.Empty(t, result.FailedFormulae)
+	assert.Empty(t, result.FailedCasks)
+}
+
+func TestExecute_WithFakeBrew_Failure(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\necho 'Error: No such keg'\nexit 1\n")
+	result := &CleanResult{
+		ExtraFormulae: []string{"bad-pkg"},
+	}
+	err := Execute(result, false)
+	assert.Error(t, err)
+	assert.Contains(t, result.FailedFormulae, "bad-pkg")
+	assert.Empty(t, result.RemovedFormulae)
+}
+
+func TestDiffFromLists_ExtraPackages(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
+		"  echo git\n"+
+		"  echo wget\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
+		"  echo firefox\n"+
+		"  echo slack\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+
+	result, err := DiffFromLists([]string{"git"}, []string{"firefox"}, nil, nil)
+	require.NoError(t, err)
+	assert.Contains(t, result.ExtraFormulae, "wget")
+	assert.NotContains(t, result.ExtraFormulae, "git")
+	assert.Contains(t, result.ExtraCasks, "slack")
+	assert.NotContains(t, result.ExtraCasks, "firefox")
+}
+
+func TestDiffFromLists_NoExtras(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
+		"  echo git\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+
+	result, err := DiffFromLists([]string{"git"}, nil, nil, nil)
+	require.NoError(t, err)
+	assert.Empty(t, result.ExtraFormulae)
+	assert.Empty(t, result.ExtraCasks)
+}
+
+func TestDiffFromLists_WithExtraTaps(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"if [ \"$1\" = \"tap\" ]; then\n"+
+		"  echo homebrew/cask-fonts\n"+
+		"  echo hashicorp/tap\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+
+	result, err := DiffFromLists(nil, nil, nil, []string{"homebrew/cask-fonts"})
+	require.NoError(t, err)
+	assert.Contains(t, result.ExtraTaps, "hashicorp/tap", "tap not in desired list should be extra")
+	assert.NotContains(t, result.ExtraTaps, "homebrew/cask-fonts", "desired tap should not be extra")
+}
+
+func TestDiffFromLists_TapsPathSkippedWhenEmpty(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+
+	result, err := DiffFromLists(nil, nil, nil, nil)
+	require.NoError(t, err)
+	assert.Empty(t, result.ExtraTaps)
+}
+
+func TestCleanResult_TotalExtra_WithTaps(t *testing.T) {
+	r := &CleanResult{
+		ExtraFormulae: []string{"a"},
+		ExtraCasks:    []string{"b"},
+		ExtraNpm:      []string{"c"},
+		ExtraTaps:     []string{"d", "e"},
+	}
+	assert.Equal(t, 5, r.TotalExtra())
+}
+
+func TestDiffFromSnapshot_ExtraPackages(t *testing.T) {
+	setupFakeBrew(t, "#!/bin/sh\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--formula\" ]; then\n"+
+		"  echo git\n"+
+		"  echo ripgrep\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"if [ \"$1\" = \"list\" ] && [ \"$2\" = \"--cask\" ]; then\n"+
+		"  exit 0\n"+
+		"fi\n"+
+		"exit 0\n")
+
+	snap := &snapshot.Snapshot{
+		Packages: snapshot.PackageSnapshot{
+			Formulae: []string{"git"},
+		},
+	}
+	result, err := DiffFromSnapshot(snap)
+	require.NoError(t, err)
+	assert.Contains(t, result.ExtraFormulae, "ripgrep")
+	assert.NotContains(t, result.ExtraFormulae, "git")
 }

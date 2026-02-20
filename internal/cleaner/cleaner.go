@@ -14,41 +14,45 @@ type CleanResult struct {
 	ExtraFormulae []string
 	ExtraCasks    []string
 	ExtraNpm      []string
+	ExtraTaps     []string
 
 	RemovedFormulae []string
 	RemovedCasks    []string
 	RemovedNpm      []string
+	RemovedTaps     []string
 
 	FailedFormulae []string
 	FailedCasks    []string
 	FailedNpm      []string
+	FailedTaps     []string
 }
 
 func (r *CleanResult) TotalExtra() int {
-	return len(r.ExtraFormulae) + len(r.ExtraCasks) + len(r.ExtraNpm)
+	return len(r.ExtraFormulae) + len(r.ExtraCasks) + len(r.ExtraNpm) + len(r.ExtraTaps)
 }
 
 func (r *CleanResult) TotalRemoved() int {
-	return len(r.RemovedFormulae) + len(r.RemovedCasks) + len(r.RemovedNpm)
+	return len(r.RemovedFormulae) + len(r.RemovedCasks) + len(r.RemovedNpm) + len(r.RemovedTaps)
 }
 
 func (r *CleanResult) TotalFailed() int {
-	return len(r.FailedFormulae) + len(r.FailedCasks) + len(r.FailedNpm)
+	return len(r.FailedFormulae) + len(r.FailedCasks) + len(r.FailedNpm) + len(r.FailedTaps)
 }
 
 func DiffFromSnapshot(snap *snapshot.Snapshot) (*CleanResult, error) {
-	desiredFormulae := toSet(snap.Packages.Formulae)
-	desiredCasks := toSet(snap.Packages.Casks)
-	desiredNpm := toSet(snap.Packages.Npm)
-
-	return diff(desiredFormulae, desiredCasks, desiredNpm)
+	return diff(
+		toSet(snap.Packages.Formulae),
+		toSet(snap.Packages.Casks),
+		toSet(snap.Packages.Npm),
+		toSet(snap.Packages.Taps),
+	)
 }
 
-func DiffFromLists(formulae, casks, npmPkgs []string) (*CleanResult, error) {
-	return diff(toSet(formulae), toSet(casks), toSet(npmPkgs))
+func DiffFromLists(formulae, casks, npmPkgs, taps []string) (*CleanResult, error) {
+	return diff(toSet(formulae), toSet(casks), toSet(npmPkgs), toSet(taps))
 }
 
-func diff(desiredFormulae, desiredCasks, desiredNpm map[string]bool) (*CleanResult, error) {
+func diff(desiredFormulae, desiredCasks, desiredNpm, desiredTaps map[string]bool) (*CleanResult, error) {
 	result := &CleanResult{}
 
 	installedFormulae, installedCasks, err := brew.GetInstalledPackages()
@@ -76,6 +80,19 @@ func diff(desiredFormulae, desiredCasks, desiredNpm map[string]bool) (*CleanResu
 			for pkg := range installedNpm {
 				if !desiredNpm[pkg] {
 					result.ExtraNpm = append(result.ExtraNpm, pkg)
+				}
+			}
+		}
+	}
+
+	if len(desiredTaps) > 0 {
+		installedTaps, err := brew.GetInstalledTaps()
+		if err != nil {
+			ui.Warn(fmt.Sprintf("Failed to check taps: %v", err))
+		} else {
+			for _, tap := range installedTaps {
+				if !desiredTaps[tap] {
+					result.ExtraTaps = append(result.ExtraTaps, tap)
 				}
 			}
 		}
@@ -116,6 +133,13 @@ func Execute(result *CleanResult, dryRun bool) error {
 			uninstallOne: func(pkg string, dry bool) error { return npm.Uninstall([]string{pkg}, dry) },
 			removed:      &result.RemovedNpm,
 			failed:       &result.FailedNpm,
+		},
+		{
+			label:        "Removing extra taps",
+			pkgs:         result.ExtraTaps,
+			uninstallOne: func(tap string, dry bool) error { return brew.Untap([]string{tap}, dry) },
+			removed:      &result.RemovedTaps,
+			failed:       &result.FailedTaps,
 		},
 	}
 
