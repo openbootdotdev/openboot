@@ -16,7 +16,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-const checkInterval = 24 * time.Hour
+const CheckInterval = 24 * time.Hour
 
 var (
 	httpClient     *http.Client
@@ -45,7 +45,7 @@ type UserConfig struct {
 	AutoUpdate AutoUpdateMode `json:"autoupdate"`
 }
 
-func loadUserConfig() UserConfig {
+func LoadUserConfig() UserConfig {
 	cfg := UserConfig{AutoUpdate: AutoUpdateEnabled}
 	path, err := getUserConfigPath()
 	if err != nil {
@@ -100,17 +100,17 @@ func AutoUpgrade(currentVersion string) {
 		return
 	}
 
-	cfg := loadUserConfig()
+	cfg := LoadUserConfig()
 
 	switch cfg.AutoUpdate {
 	case AutoUpdateDisabled:
 		return
 	case AutoUpdateNotify:
-		notifyIfUpdateAvailable(currentVersion)
+		NotifyIfUpdateAvailable(currentVersion)
 		checkForUpdatesAsync(currentVersion)
 		return
 	default:
-		latest, err := getLatestVersion()
+		latest, err := GetLatestVersion()
 		if err != nil {
 			return
 		}
@@ -190,8 +190,8 @@ func DownloadAndReplace() error {
 	return nil
 }
 
-func notifyIfUpdateAvailable(currentVersion string) {
-	state, err := loadState()
+func NotifyIfUpdateAvailable(currentVersion string) {
+	state, err := LoadState()
 	if err != nil {
 		return
 	}
@@ -205,17 +205,17 @@ func notifyIfUpdateAvailable(currentVersion string) {
 
 func checkForUpdatesAsync(currentVersion string) {
 	go func() {
-		state, _ := loadState()
-		if state != nil && time.Since(state.LastCheck) < checkInterval {
+		state, _ := LoadState()
+		if state != nil && time.Since(state.LastCheck) < CheckInterval {
 			return
 		}
 
-		latestVersion, err := getLatestVersion()
+		latestVersion, err := GetLatestVersion()
 		if err != nil {
 			return
 		}
 
-		saveState(&CheckState{
+		SaveState(&CheckState{
 			LastCheck:       time.Now(),
 			LatestVersion:   latestVersion,
 			UpdateAvailable: isNewerVersion(latestVersion, currentVersion),
@@ -278,7 +278,7 @@ func getHTTPClient() *http.Client {
 	return httpClient
 }
 
-func getLatestVersion() (string, error) {
+func GetLatestVersion() (string, error) {
 	client := getHTTPClient()
 	resp, err := client.Get("https://api.github.com/repos/openbootdotdev/openboot/releases/latest")
 	if err != nil {
@@ -306,7 +306,7 @@ func getCheckFilePath() (string, error) {
 	return filepath.Join(home, ".openboot", "update_state.json"), nil
 }
 
-func loadState() (*CheckState, error) {
+func LoadState() (*CheckState, error) {
 	path, err := getCheckFilePath()
 	if err != nil {
 		return nil, err
@@ -325,7 +325,7 @@ func loadState() (*CheckState, error) {
 	return &state, nil
 }
 
-func saveState(state *CheckState) error {
+func SaveState(state *CheckState) error {
 	path, err := getCheckFilePath()
 	if err != nil {
 		return err

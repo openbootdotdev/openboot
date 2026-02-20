@@ -515,6 +515,25 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 		return err
 	}
 
+	if snap.Health.Partial {
+		fmt.Fprintln(os.Stderr)
+		ui.Warn(fmt.Sprintf("This snapshot is incomplete — %d capture step(s) failed: %s",
+			len(snap.Health.FailedSteps),
+			strings.Join(snap.Health.FailedSteps, ", ")))
+		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Some data may be missing. The restore will proceed with what was captured."))
+		fmt.Fprintln(os.Stderr)
+		proceed, err := ui.Confirm("Continue with partial snapshot?", false)
+		if err != nil {
+			return err
+		}
+		if !proceed {
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Restore cancelled."))
+			fmt.Fprintln(os.Stderr)
+			return nil
+		}
+	}
+
 	showRestoreInfo(snap, importPath)
 
 	edited, confirmed, err := ui.RunSnapshotEditor(snap)
@@ -680,6 +699,16 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		OhMyZsh: edited.Shell.OhMyZsh,
 		Theme:   edited.Shell.Theme,
 		Plugins: edited.Shell.Plugins,
+	}
+
+	cfg.SnapshotMacOS = make([]config.SnapshotMacOSPref, len(edited.MacOSPrefs))
+	for i, p := range edited.MacOSPrefs {
+		cfg.SnapshotMacOS[i] = config.SnapshotMacOSPref{
+			Domain: p.Domain,
+			Key:    p.Key,
+			Value:  p.Value,
+			Desc:   p.Desc,
+		}
 	}
 
 	return cfg

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/macos"
-	"github.com/openbootdotdev/openboot/internal/system"
 )
 
 func Capture() (*Snapshot, error) {
@@ -311,29 +310,6 @@ func CaptureGit() (*GitSnapshot, error) {
 	}
 
 	return snap, nil
-}
-
-// RestoreGit sets git user.name/email if not already configured.
-func RestoreGit(git GitSnapshot) error {
-	existingName, existingEmail := system.GetExistingGitConfig()
-
-	if git.UserName == "" && git.UserEmail == "" {
-		return nil
-	}
-
-	if existingName == "" && git.UserName != "" {
-		if err := system.RunCommand("git", "config", "--global", "user.name", git.UserName); err != nil {
-			return fmt.Errorf("failed to restore git user.name: %w", err)
-		}
-	}
-
-	if existingEmail == "" && git.UserEmail != "" {
-		if err := system.RunCommand("git", "config", "--global", "user.email", git.UserEmail); err != nil {
-			return fmt.Errorf("failed to restore git user.email: %w", err)
-		}
-	}
-
-	return nil
 }
 
 var devToolCommands = []struct {
