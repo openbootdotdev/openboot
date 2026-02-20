@@ -153,7 +153,7 @@ Follow this exact format:
 ## Installation
 
 \`\`\`bash
-curl -fsSL https://openboot.dev/install | bash
+brew install openbootdotdev/tap/openboot
 \`\`\`
 
 ## Binaries
@@ -197,7 +197,7 @@ gh release edit v0.24.0 --repo openbootdotdev/openboot --notes "$(cat <<'EOF'
 ## Installation
 
 ```bash
-curl -fsSL https://openboot.dev/install | bash
+brew install openbootdotdev/tap/openboot
 ```
 
 ## Binaries
@@ -223,7 +223,7 @@ EOF
 ## Installation
 
 \`\`\`bash
-curl -fsSL https://openboot.dev/install | bash
+brew install openbootdotdev/tap/openboot
 \`\`\`
 
 ## Binaries
