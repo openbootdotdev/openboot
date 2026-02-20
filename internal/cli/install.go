@@ -11,17 +11,21 @@ import (
 )
 
 var installCmd = &cobra.Command{
-	Use:   "install [username]",
+	Use:   "install [username/slug]",
 	Short: "Set up your Mac dev environment",
 	Long: `Install and configure your Mac development environment.
 
-You can provide a username to install from that user's openboot.dev config,
-or run it interactively without arguments.`,
+You can provide a username/slug to install from that user's openboot.dev config,
+or run it interactively without arguments. If only a username is provided
+without a slug, it defaults to the "default" config.`,
 	Example: `  # Interactive setup with package selection
   openboot install
 
   # Install from a user's cloud config
-  openboot install githubusername
+  openboot install yourname/my-setup
+
+  # Install default config for a user
+  openboot install yourname
 
   # Quick setup with a preset
   openboot install -p developer

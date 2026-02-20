@@ -15,7 +15,7 @@ Environment capture, matching, and restoration. 8 files (4 source + 4 test), 1,7
 
 `CaptureWithProgress()` runs 8 sequential steps, each reporting via callback:
 
-1. Homebrew Formulae → `brew list --formula`
+1. Homebrew Formulae → `brew leaves` (top-level only, excludes dependencies)
 2. Homebrew Casks → `brew list --cask`
 3. Homebrew Taps → `brew tap`
 4. npm Packages → `npm list -g --json`

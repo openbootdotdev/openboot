@@ -42,8 +42,6 @@ No tracking. No telemetry. Just works.
 
 ## Why OpenBoot?
 
-**Fresh project, proven demand** — 2 weeks old, already trending on Reddit (100K+ views) and growing fast.
-
 Brewfiles are manual YAML editing. Nix has a brutal learning curve. Shell scripts break silently. Dotfile repos become unmaintainable after six months.
 
 OpenBoot is the first tool that handles **everything** — packages, dotfiles, shell config, macOS preferences, git identity — in an interactive TUI you can actually navigate. No config files to learn. No YAML to write. Just pick what you need and go.
@@ -70,7 +68,7 @@ curl -fsSL openboot.dev/install.sh | bash
 |---|:---:|:---:|:---:|:---:|
 | Interactive package picker | **TUI** | manual edit | — | — |
 | Web dashboard | **[openboot.dev](https://openboot.dev)** | — | — | — |
-| Shareable install URL | `openboot -u you` | — | — | — |
+| Shareable install URL | `openboot install you/setup` | — | — | — |
 | Snapshot & restore | full environment | — | dotfiles only | full (steep curve) |
 | Learning curve | **Low** | Low | High | Very High |
 
@@ -166,13 +164,17 @@ curl -fsSL openboot.dev/install.sh | bash -s -- --preset developer --silent
 <summary><strong>All Commands</strong></summary>
 
 ```bash
-openboot                 # Interactive setup
-openboot snapshot        # Capture your current setup
-openboot clean           # Remove packages not in your config
-openboot doctor          # Check system health
-openboot update          # Update Homebrew and packages
-openboot update --dry-run  # Preview updates
-openboot version         # Print version
+openboot                        # Interactive setup
+openboot install user/config    # Install from a cloud config
+openboot snapshot               # Capture your current setup
+openboot clean                  # Remove packages not in your config
+openboot init                   # Set up project from .openboot.yml
+openboot doctor                 # Check system health
+openboot update                 # Update Homebrew and packages
+openboot update --self          # Update OpenBoot itself
+openboot login                  # Authenticate with openboot.dev
+openboot logout                 # Remove auth token
+openboot version                # Print version
 ```
 
 </details>
@@ -181,14 +183,16 @@ openboot version         # Print version
 <summary><strong>CLI Options</strong></summary>
 
 ```
--p, --preset NAME   Set preset (minimal, developer, full)
--u, --user NAME     Use remote config from openboot.dev
--s, --silent        Non-interactive mode (requires env vars)
-    --dry-run       Preview what would be installed
-    --update        Update Homebrew and packages
-    --shell MODE    Shell setup: install, skip
-    --macos MODE    macOS prefs: configure, skip
-    --dotfiles MODE Dotfiles: clone, link, skip
+-p, --preset NAME      Set preset (minimal, developer, full)
+-u, --user NAME        Use remote config from openboot.dev
+-s, --silent           Non-interactive mode (requires env vars)
+    --dry-run          Preview what would be installed
+    --packages-only    Install packages only, skip system config
+    --update           Update Homebrew before installing
+    --shell MODE       Shell setup: install, skip
+    --macos MODE       macOS prefs: configure, skip
+    --dotfiles MODE    Dotfiles: clone, link, skip
+    --post-install MODE  Post-install script: skip
 ```
 
 </details>
