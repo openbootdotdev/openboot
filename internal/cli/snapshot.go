@@ -233,7 +233,7 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	}
 
 	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, slug)
-	installURL := fmt.Sprintf("curl -fsSL %s/%s/%s | bash", apiBase, stored.Username, slug)
+	installURL := fmt.Sprintf("openboot -u %s/%s", stored.Username, slug)
 
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config uploaded successfully!"))
