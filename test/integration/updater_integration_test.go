@@ -61,7 +61,7 @@ func TestIntegration_Updater_SaveAndLoadState_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, snap.LatestVersion, loaded.LatestVersion)
 	assert.Equal(t, snap.UpdateAvailable, loaded.UpdateAvailable)
-	assert.Equal(t, snap.LastCheck, loaded.LastCheck.Truncate(time.Second))
+	assert.True(t, snap.LastCheck.Equal(loaded.LastCheck.Truncate(time.Second)), "expected %v, got %v", snap.LastCheck, loaded.LastCheck)
 }
 
 func TestIntegration_Updater_LoadState_FileNotFound(t *testing.T) {
