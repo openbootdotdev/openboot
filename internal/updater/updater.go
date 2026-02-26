@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -276,6 +277,36 @@ func getHTTPClient() *http.Client {
 		httpClient = &http.Client{Timeout: 15 * time.Second}
 	})
 	return httpClient
+}
+
+// execBrewUpgrade is a package-level variable to allow test injection.
+// HOMEBREW_NO_AUTO_UPDATE=1 prevents brew from doing a full `brew update`
+// (fetching all formula updates) before upgrading, which would be slow and noisy.
+var execBrewUpgrade = func(formula string) error {
+	cmd := exec.Command("brew", "upgrade", formula)
+	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
+	return cmd.Run()
+}
+
+func homebrewAutoUpgrade(currentVersion string) {
+	state, err := LoadState()
+	if err != nil || !state.UpdateAvailable || !isNewerVersion(state.LatestVersion, currentVersion) {
+		checkForUpdatesAsync(currentVersion)
+		return
+	}
+
+	latestClean := trimVersionPrefix(state.LatestVersion)
+	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s via Homebrew...", currentVersion, latestClean))
+	if err := execBrewUpgrade("openboot"); err != nil {
+		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
+		ui.Muted("Run 'brew upgrade openboot' to update manually")
+		fmt.Println()
+	} else {
+		ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
+		fmt.Println()
+	}
+
+	checkForUpdatesAsync(currentVersion)
 }
 
 func GetLatestVersion() (string, error) {

@@ -2,6 +2,7 @@ package updater
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -310,4 +311,71 @@ func TestAutoUpdateModeConstants(t *testing.T) {
 	assert.Equal(t, AutoUpdateMode("true"), AutoUpdateEnabled)
 	assert.Equal(t, AutoUpdateMode("notify"), AutoUpdateNotify)
 	assert.Equal(t, AutoUpdateMode("false"), AutoUpdateDisabled)
+}
+
+func TestHomebrewAutoUpgrade_NoStateFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	called := false
+	origExec := execBrewUpgrade
+	execBrewUpgrade = func(formula string) error { called = true; return nil }
+	defer func() { execBrewUpgrade = origExec }()
+
+	homebrewAutoUpgrade("1.0.0")
+
+	assert.False(t, called, "brew should not run when there is no state file")
+}
+
+func TestHomebrewAutoUpgrade_NoUpdateAvailable(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	require.NoError(t, SaveState(&CheckState{
+		LastCheck:       time.Now(),
+		LatestVersion:   "v1.0.0",
+		UpdateAvailable: false,
+	}))
+
+	called := false
+	origExec := execBrewUpgrade
+	execBrewUpgrade = func(formula string) error { called = true; return nil }
+	defer func() { execBrewUpgrade = origExec }()
+
+	homebrewAutoUpgrade("1.0.0")
+
+	assert.False(t, called, "brew should not run when no update is available")
+}
+
+func TestHomebrewAutoUpgrade_UpdateAvailable_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	require.NoError(t, SaveState(&CheckState{
+		LastCheck:       time.Now(),
+		LatestVersion:   "v2.0.0",
+		UpdateAvailable: true,
+	}))
+
+	var calledWith string
+	origExec := execBrewUpgrade
+	execBrewUpgrade = func(formula string) error { calledWith = formula; return nil }
+	defer func() { execBrewUpgrade = origExec }()
+
+	homebrewAutoUpgrade("1.0.0")
+
+	assert.Equal(t, "openboot", calledWith, "should call brew upgrade openboot")
+}
+
+func TestHomebrewAutoUpgrade_UpdateAvailable_Failure(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	require.NoError(t, SaveState(&CheckState{
+		LastCheck:       time.Now(),
+		LatestVersion:   "v2.0.0",
+		UpdateAvailable: true,
+	}))
+
+	origExec := execBrewUpgrade
+	execBrewUpgrade = func(formula string) error { return fmt.Errorf("brew failed") }
+	defer func() { execBrewUpgrade = origExec }()
+
+	// should not panic
+	homebrewAutoUpgrade("1.0.0")
 }
