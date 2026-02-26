@@ -35,6 +35,20 @@ func Clone(repoURL string, dryRun bool) error {
 			fmt.Printf("[DRY-RUN] Would pull latest dotfiles at %s\n", dotfilesPath)
 			return nil
 		}
+		// If the remote URL has changed, update it before pulling.
+		out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output()
+		if err == nil {
+			currentURL := strings.TrimSpace(string(out))
+			if currentURL != repoURL {
+				fmt.Printf("Dotfiles remote changed from %s to %s, updating\n", currentURL, repoURL)
+				cmd := exec.Command("git", "-C", dotfilesPath, "remote", "set-url", "origin", repoURL)
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					return err
+				}
+			}
+		}
 		fmt.Printf("Dotfiles already exist at %s, pulling latest changes\n", dotfilesPath)
 		cmd := exec.Command("git", "-C", dotfilesPath, "pull")
 		cmd.Stdout = os.Stdout
