@@ -53,14 +53,27 @@ func Clone(repoURL string, dryRun bool) error {
 			}
 		} else {
 			if dryRun {
-				fmt.Printf("[DRY-RUN] Would pull latest dotfiles at %s\n", dotfilesPath)
+				fmt.Printf("[DRY-RUN] Would sync latest dotfiles at %s\n", dotfilesPath)
 				return nil
 			}
-			fmt.Printf("Dotfiles already exist at %s, pulling latest changes\n", dotfilesPath)
-			cmd := exec.Command("git", "-C", dotfilesPath, "pull")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			return cmd.Run()
+			fmt.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
+			// Use fetch + reset instead of pull to handle dirty states
+			// (unmerged files, mid-rebase, etc.) gracefully.
+			fetchCmd := exec.Command("git", "-C", dotfilesPath, "fetch", "origin")
+			fetchCmd.Stdout = os.Stdout
+			fetchCmd.Stderr = os.Stderr
+			if err := fetchCmd.Run(); err != nil {
+				return err
+			}
+			branchOut, err := exec.Command("git", "-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD").Output()
+			if err != nil {
+				return fmt.Errorf("failed to detect dotfiles branch: %w", err)
+			}
+			branch := strings.TrimSpace(string(branchOut))
+			resetCmd := exec.Command("git", "-C", dotfilesPath, "reset", "--hard", "origin/"+branch)
+			resetCmd.Stdout = os.Stdout
+			resetCmd.Stderr = os.Stderr
+			return resetCmd.Run()
 		}
 	}
 
