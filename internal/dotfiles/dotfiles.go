@@ -47,6 +47,10 @@ func Clone(repoURL string, dryRun bool) error {
 			}
 			// Back up the old repo and fall through to a fresh clone.
 			backupPath := dotfilesPath + ".openboot.bak"
+			// Remove stale backup from a previous remote change to avoid rename failure.
+			if _, err := os.Stat(backupPath); err == nil {
+				os.RemoveAll(backupPath)
+			}
 			fmt.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
 			if err := os.Rename(dotfilesPath, backupPath); err != nil {
 				return fmt.Errorf("failed to backup existing dotfiles: %w", err)
@@ -65,11 +69,21 @@ func Clone(repoURL string, dryRun bool) error {
 			if err := fetchCmd.Run(); err != nil {
 				return err
 			}
-			branchOut, err := exec.Command("git", "-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD").Output()
-			if err != nil {
-				return fmt.Errorf("failed to detect dotfiles branch: %w", err)
+			branch := ""
+			if out, err := exec.Command("git", "-C", dotfilesPath, "rev-parse", "--abbrev-ref", "HEAD").Output(); err == nil {
+				branch = strings.TrimSpace(string(out))
 			}
-			branch := strings.TrimSpace(string(branchOut))
+			// Detached HEAD (e.g. mid-rebase) or failed detection: resolve the remote's default branch.
+			if branch == "" || branch == "HEAD" {
+				if out, err := exec.Command("git", "-C", dotfilesPath, "symbolic-ref", "refs/remotes/origin/HEAD").Output(); err == nil {
+					// Returns e.g. "refs/remotes/origin/main"
+					ref := strings.TrimSpace(string(out))
+					branch = strings.TrimPrefix(ref, "refs/remotes/origin/")
+				}
+			}
+			if branch == "" || branch == "HEAD" {
+				branch = "main"
+			}
 			resetCmd := exec.Command("git", "-C", dotfilesPath, "reset", "--hard", "origin/"+branch)
 			resetCmd.Stdout = os.Stdout
 			resetCmd.Stderr = os.Stderr
@@ -224,8 +238,8 @@ func linkDirect(dotfilesPath string, dryRun bool) error {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		// Only link dotfiles (entries starting with "."), skip .git itself.
-		if !strings.HasPrefix(name, ".") || name == ".git" {
+		// Only link dotfiles (entries starting with "."), skip git metadata.
+		if !strings.HasPrefix(name, ".") || name == ".git" || name == ".gitignore" || name == ".gitmodules" || name == ".gitattributes" {
 			continue
 		}
 
