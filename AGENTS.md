@@ -160,7 +160,7 @@ brew install openbootdotdev/tap/openboot
 
 | Platform | Architecture | Download |
 |----------|--------------|----------|
-| macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+| macOS | Apple Silicon (M1/M2/M3/M4) | `openboot-darwin-arm64` |
 | macOS | Intel | `openboot-darwin-amd64` |
 ```
 
@@ -204,7 +204,7 @@ brew install openbootdotdev/tap/openboot
 
 | Platform | Architecture | Download |
 |----------|--------------|----------|
-| macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+| macOS | Apple Silicon (M1/M2/M3/M4) | `openboot-darwin-arm64` |
 | macOS | Intel | `openboot-darwin-amd64` |
 EOF
 )"
@@ -230,7 +230,7 @@ brew install openbootdotdev/tap/openboot
 
 | Platform | Architecture | Download |
 |----------|--------------|----------|
-| macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+| macOS | Apple Silicon (M1/M2/M3/M4) | `openboot-darwin-arm64` |
 | macOS | Intel | `openboot-darwin-amd64` |
 ```
 
