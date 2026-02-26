@@ -26,6 +26,11 @@ func Clone(repoURL string, dryRun bool) error {
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
 	if _, err := os.Stat(dotfilesPath); err == nil {
+		gitDir := filepath.Join(dotfilesPath, ".git")
+		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+			fmt.Printf("Dotfiles already exist at %s, skipping clone\n", dotfilesPath)
+			return nil
+		}
 		if dryRun {
 			fmt.Printf("[DRY-RUN] Would pull latest dotfiles at %s\n", dotfilesPath)
 			return nil
