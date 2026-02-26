@@ -31,29 +31,37 @@ func Clone(repoURL string, dryRun bool) error {
 			fmt.Printf("Dotfiles already exist at %s, skipping clone\n", dotfilesPath)
 			return nil
 		}
-		if dryRun {
-			fmt.Printf("[DRY-RUN] Would pull latest dotfiles at %s\n", dotfilesPath)
-			return nil
+
+		// Check whether the remote URL has changed.
+		remoteChanged := false
+		var currentURL string
+		if out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output(); err == nil {
+			currentURL = strings.TrimSpace(string(out))
+			remoteChanged = currentURL != repoURL
 		}
-		// If the remote URL has changed, update it before pulling.
-		out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output()
-		if err == nil {
-			currentURL := strings.TrimSpace(string(out))
-			if currentURL != repoURL {
-				fmt.Printf("Dotfiles remote changed from %s to %s, updating\n", currentURL, repoURL)
-				cmd := exec.Command("git", "-C", dotfilesPath, "remote", "set-url", "origin", repoURL)
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				if err := cmd.Run(); err != nil {
-					return err
-				}
+
+		if remoteChanged {
+			if dryRun {
+				fmt.Printf("[DRY-RUN] Would backup %s and re-clone from %s\n", dotfilesPath, repoURL)
+				return nil
 			}
+			// Back up the old repo and fall through to a fresh clone.
+			backupPath := dotfilesPath + ".openboot.bak"
+			fmt.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
+			if err := os.Rename(dotfilesPath, backupPath); err != nil {
+				return fmt.Errorf("failed to backup existing dotfiles: %w", err)
+			}
+		} else {
+			if dryRun {
+				fmt.Printf("[DRY-RUN] Would pull latest dotfiles at %s\n", dotfilesPath)
+				return nil
+			}
+			fmt.Printf("Dotfiles already exist at %s, pulling latest changes\n", dotfilesPath)
+			cmd := exec.Command("git", "-C", dotfilesPath, "pull")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			return cmd.Run()
 		}
-		fmt.Printf("Dotfiles already exist at %s, pulling latest changes\n", dotfilesPath)
-		cmd := exec.Command("git", "-C", dotfilesPath, "pull")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
 	}
 
 	if dryRun {
@@ -203,7 +211,8 @@ func linkDirect(dotfilesPath string, dryRun bool) error {
 
 	for _, entry := range entries {
 		name := entry.Name()
-		if name == ".git" || name == "README.md" || name == "LICENSE" {
+		// Only link dotfiles (entries starting with "."), skip .git itself.
+		if !strings.HasPrefix(name, ".") || name == ".git" {
 			continue
 		}
 
@@ -212,6 +221,11 @@ func linkDirect(dotfilesPath string, dryRun bool) error {
 
 		if dryRun {
 			fmt.Printf("[DRY-RUN] Would symlink %s -> %s\n", dst, src)
+			continue
+		}
+
+		// Already correctly linked — nothing to do.
+		if target, err := os.Readlink(dst); err == nil && target == src {
 			continue
 		}
 
