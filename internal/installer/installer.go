@@ -534,31 +534,52 @@ func stepDotfiles(cfg *config.Config) error {
 	ui.Header("Step 6: Dotfiles")
 	fmt.Println()
 
-	dotfilesURL := dotfiles.GetDotfilesURL()
-	if dotfilesURL == "" {
-		dotfilesURL = cfg.DotfilesURL
-	}
+	var dotfilesURL string
 
-	if cfg.Dotfiles == "" && dotfilesURL == "" {
+	if cfg.Dotfiles == "" {
 		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			ui.Muted("Skipping dotfiles (no URL provided)")
-			fmt.Println()
-			return nil
-		}
+			dotfilesURL = dotfiles.GetDotfilesURL()
+			if dotfilesURL == "" {
+				dotfilesURL = cfg.DotfilesURL
+			}
+			if dotfilesURL == "" {
+				ui.Muted("Skipping dotfiles (no URL provided)")
+				fmt.Println()
+				return nil
+			}
+		} else {
+			setup, err := ui.Confirm("Do you have a dotfiles repository to set up?", false)
+			if err != nil {
+				return err
+			}
+			if !setup {
+				ui.Muted("Skipping dotfiles setup")
+				fmt.Println()
+				return nil
+			}
 
-		setup, err := ui.Confirm("Do you have a dotfiles repository to set up?", false)
-		if err != nil {
-			return err
-		}
-		if !setup {
-			ui.Muted("Skipping dotfiles setup")
-			fmt.Println()
-			return nil
-		}
+			dotfilesURL, err = ui.Input("Dotfiles repository URL", "https://github.com/username/dotfiles")
+			if err != nil {
+				return err
+			}
 
-		dotfilesURL, err = ui.Input("Dotfiles repository URL", "https://github.com/username/dotfiles")
-		if err != nil {
-			return err
+			// User left it blank: fall back to env var then config
+			if dotfilesURL == "" {
+				dotfilesURL = dotfiles.GetDotfilesURL()
+			}
+			if dotfilesURL == "" {
+				dotfilesURL = cfg.DotfilesURL
+			}
+			if dotfilesURL == "" {
+				ui.Muted("Skipping dotfiles setup")
+				fmt.Println()
+				return nil
+			}
+		}
+	} else {
+		dotfilesURL = dotfiles.GetDotfilesURL()
+		if dotfilesURL == "" {
+			dotfilesURL = cfg.DotfilesURL
 		}
 	}
 
