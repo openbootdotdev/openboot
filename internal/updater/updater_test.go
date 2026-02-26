@@ -372,10 +372,12 @@ func TestHomebrewAutoUpgrade_UpdateAvailable_Failure(t *testing.T) {
 		UpdateAvailable: true,
 	}))
 
+	called := false
 	origExec := execBrewUpgrade
-	execBrewUpgrade = func(formula string) error { return fmt.Errorf("brew failed") }
+	execBrewUpgrade = func(formula string) error { called = true; return fmt.Errorf("brew failed") }
 	defer func() { execBrewUpgrade = origExec }()
 
-	// should not panic
 	homebrewAutoUpgrade("1.0.0")
+
+	assert.True(t, called, "brew should have been called even when it fails")
 }

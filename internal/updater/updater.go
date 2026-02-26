@@ -98,6 +98,7 @@ func AutoUpgrade(currentVersion string) {
 	}
 
 	if IsHomebrewInstall() {
+		homebrewAutoUpgrade(currentVersion)
 		return
 	}
 
@@ -290,7 +291,11 @@ var execBrewUpgrade = func(formula string) error {
 
 func homebrewAutoUpgrade(currentVersion string) {
 	state, err := LoadState()
-	if err != nil || !state.UpdateAvailable || !isNewerVersion(state.LatestVersion, currentVersion) {
+	if err != nil {
+		checkForUpdatesAsync(currentVersion)
+		return
+	}
+	if !state.UpdateAvailable || !isNewerVersion(state.LatestVersion, currentVersion) {
 		checkForUpdatesAsync(currentVersion)
 		return
 	}
