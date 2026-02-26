@@ -28,18 +28,25 @@ func TestPersistentPreRunE_SilentEnvOverrides(t *testing.T) {
 }
 
 func TestPersistentPreRunE_UserFetchesRemoteConfig(t *testing.T) {
+	response := config.RemoteConfig{
+		Username: "testuser",
+		Slug:     "default",
+		Preset:   "developer",
+		Packages: []string{"git"},
+		Casks:    []string{"firefox"},
+		Npm:      []string{"typescript"},
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/testuser/default/config", r.URL.Path)
-		response := config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Preset:   "developer",
-			Packages: []string{"git"},
-			Casks:    []string{"firefox"},
-			Npm:      []string{"typescript"},
+		switch r.URL.Path {
+		case "/api/configs/alias/testuser":
+			// No alias set — return 404 to fall through to default
+			w.WriteHeader(http.StatusNotFound)
+		case "/testuser/default/config":
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(response))
+		default:
+			w.WriteHeader(http.StatusNotFound)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(response))
 	}))
 	defer server.Close()
 

@@ -200,10 +200,16 @@ func TestFetchRemoteConfig_DefaultSlug(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/testuser/default/config", r.URL.Path)
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(mockConfig)
+		switch r.URL.Path {
+		case "/api/configs/alias/testuser":
+			w.WriteHeader(http.StatusNotFound)
+		case "/testuser/default/config":
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(mockConfig)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
 	}))
 	defer server.Close()
 
@@ -247,7 +253,7 @@ func TestFetchRemoteConfig_NetworkError(t *testing.T) {
 	assert.Contains(t, err.Error(), "fetch config")
 }
 
-func TestFetchRemoteConfig_FallbackSingleConfig(t *testing.T) {
+func TestFetchRemoteConfig_AliasResolution(t *testing.T) {
 	mockConfig := RemoteConfig{
 		Username: "testuser",
 		Slug:     "mysetup",
@@ -257,24 +263,11 @@ func TestFetchRemoteConfig_FallbackSingleConfig(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/testuser/default/config":
-			w.WriteHeader(http.StatusNotFound)
-		case "/api/configs/public":
-			assert.Equal(t, "testuser", r.URL.Query().Get("username"))
-			assert.Equal(t, "2", r.URL.Query().Get("limit"))
-			json.NewEncoder(w).Encode(configListResponse{
-				Configs: []struct {
-					Slug string `json:"slug"`
-					Name string `json:"name"`
-				}{
-					{Slug: "mysetup", Name: "My Setup"},
-				},
-				Total: 1,
-			})
-		case "/testuser/mysetup/config":
+		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(mockConfig)
 		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -293,23 +286,23 @@ func TestFetchRemoteConfig_FallbackSingleConfig(t *testing.T) {
 	assert.Equal(t, "developer", result.Preset)
 }
 
-func TestFetchRemoteConfig_FallbackMultipleConfigs(t *testing.T) {
+func TestFetchRemoteConfig_NoAliasFallsBackToDefault(t *testing.T) {
+	mockConfig := RemoteConfig{
+		Username: "testuser",
+		Slug:     "default",
+		Name:     "Default Config",
+		Preset:   "minimal",
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/testuser/default/config":
+		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusNotFound)
-		case "/api/configs/public":
-			json.NewEncoder(w).Encode(configListResponse{
-				Configs: []struct {
-					Slug string `json:"slug"`
-					Name string `json:"name"`
-				}{
-					{Slug: "work", Name: "Work Setup"},
-					{Slug: "personal", Name: "Personal Setup"},
-				},
-				Total: 2,
-			})
+		case "/testuser/default/config":
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(mockConfig)
 		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
@@ -322,26 +315,18 @@ func TestFetchRemoteConfig_FallbackMultipleConfigs(t *testing.T) {
 	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser", "")
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "user has multiple configs")
-	assert.Contains(t, err.Error(), "testuser/work")
-	assert.Contains(t, err.Error(), "testuser/personal")
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", result.Username)
+	assert.Equal(t, "default", result.Slug)
 }
 
-func TestFetchRemoteConfig_FallbackNoConfigs(t *testing.T) {
+func TestFetchRemoteConfig_NoAliasNoDefault(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/api/configs/alias/testuser":
+			w.WriteHeader(http.StatusNotFound)
 		case "/testuser/default/config":
 			w.WriteHeader(http.StatusNotFound)
-		case "/api/configs/public":
-			json.NewEncoder(w).Encode(configListResponse{
-				Configs: []struct {
-					Slug string `json:"slug"`
-					Name string `json:"name"`
-				}{},
-				Total: 0,
-			})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

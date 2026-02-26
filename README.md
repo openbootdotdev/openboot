@@ -68,7 +68,7 @@ curl -fsSL openboot.dev/install.sh | bash
 |---|:---:|:---:|:---:|:---:|
 | Interactive package picker | **TUI** | manual edit | — | — |
 | Web dashboard | **[openboot.dev](https://openboot.dev)** | — | — | — |
-| Shareable install URL | `openboot install you/setup` | — | — | — |
+| Shareable install URL | `openboot install myalias` | — | — | — |
 | Snapshot & restore | full environment | — | dotfiles only | full (steep curve) |
 | Learning curve | **Low** | Low | High | Very High |
 
@@ -165,7 +165,8 @@ curl -fsSL openboot.dev/install.sh | bash -s -- --preset developer --silent
 
 ```bash
 openboot                        # Interactive setup
-openboot install user/config    # Install from a cloud config
+openboot install myalias        # Install from a config alias
+openboot install user/config    # Install from a specific user config
 openboot snapshot               # Capture your current setup
 openboot clean                  # Remove packages not in your config
 openboot init                   # Set up project from .openboot.yml
@@ -184,7 +185,7 @@ openboot version                # Print version
 
 ```
 -p, --preset NAME      Set preset (minimal, developer, full)
--u, --user NAME        Use remote config from openboot.dev
+-u, --user NAME        Use alias or openboot.dev username/slug config
 -s, --silent           Non-interactive mode (requires env vars)
     --dry-run          Preview what would be installed
     --packages-only    Install packages only, skip system config
@@ -205,7 +206,7 @@ openboot version                # Print version
 | `OPENBOOT_GIT_NAME` | Git user name (required in silent mode) |
 | `OPENBOOT_GIT_EMAIL` | Git user email (required in silent mode) |
 | `OPENBOOT_PRESET` | Default preset |
-| `OPENBOOT_USER` | Remote config username |
+| `OPENBOOT_USER` | Config alias or username/slug |
 
 </details>
 

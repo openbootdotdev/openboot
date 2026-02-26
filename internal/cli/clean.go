@@ -34,7 +34,7 @@ Examples:
 
 func init() {
 	cleanCmd.Flags().String("from", "", "snapshot file to compare against")
-	cleanCmd.Flags().String("user", "", "openboot.dev username/slug to compare against")
+	cleanCmd.Flags().String("user", "", "alias or openboot.dev username/slug to compare against")
 	cleanCmd.Flags().Bool("dry-run", false, "preview changes without removing anything")
 }
 

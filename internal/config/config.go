@@ -172,87 +172,59 @@ func parseConfigResponse(resp *http.Response, username, slug, token string) (*Re
 
 func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 	parts := strings.SplitN(userSlug, "/", 2)
-	username := parts[0]
-	slug := "default"
 	slugExplicit := len(parts) > 1
-	if slugExplicit {
-		slug = parts[1]
-	}
-
 	apiBase := getAPIBase()
 
+	// If no explicit slug, try alias resolution first
+	if !slugExplicit {
+		alias := parts[0]
+		rc, err := fetchConfigByAlias(apiBase, alias)
+		if err == nil {
+			return rc, nil
+		}
+
+		// Alias not found — try as username/default
+		resp, err := fetchConfigBySlug(apiBase, alias, "default", token)
+		if err != nil {
+			return nil, fmt.Errorf("fetch config: %w", err)
+		}
+		return parseConfigResponse(resp, alias, "default", token)
+	}
+
+	// Explicit slug: fetch directly
+	username := parts[0]
+	slug := parts[1]
 	resp, err := fetchConfigBySlug(apiBase, username, slug, token)
 	if err != nil {
 		return nil, fmt.Errorf("fetch config: %w", err)
 	}
-
-	if resp.StatusCode == 404 && !slugExplicit {
-		resp.Body.Close()
-
-		list, err := listUserConfigs(username, token)
-		if err != nil {
-			return nil, fmt.Errorf("config not found: %s/%s", username, slug)
-		}
-
-		switch len(list.Configs) {
-		case 0:
-			return nil, fmt.Errorf("config not found: %s/%s", username, slug)
-		case 1:
-			slug = list.Configs[0].Slug
-			resp, err = fetchConfigBySlug(apiBase, username, slug, token)
-			if err != nil {
-				return nil, fmt.Errorf("fetch config: %w", err)
-			}
-			return parseConfigResponse(resp, username, slug, token)
-		default:
-			var slugs []string
-			for _, c := range list.Configs {
-				slugs = append(slugs, username+"/"+c.Slug)
-			}
-			return nil, fmt.Errorf("user has multiple configs, specify one: openboot install %s", strings.Join(slugs, ", "))
-		}
-	}
-
 	return parseConfigResponse(resp, username, slug, token)
 }
 
-type configListResponse struct {
-	Configs []struct {
-		Slug string `json:"slug"`
-		Name string `json:"name"`
-	} `json:"configs"`
-	Total int `json:"total"`
-}
-
-func listUserConfigs(username string, token string) (*configListResponse, error) {
-	apiBase := getAPIBase()
-	url := fmt.Sprintf("%s/api/configs/public?username=%s&limit=2", apiBase, username)
+func fetchConfigByAlias(apiBase, alias string) (*RemoteConfig, error) {
+	url := fmt.Sprintf("%s/api/configs/alias/%s", apiBase, alias)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
 	resp, err := remoteHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("list configs: %w", err)
+		return nil, fmt.Errorf("fetch alias: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("list configs: status %d", resp.StatusCode)
+		return nil, fmt.Errorf("alias not found: %s", alias)
 	}
 
-	var result configListResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("parse config list: %w", err)
+	var rc RemoteConfig
+	if err := json.NewDecoder(resp.Body).Decode(&rc); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
-	return &result, nil
+	return &rc, nil
 }
 
 type screenRecordingData struct {
