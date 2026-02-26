@@ -722,20 +722,18 @@ func stepPostInstall(cfg *config.Config) error {
 	}
 
 	var errs []error
-	for _, command := range commands {
-		if cfg.DryRun {
+	if cfg.DryRun {
+		for _, command := range commands {
 			fmt.Printf("[DRY-RUN] Would run: %s\n", command)
-			continue
 		}
-
-		cmd := exec.Command("/bin/zsh", "-c", command)
+	} else {
+		script := strings.Join(commands, "\n")
+		cmd := exec.Command("/bin/zsh", "-c", script)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Dir = home
-
 		if err := cmd.Run(); err != nil {
-			ui.Error(fmt.Sprintf("Command failed: %s", command))
-			errs = append(errs, fmt.Errorf("post-install %q: %w", command, err))
+			errs = append(errs, fmt.Errorf("post-install script: %w", err))
 		}
 	}
 

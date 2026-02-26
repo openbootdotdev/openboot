@@ -607,7 +607,7 @@ func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
 
 	err := stepPostInstall(cfg)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "post-install")
+	assert.Contains(t, err.Error(), "post-install script")
 }
 
 func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
@@ -618,15 +618,42 @@ func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
 	cfg := &config.Config{
 		Silent: true,
 		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{"exit 1", "touch " + markerFile},
+			// Use "false" (a command that fails with exit 1) instead of "exit 1"
+			// because exit terminates the entire script, while false just sets $?.
+			PostInstall: []string{"false", "touch " + markerFile},
+		},
+	}
+
+	// With single-script execution, zsh runs all lines without set -e,
+	// so the second command runs and the script exits 0 (touch succeeds).
+	err := stepPostInstall(cfg)
+	assert.NoError(t, err)
+
+	_, statErr := os.Stat(markerFile)
+	assert.NoError(t, statErr, "second command should still run after first fails")
+}
+
+func TestStepPostInstall_SharedContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	markerFile := tmpDir + "/shared-context"
+	cfg := &config.Config{
+		Silent: true,
+		RemoteConfig: &config.RemoteConfig{
+			PostInstall: []string{
+				"MY_VAR=hello",
+				"echo $MY_VAR > " + markerFile,
+			},
 		},
 	}
 
 	err := stepPostInstall(cfg)
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
-	_, statErr := os.Stat(markerFile)
-	assert.NoError(t, statErr, "second command should still run after first fails")
+	content, readErr := os.ReadFile(markerFile)
+	assert.NoError(t, readErr)
+	assert.Equal(t, "hello\n", string(content), "variable set on one line should be available on the next")
 }
 
 func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
