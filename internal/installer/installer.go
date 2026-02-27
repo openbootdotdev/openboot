@@ -731,22 +731,22 @@ func stepPostInstall(cfg *config.Config) error {
 
 	commands := cfg.RemoteConfig.PostInstall
 
-	if cfg.DryRun {
-		// dry-run: show commands below without confirmation
-	} else if cfg.Silent || !system.HasTTY() {
+	if !cfg.DryRun && (cfg.Silent || !system.HasTTY()) {
 		if !cfg.AllowPostInstall {
 			ui.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")
 			fmt.Println()
 			return nil
 		}
-	} else {
-		// Show commands before interactive confirmation
-		ui.Info(fmt.Sprintf("%d command(s) to run:", len(commands)))
-		for i, cmd := range commands {
-			fmt.Printf("  %d. %s\n", i+1, cmd)
-		}
-		fmt.Println()
+	}
 
+	// Show command listing for all modes that proceed (interactive, dry-run, silent+allowed)
+	ui.Info(fmt.Sprintf("%d command(s) to run:", len(commands)))
+	for i, cmd := range commands {
+		fmt.Printf("  %d. %s\n", i+1, cmd)
+	}
+	fmt.Println()
+
+	if !cfg.DryRun && !cfg.Silent && system.HasTTY() {
 		run, err := ui.Confirm("Run post-install script?", true)
 		if err != nil {
 			return err

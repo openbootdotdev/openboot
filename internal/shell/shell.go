@@ -18,7 +18,7 @@ func validateShellIdentifier(value, label string) error {
 		return nil
 	}
 	if !shellIdentifierRe.MatchString(value) {
-		return fmt.Errorf("invalid %s: %q (only alphanumerics, hyphens, underscores allowed)", label, value)
+		return fmt.Errorf("invalid %s: %q (only alphanumerics, hyphens, underscores, dots allowed)", label, value)
 	}
 	return nil
 }
