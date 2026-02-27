@@ -50,7 +50,7 @@ make test-all            # Everything + coverage
 
 ## Architecture
 
-See [AGENTS.md](AGENTS.md) for how everything fits together.
+See [CLAUDE.md](CLAUDE.md) for how everything fits together.
 
 ## Questions
 
