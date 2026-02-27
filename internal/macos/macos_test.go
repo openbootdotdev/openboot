@@ -156,10 +156,9 @@ func TestRestartAffectedApps_DryRun(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestRestartAffectedApps_NoDryRun(t *testing.T) {
-	err := RestartAffectedApps(false)
-	assert.NoError(t, err)
-}
+// TestRestartAffectedApps_NoDryRun kills real system processes (Finder, Dock, SystemUIServer),
+// so it must only run with the integration build tag.
+// See test/integration/ for the integration-tagged version.
 
 func TestDefaultPreferences_FinderPrefs(t *testing.T) {
 	finderPrefs := []Preference{}
