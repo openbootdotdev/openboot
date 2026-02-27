@@ -360,7 +360,7 @@ func TestHomebrewAutoUpgrade_UpdateAvailable_Success(t *testing.T) {
 
 	homebrewAutoUpgrade("1.0.0")
 
-	assert.Equal(t, "openboot", calledWith, "should call brew upgrade openboot")
+	assert.Equal(t, brewFormula, calledWith, "should call brew upgrade with fully-qualified formula")
 }
 
 func TestHomebrewAutoUpgrade_UpdateAvailable_Failure(t *testing.T) {

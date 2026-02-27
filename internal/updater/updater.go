@@ -280,11 +280,19 @@ func getHTTPClient() *http.Client {
 	return httpClient
 }
 
+const brewTap = "openbootdotdev/tap"
+const brewFormula = brewTap + "/openboot"
+
 // execBrewUpgrade is a package-level variable to allow test injection.
-// HOMEBREW_NO_AUTO_UPDATE=1 prevents brew from doing a full `brew update`
-// (fetching all formula updates) before upgrading, which would be slow and noisy.
+// It pulls the tap first (to get the latest formula without a full `brew update`)
+// then upgrades the formula. HOMEBREW_NO_AUTO_UPDATE=1 prevents brew from doing
+// a slow full update of all taps.
 var execBrewUpgrade = func(formula string) error {
-	cmd := exec.Command("brew", "upgrade", formula)
+	script := fmt.Sprintf(
+		`git -C "$(brew --repo %s)" pull --ff-only && brew upgrade %s`,
+		brewTap, formula,
+	)
+	cmd := exec.Command("sh", "-c", script)
 	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	return cmd.Run()
 }
@@ -302,7 +310,7 @@ func homebrewAutoUpgrade(currentVersion string) {
 
 	latestClean := trimVersionPrefix(state.LatestVersion)
 	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s via Homebrew...", currentVersion, latestClean))
-	if err := execBrewUpgrade("openboot"); err != nil {
+	if err := execBrewUpgrade(brewFormula); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
 		ui.Muted("Run 'brew upgrade openboot' to update manually")
 		fmt.Println()
