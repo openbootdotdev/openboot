@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,16 +10,29 @@ import (
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
+type editorItemType int
+
+const (
+	editorItemFormula editorItemType = iota
+	editorItemCask
+	editorItemNpm
+	editorItemTap
+	editorItemMacOSPref
+)
+
 type editorItem struct {
 	name        string
 	description string
 	selected    bool
+	itemType    editorItemType
+	isAdded     bool // true = user added this, not from original snapshot
 }
 
 type editorTab struct {
-	name  string
-	icon  string
-	items []editorItem
+	name     string
+	icon     string
+	items    []editorItem
+	itemType editorItemType
 }
 
 type editorFilteredRef struct {
@@ -41,22 +53,48 @@ type SnapshotEditorModel struct {
 	filteredItems []editorItem
 	filteredRefs  []editorFilteredRef
 	snapshot      *snapshot.Snapshot
+
+	// Online search state
+	onlineResults         []editorItem
+	onlineSearching       bool
+	onlineSearchQuery     string
+	onlineDebouncePending bool
+	searchSpinnerIdx      int
+
+	// Toast notification
+	toastMessage string
+
+	// Manual add mode
+	addMode  bool
+	addInput string
 }
 
 func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
-	tabs := make([]editorTab, 3)
+	tabs := make([]editorTab, 5)
 
 	formulaeItems := make([]editorItem, len(snap.Packages.Formulae))
 	for i, pkg := range snap.Packages.Formulae {
-		formulaeItems[i] = editorItem{name: pkg, selected: true}
+		formulaeItems[i] = editorItem{name: pkg, selected: true, itemType: editorItemFormula}
 	}
-	tabs[0] = editorTab{name: "Formulae", icon: "🍺", items: formulaeItems}
+	tabs[0] = editorTab{name: "Formulae", icon: "🍺", items: formulaeItems, itemType: editorItemFormula}
 
 	caskItems := make([]editorItem, len(snap.Packages.Casks))
 	for i, pkg := range snap.Packages.Casks {
-		caskItems[i] = editorItem{name: pkg, selected: true}
+		caskItems[i] = editorItem{name: pkg, selected: true, itemType: editorItemCask}
 	}
-	tabs[1] = editorTab{name: "Casks", icon: "📦", items: caskItems}
+	tabs[1] = editorTab{name: "Casks", icon: "📦", items: caskItems, itemType: editorItemCask}
+
+	npmItems := make([]editorItem, len(snap.Packages.Npm))
+	for i, pkg := range snap.Packages.Npm {
+		npmItems[i] = editorItem{name: pkg, selected: true, itemType: editorItemNpm}
+	}
+	tabs[2] = editorTab{name: "NPM", icon: "📜", items: npmItems, itemType: editorItemNpm}
+
+	tapItems := make([]editorItem, len(snap.Packages.Taps))
+	for i, tap := range snap.Packages.Taps {
+		tapItems[i] = editorItem{name: tap, selected: true, itemType: editorItemTap}
+	}
+	tabs[3] = editorTab{name: "Taps", icon: "🔌", items: tapItems, itemType: editorItemTap}
 
 	prefItems := make([]editorItem, len(snap.MacOSPrefs))
 	for i, p := range snap.MacOSPrefs {
@@ -64,9 +102,10 @@ func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 			name:        fmt.Sprintf("%s.%s", p.Domain, p.Key),
 			description: fmt.Sprintf("= %s (%s)", p.Value, p.Desc),
 			selected:    true,
+			itemType:    editorItemMacOSPref,
 		}
 	}
-	tabs[2] = editorTab{name: "macOS Prefs", icon: "⚙️", items: prefItems}
+	tabs[4] = editorTab{name: "macOS Prefs", icon: "⚙️", items: prefItems, itemType: editorItemMacOSPref}
 
 	return SnapshotEditorModel{
 		tabs:      tabs,
@@ -86,7 +125,48 @@ func (m SnapshotEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+	case editorOnlineSearchResultMsg:
+		if msg.query == m.searchQuery {
+			m.onlineSearching = false
+			if msg.err != nil {
+				m.toastMessage = "Online search unavailable"
+				return m, editorToastClearCmd()
+			}
+			m.onlineResults = nil
+			for _, pkg := range msg.results {
+				m.onlineResults = append(m.onlineResults, packageToEditorItem(pkg))
+			}
+			if total := m.totalSearchItems(); total > 0 && m.cursor >= total {
+				m.cursor = total - 1
+			}
+		}
+		return m, nil
+
+	case editorOnlineSearchTickMsg:
+		if m.onlineDebouncePending && m.searchQuery != "" && m.searchQuery == m.onlineSearchQuery {
+			m.onlineDebouncePending = false
+			m.onlineSearching = true
+			m.searchSpinnerIdx = 0
+			return m, tea.Batch(editorSearchOnlineCmd(m.searchQuery), editorSearchSpinnerTickCmd())
+		}
+		m.onlineDebouncePending = false
+		return m, nil
+
+	case editorSearchSpinnerTickMsg:
+		if m.searchMode && m.onlineSearching {
+			m.searchSpinnerIdx = (m.searchSpinnerIdx + 1) % len(searchSpinnerFrames)
+			return m, editorSearchSpinnerTickCmd()
+		}
+		return m, nil
+
+	case editorToastClearMsg:
+		m.toastMessage = ""
+		return m, nil
+
 	case tea.KeyMsg:
+		if m.addMode {
+			return m.updateAddMode(msg)
+		}
 		if m.searchMode {
 			return m.updateSearch(msg)
 		}
@@ -100,7 +180,16 @@ func (m SnapshotEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchQuery = ""
 			m.cursor = 0
 			m.scrollOffset = 0
-			m.updateFilteredItems()
+			m = m.withFilteredItems()
+
+		case msg.String() == "+":
+			// Block manual add on macOS Prefs tab (prefs require domain.key structure)
+			if m.tabs[m.activeTab].itemType == editorItemMacOSPref {
+				m.toastMessage = "Cannot manually add macOS prefs"
+				return m, editorToastClearCmd()
+			}
+			m.addMode = true
+			m.addInput = ""
 
 		case key.Matches(msg, keys.Tab), key.Matches(msg, keys.Right):
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
@@ -165,42 +254,109 @@ func (m SnapshotEditorModel) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchQuery = ""
 		m.filteredItems = nil
 		m.filteredRefs = nil
+		m.onlineResults = nil
+		m.onlineSearching = false
+		m.onlineDebouncePending = false
+		m.onlineSearchQuery = ""
 		m.cursor = 0
 		m.scrollOffset = 0
-	case "enter", " ":
-		if len(m.filteredRefs) > 0 && m.cursor < len(m.filteredRefs) {
-			ref := m.filteredRefs[m.cursor]
-			m.tabs[ref.tabIdx].items[ref.itemIdx].selected = !m.tabs[ref.tabIdx].items[ref.itemIdx].selected
-		}
+		return m, nil
+	case " ", "enter":
+		return m.toggleOrAddSearchItem()
+
 	case "backspace":
 		if len(m.searchQuery) > 0 {
 			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-			m.updateFilteredItems()
+			m = m.withFilteredItems()
 			m.cursor = 0
+			m.scrollOffset = 0
+			m.onlineSearchQuery = m.searchQuery
+			m.onlineDebouncePending = true
+			m.onlineResults = nil
+			if m.searchQuery == "" {
+				m.onlineDebouncePending = false
+				m.onlineSearching = false
+			}
+			return m, editorOnlineSearchDebounceCmd()
 		}
+		return m, nil
 	case "up":
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		return m, nil
 	case "down":
-		if m.cursor < len(m.filteredItems)-1 {
+		if m.cursor < m.totalSearchItems()-1 {
 			m.cursor++
 		}
+		return m, nil
 	default:
 		if len(msg.String()) == 1 && msg.String() >= " " {
 			m.searchQuery += msg.String()
-			m.updateFilteredItems()
+			m = m.withFilteredItems()
 			m.cursor = 0
+			m.onlineSearchQuery = m.searchQuery
+			m.onlineDebouncePending = true
+			m.onlineResults = nil
+			return m, editorOnlineSearchDebounceCmd()
 		}
 	}
 	return m, nil
 }
 
-func (m *SnapshotEditorModel) updateFilteredItems() {
+func (m SnapshotEditorModel) updateAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.addMode = false
+		m.addInput = ""
+		return m, nil
+	case "enter":
+		if m.addInput != "" {
+			tab := &m.tabs[m.activeTab]
+			// Check for duplicates
+			duplicate := false
+			for _, item := range tab.items {
+				if item.name == m.addInput {
+					duplicate = true
+					break
+				}
+			}
+			if !duplicate {
+				tab.items = append(tab.items, editorItem{
+					name:     m.addInput,
+					selected: true,
+					itemType: m.tabs[m.activeTab].itemType,
+					isAdded:  true,
+				})
+				m.toastMessage = fmt.Sprintf("+ Added %s", m.addInput)
+				m.addMode = false
+				m.addInput = ""
+				// Move cursor to the new item
+				m.cursor = len(tab.items) - 1
+				return m, editorToastClearCmd()
+			}
+		}
+		m.addMode = false
+		m.addInput = ""
+		return m, nil
+	case "backspace":
+		if len(m.addInput) > 0 {
+			m.addInput = m.addInput[:len(m.addInput)-1]
+		}
+		return m, nil
+	default:
+		if len(msg.String()) == 1 && msg.String() >= " " {
+			m.addInput += msg.String()
+		}
+		return m, nil
+	}
+}
+
+func (m SnapshotEditorModel) withFilteredItems() SnapshotEditorModel {
 	if m.searchQuery == "" {
 		m.filteredItems = nil
 		m.filteredRefs = nil
-		return
+		return m
 	}
 
 	query := strings.ToLower(m.searchQuery)
@@ -216,6 +372,7 @@ func (m *SnapshotEditorModel) updateFilteredItems() {
 			}
 		}
 	}
+	return m
 }
 
 func (m SnapshotEditorModel) getVisibleItems() int {
@@ -239,6 +396,14 @@ func (m SnapshotEditorModel) View() string {
 	}
 
 	var lines []string
+
+	if m.addMode {
+		lines = append(lines, "")
+		tabName := m.tabs[m.activeTab].name
+		lines = append(lines, activeTabStyle.Render(fmt.Sprintf("Add to %s: %s▌", tabName, m.addInput)))
+		lines = append(lines, descStyle.Render("  Type a package name and press Enter to add, Esc to cancel"))
+		lines = append(lines, "")
+	}
 
 	lines = append(lines, "")
 	lines = append(lines, activeTabStyle.Render("📋 Snapshot Editor — Review your captured environment"))
@@ -290,7 +455,10 @@ func (m SnapshotEditorModel) View() string {
 
 			checkbox := "[ ]"
 			style := itemStyle
-			if item.selected {
+			if item.isAdded && item.selected {
+				checkbox = "[+]"
+				style = selectedStyle
+			} else if item.selected {
 				checkbox = "[✓]"
 				style = selectedStyle
 			}
@@ -299,14 +467,7 @@ func (m SnapshotEditorModel) View() string {
 			if item.description != "" {
 				line += " " + descStyle.Render(item.description)
 			}
-			if m.width > 0 && len(line) > m.width {
-				if m.width < 10 {
-					line = line[:m.width]
-				} else {
-					line = line[:m.width-3] + "..."
-				}
-			}
-			lines = append(lines, line)
+			lines = append(lines, truncateLine(line, m.width))
 		}
 	}
 
@@ -324,11 +485,16 @@ func (m SnapshotEditorModel) View() string {
 	lines = append(lines, m.gitSummary())
 	lines = append(lines, m.devToolsSummary())
 
+	if m.toastMessage != "" {
+		lines = append(lines, "")
+		lines = append(lines, selectedStyle.Render(m.toastMessage))
+	}
+
 	lines = append(lines, "")
 	lines = append(lines, countStyle.Render(m.selectedCountsSummary()))
 
 	lines = append(lines, "")
-	lines = append(lines, helpStyle.Render("Tab/←→: switch • ↑↓: navigate • Space: toggle • /: search • a: all • Enter: confirm • q: cancel"))
+	lines = append(lines, helpStyle.Render("/: search online • +: add manually • Space: toggle • a: all • Tab/←→: switch • Enter: confirm • q: cancel"))
 
 	return strings.Join(lines, "\n")
 }
@@ -341,47 +507,43 @@ func (m SnapshotEditorModel) viewSearch() string {
 	lines = append(lines, "")
 
 	visibleItems := m.getVisibleItems()
+	totalItems := m.totalSearchItems()
 
-	if len(m.filteredItems) == 0 {
+	if totalItems == 0 && !m.onlineSearching {
 		if m.searchQuery == "" {
 			lines = append(lines, descStyle.Render("Type to search items..."))
 		} else {
 			lines = append(lines, descStyle.Render("No items found"))
 		}
 	} else {
-		endIdx := visibleItems
-		if endIdx > len(m.filteredItems) {
-			endIdx = len(m.filteredItems)
-		}
+		rendered := 0
 
-		for i := 0; i < endIdx; i++ {
+		// Render local filtered items
+		for i := 0; i < len(m.filteredItems) && rendered < visibleItems; i++ {
 			ref := m.filteredRefs[i]
 			item := m.tabs[ref.tabIdx].items[ref.itemIdx]
+			lines = append(lines, m.renderSearchItem(item, i))
+			rendered++
+		}
 
-			cursor := "  "
-			if i == m.cursor {
-				cursor = "> "
-			}
+		// Online results separator
+		if len(m.onlineResults) > 0 && rendered < visibleItems {
+			lines = append(lines, onlineHeaderStyle.Render("── Online Results ──"))
+			rendered++
+		}
 
-			checkbox := "[ ]"
-			style := itemStyle
-			if item.selected {
-				checkbox = "[✓]"
-				style = selectedStyle
-			}
+		// Render online results
+		for i := 0; i < len(m.onlineResults) && rendered < visibleItems; i++ {
+			globalIdx := len(m.filteredItems) + i
+			lines = append(lines, m.renderSearchItem(m.onlineResults[i], globalIdx))
+			rendered++
+		}
 
-			line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(item.name))
-			if item.description != "" {
-				line += " " + descStyle.Render(item.description)
-			}
-			if m.width > 0 && len(line) > m.width {
-				if m.width < 10 {
-					line = line[:m.width]
-				} else {
-					line = line[:m.width-3] + "..."
-				}
-			}
-			lines = append(lines, line)
+		// Spinner for ongoing search
+		if m.onlineSearching && rendered < visibleItems {
+			spinner := searchSpinnerFrames[m.searchSpinnerIdx]
+			lines = append(lines, onlineSearchingStyle.Render(fmt.Sprintf("  %s Searching online...", spinner)))
+			rendered++
 		}
 	}
 
@@ -394,13 +556,63 @@ func (m SnapshotEditorModel) viewSearch() string {
 		lines = append(lines, clearLine)
 	}
 
+	// Toast notification
+	if m.toastMessage != "" {
+		lines = append(lines, "")
+		lines = append(lines, selectedStyle.Render(m.toastMessage))
+	}
+
 	totalSelected := m.totalSelected()
 	lines = append(lines, "")
-	lines = append(lines, countStyle.Render(fmt.Sprintf("Selected: %d items • Found: %d", totalSelected, len(m.filteredItems))))
+	lines = append(lines, countStyle.Render(fmt.Sprintf("Selected: %d items • Local: %d • Online: %d", totalSelected, len(m.filteredItems), len(m.onlineResults))))
 	lines = append(lines, "")
-	lines = append(lines, helpStyle.Render("↑↓: navigate • Space: toggle • Esc: exit search • Enter: toggle selected"))
+	lines = append(lines, helpStyle.Render("↑↓: navigate • Space/Enter: toggle/add • Esc: exit search"))
 
 	return strings.Join(lines, "\n")
+}
+
+func (m SnapshotEditorModel) toggleOrAddSearchItem() (SnapshotEditorModel, tea.Cmd) {
+	total := m.totalSearchItems()
+	if total > 0 && m.cursor < total {
+		if m.cursor < len(m.filteredItems) {
+			ref := m.filteredRefs[m.cursor]
+			m.tabs[ref.tabIdx].items[ref.itemIdx].selected = !m.tabs[ref.tabIdx].items[ref.itemIdx].selected
+		} else {
+			onlineIdx := m.cursor - len(m.filteredItems)
+			if onlineIdx < len(m.onlineResults) {
+				item := m.onlineResults[onlineIdx]
+				m, toast := m.withOnlineResultAdded(item)
+				if toast != "" {
+					m.toastMessage = toast
+					return m, editorToastClearCmd()
+				}
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m SnapshotEditorModel) renderSearchItem(item editorItem, globalIdx int) string {
+	cursor := "  "
+	if globalIdx == m.cursor {
+		cursor = "> "
+	}
+
+	checkbox := "[ ]"
+	style := itemStyle
+	if item.isAdded && item.selected {
+		checkbox = "[+]"
+		style = selectedStyle
+	} else if item.selected {
+		checkbox = "[✓]"
+		style = selectedStyle
+	}
+
+	line := fmt.Sprintf("%s%s %s", cursor, checkbox, style.Render(item.name))
+	if item.description != "" {
+		line += " " + descStyle.Render(item.description)
+	}
+	return truncateLine(line, m.width)
 }
 
 func (m SnapshotEditorModel) shellSummary() string {
@@ -433,15 +645,36 @@ func (m SnapshotEditorModel) devToolsSummary() string {
 }
 
 func (m SnapshotEditorModel) selectedCountsSummary() string {
-	counts := make([]int, len(m.tabs))
-	for i, tab := range m.tabs {
+	counts := make(map[editorItemType]int)
+	for _, tab := range m.tabs {
 		for _, item := range tab.items {
 			if item.selected {
-				counts[i]++
+				counts[item.itemType]++
 			}
 		}
 	}
-	return fmt.Sprintf("%d formulae, %d casks, %d preferences selected", counts[0], counts[1], counts[2])
+
+	var parts []string
+	if c := counts[editorItemFormula]; c > 0 {
+		parts = append(parts, fmt.Sprintf("%d formulae", c))
+	}
+	if c := counts[editorItemCask]; c > 0 {
+		parts = append(parts, fmt.Sprintf("%d casks", c))
+	}
+	if c := counts[editorItemNpm]; c > 0 {
+		parts = append(parts, fmt.Sprintf("%d npm", c))
+	}
+	if c := counts[editorItemTap]; c > 0 {
+		parts = append(parts, fmt.Sprintf("%d taps", c))
+	}
+	if c := counts[editorItemMacOSPref]; c > 0 {
+		parts = append(parts, fmt.Sprintf("%d preferences", c))
+	}
+
+	if len(parts) == 0 {
+		return "nothing selected"
+	}
+	return strings.Join(parts, ", ") + " selected"
 }
 
 func (m SnapshotEditorModel) totalSelected() int {
@@ -479,7 +712,7 @@ func RunSnapshotEditor(snap *snapshot.Snapshot) (*snapshot.Snapshot, bool, error
 func buildEditedSnapshot(original *snapshot.Snapshot, m *SnapshotEditorModel) *snapshot.Snapshot {
 	edited := &snapshot.Snapshot{
 		Version:       original.Version,
-		CapturedAt:    time.Now(),
+		CapturedAt:    original.CapturedAt,
 		Hostname:      original.Hostname,
 		Shell:         original.Shell,
 		Git:           original.Git,
@@ -488,23 +721,31 @@ func buildEditedSnapshot(original *snapshot.Snapshot, m *SnapshotEditorModel) *s
 		CatalogMatch:  original.CatalogMatch,
 	}
 
-	for i, item := range m.tabs[0].items {
-		if item.selected {
-			edited.Packages.Formulae = append(edited.Packages.Formulae, original.Packages.Formulae[i])
-		}
+	// Build lookup maps for original snapshot items (for macOS prefs matching)
+	originalPrefs := make(map[string]snapshot.MacOSPref, len(original.MacOSPrefs))
+	for _, p := range original.MacOSPrefs {
+		originalPrefs[fmt.Sprintf("%s.%s", p.Domain, p.Key)] = p
 	}
 
-	for i, item := range m.tabs[1].items {
-		if item.selected {
-			edited.Packages.Casks = append(edited.Packages.Casks, original.Packages.Casks[i])
-		}
-	}
-
-	edited.Packages.Taps = original.Packages.Taps
-
-	for i, item := range m.tabs[2].items {
-		if item.selected {
-			edited.MacOSPrefs = append(edited.MacOSPrefs, original.MacOSPrefs[i])
+	for _, tab := range m.tabs {
+		for _, item := range tab.items {
+			if !item.selected {
+				continue
+			}
+			switch item.itemType {
+			case editorItemFormula:
+				edited.Packages.Formulae = append(edited.Packages.Formulae, item.name)
+			case editorItemCask:
+				edited.Packages.Casks = append(edited.Packages.Casks, item.name)
+			case editorItemNpm:
+				edited.Packages.Npm = append(edited.Packages.Npm, item.name)
+			case editorItemTap:
+				edited.Packages.Taps = append(edited.Packages.Taps, item.name)
+			case editorItemMacOSPref:
+				if pref, ok := originalPrefs[item.name]; ok {
+					edited.MacOSPrefs = append(edited.MacOSPrefs, pref)
+				}
+			}
 		}
 	}
 
