@@ -704,7 +704,7 @@ func stepMacOS(cfg *config.Config) error {
 		}
 
 		if err := macos.Configure(macos.DefaultPreferences, cfg.DryRun); err != nil {
-			return err
+			ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
 		}
 
 		if !cfg.DryRun {
@@ -730,14 +730,9 @@ func stepPostInstall(cfg *config.Config) error {
 	fmt.Println()
 
 	commands := cfg.RemoteConfig.PostInstall
-	ui.Info(fmt.Sprintf("%d command(s) to run:", len(commands)))
-	for i, cmd := range commands {
-		fmt.Printf("  %d. %s\n", i+1, cmd)
-	}
-	fmt.Println()
 
 	if cfg.DryRun {
-		// dry-run: skip confirmation, will print commands below
+		// dry-run: show commands below without confirmation
 	} else if cfg.Silent || !system.HasTTY() {
 		if !cfg.AllowPostInstall {
 			ui.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")
@@ -745,6 +740,13 @@ func stepPostInstall(cfg *config.Config) error {
 			return nil
 		}
 	} else {
+		// Show commands before interactive confirmation
+		ui.Info(fmt.Sprintf("%d command(s) to run:", len(commands)))
+		for i, cmd := range commands {
+			fmt.Printf("  %d. %s\n", i+1, cmd)
+		}
+		fmt.Println()
+
 		run, err := ui.Confirm("Run post-install script?", true)
 		if err != nil {
 			return err
@@ -1014,7 +1016,7 @@ func stepRestoreMacOS(cfg *config.Config) error {
 	}
 
 	if err := macos.Configure(prefs, cfg.DryRun); err != nil {
-		return err
+		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
 	}
 
 	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {

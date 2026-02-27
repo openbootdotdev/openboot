@@ -5,13 +5,14 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
@@ -25,15 +26,8 @@ var httpClient = &http.Client{
 
 const DefaultAPIBase = "https://openboot.dev"
 
-func isAllowedAPIURL(u string) bool {
-	if strings.HasPrefix(u, "https://") {
-		return true
-	}
-	if strings.HasPrefix(u, "http://localhost") || strings.HasPrefix(u, "http://127.0.0.1") {
-		return true
-	}
-	return false
-}
+// isAllowedAPIURL delegates to the shared implementation in system package.
+var isAllowedAPIURL = system.IsAllowedAPIURL
 
 func GetAPIBase() string {
 	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
@@ -138,7 +132,7 @@ func startAuthSession(apiBase, code string) (string, error) {
 	}
 
 	var result cliStartResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {
 		return "", fmt.Errorf("parse auth response: %w", err)
 	}
 
@@ -181,7 +175,7 @@ func pollOnce(pollURL string) (*cliPollResponse, bool, error) {
 	defer resp.Body.Close()
 
 	var result cliPollResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {
 		return nil, false, nil
 	}
 

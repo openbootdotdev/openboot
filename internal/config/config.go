@@ -13,18 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/system"
 	"gopkg.in/yaml.v3"
 )
 
-func isAllowedAPIURL(u string) bool {
-	if strings.HasPrefix(u, "https://") {
-		return true
-	}
-	if strings.HasPrefix(u, "http://localhost") || strings.HasPrefix(u, "http://127.0.0.1") {
-		return true
-	}
-	return false
-}
+// isAllowedAPIURL delegates to the shared implementation in system package.
+var isAllowedAPIURL = system.IsAllowedAPIURL
 
 var remoteHTTPClient = &http.Client{
 	Timeout: 15 * time.Second,

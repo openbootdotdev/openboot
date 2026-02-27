@@ -311,7 +311,7 @@ func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibili
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, err := io.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10)) // 64 KB for error responses
 		if err != nil {
 			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, err)
 		}
@@ -586,7 +586,7 @@ func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 			return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
 		}
 		tmpFile := filepath.Join(os.TempDir(), "openboot-snapshot-import.json")
-		data, err := io.ReadAll(resp.Body)
+		data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 		if err != nil {
 			return nil, fmt.Errorf("read snapshot response: %w", err)
 		}

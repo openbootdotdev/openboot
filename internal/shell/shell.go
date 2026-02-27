@@ -11,7 +11,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
-var shellIdentifierRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+var shellIdentifierRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
 func validateShellIdentifier(value, label string) error {
 	if value == "" {
@@ -56,7 +56,9 @@ func InstallOhMyZsh(dryRun bool) error {
 	}
 	zshrcPath := filepath.Join(home, ".zshrc")
 	if _, err := os.Stat(zshrcPath); err == nil {
-		_ = os.Rename(zshrcPath, zshrcPath+".openboot.bak")
+		if err := os.Rename(zshrcPath, zshrcPath+".openboot.bak"); err != nil {
+			return fmt.Errorf("backup %s: %w", zshrcPath, err)
+		}
 	}
 
 	return nil

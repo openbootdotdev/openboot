@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/system"
 )
 
 var httpClient = &http.Client{
@@ -22,7 +22,7 @@ var httpClient = &http.Client{
 
 func getAPIBase() string {
 	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
-		if strings.HasPrefix(base, "https://") || strings.HasPrefix(base, "http://localhost") || strings.HasPrefix(base, "http://127.0.0.1") {
+		if system.IsAllowedAPIURL(base) {
 			return base + "/api"
 		}
 	}

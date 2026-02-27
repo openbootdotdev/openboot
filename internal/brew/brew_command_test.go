@@ -152,8 +152,18 @@ func TestDoctorDiagnose_ReadyToBrew(t *testing.T) {
 	assert.Nil(t, suggestions)
 }
 
-func TestDoctorDiagnose_Failure(t *testing.T) {
+func TestDoctorDiagnose_ExitNonZeroNoOutput(t *testing.T) {
+	// brew doctor exits non-zero when it finds warnings — that's expected.
+	// With no output, we get the fallback suggestion but no error.
 	setupFakeBrew(t, "#!/bin/sh\nif [ \"$1\" = \"doctor\" ]; then\n  exit 1\nfi\nexit 0\n")
+	suggestions, err := DoctorDiagnose()
+	require.NoError(t, err)
+	assert.Contains(t, suggestions, "Run: brew doctor (to see full diagnostic output)")
+}
+
+func TestDoctorDiagnose_BinaryNotFound(t *testing.T) {
+	// If brew binary doesn't exist at all, that's a real error.
+	t.Setenv("PATH", t.TempDir()) // empty dir — no brew binary
 	_, err := DoctorDiagnose()
 	assert.Error(t, err)
 }

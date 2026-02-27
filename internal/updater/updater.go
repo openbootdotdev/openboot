@@ -360,7 +360,7 @@ func GetLatestVersion() (string, error) {
 	}
 
 	var release Release
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&release); err != nil {
 		return "", err
 	}
 

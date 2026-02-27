@@ -2,6 +2,7 @@ package brew
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -739,7 +740,10 @@ func DoctorDiagnose() ([]string, error) {
 	cmd := exec.Command("brew", "doctor")
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
-	if err != nil && outputStr == "" {
+	// brew doctor exits non-zero when it finds warnings — that's expected.
+	// Only treat as a hard error if the process couldn't start at all.
+	var exitErr *exec.ExitError
+	if err != nil && !errors.As(err, &exitErr) {
 		return nil, fmt.Errorf("brew doctor failed: %w", err)
 	}
 

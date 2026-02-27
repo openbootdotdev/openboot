@@ -81,4 +81,5 @@ func init() {
 	installCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
 
 	installCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
+	installCmd.Flags().BoolVar(&cfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
 }
