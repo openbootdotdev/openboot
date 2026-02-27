@@ -102,14 +102,44 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	}
 
 	steps := []captureStep{
-		{"Homebrew Formulae", func() (interface{}, error) { return CaptureFormulae() }, func(v interface{}) int { return len(v.([]string)) }},
-		{"Homebrew Casks", func() (interface{}, error) { return CaptureCasks() }, func(v interface{}) int { return len(v.([]string)) }},
-		{"Homebrew Taps", func() (interface{}, error) { return CaptureTaps() }, func(v interface{}) int { return len(v.([]string)) }},
-		{"NPM Global Packages", func() (interface{}, error) { return CaptureNpm() }, func(v interface{}) int { return len(v.([]string)) }},
-		{"macOS Preferences", func() (interface{}, error) { return CaptureMacOSPrefs() }, func(v interface{}) int { return len(v.([]MacOSPref)) }},
+		{"Homebrew Formulae", func() (interface{}, error) { return CaptureFormulae() }, func(v interface{}) int {
+			if s, ok := v.([]string); ok {
+				return len(s)
+			}
+			return 0
+		}},
+		{"Homebrew Casks", func() (interface{}, error) { return CaptureCasks() }, func(v interface{}) int {
+			if s, ok := v.([]string); ok {
+				return len(s)
+			}
+			return 0
+		}},
+		{"Homebrew Taps", func() (interface{}, error) { return CaptureTaps() }, func(v interface{}) int {
+			if s, ok := v.([]string); ok {
+				return len(s)
+			}
+			return 0
+		}},
+		{"NPM Global Packages", func() (interface{}, error) { return CaptureNpm() }, func(v interface{}) int {
+			if s, ok := v.([]string); ok {
+				return len(s)
+			}
+			return 0
+		}},
+		{"macOS Preferences", func() (interface{}, error) { return CaptureMacOSPrefs() }, func(v interface{}) int {
+			if s, ok := v.([]MacOSPref); ok {
+				return len(s)
+			}
+			return 0
+		}},
 		{"Shell Environment", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int { return 1 }},
 		{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
-		{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int { return len(v.([]DevTool)) }},
+		{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int {
+			if s, ok := v.([]DevTool); ok {
+				return len(s)
+			}
+			return 0
+		}},
 	}
 
 	results := make([]interface{}, len(steps))
@@ -132,14 +162,39 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 		}
 	}
 
-	formulae := results[0].([]string)
-	casks := results[1].([]string)
-	taps := results[2].([]string)
-	npmPkgs := results[3].([]string)
-	prefs := results[4].([]MacOSPref)
-	shellSnap := results[5].(*ShellSnapshot)
-	gitSnap := results[6].(*GitSnapshot)
-	devTools := results[7].([]DevTool)
+	formulae, _ := results[0].([]string)
+	casks, _ := results[1].([]string)
+	taps, _ := results[2].([]string)
+	npmPkgs, _ := results[3].([]string)
+	prefs, _ := results[4].([]MacOSPref)
+	shellSnap, _ := results[5].(*ShellSnapshot)
+	gitSnap, _ := results[6].(*GitSnapshot)
+	devTools, _ := results[7].([]DevTool)
+
+	if formulae == nil {
+		formulae = []string{}
+	}
+	if casks == nil {
+		casks = []string{}
+	}
+	if taps == nil {
+		taps = []string{}
+	}
+	if npmPkgs == nil {
+		npmPkgs = []string{}
+	}
+	if prefs == nil {
+		prefs = []MacOSPref{}
+	}
+	if shellSnap == nil {
+		shellSnap = &ShellSnapshot{Plugins: []string{}}
+	}
+	if gitSnap == nil {
+		gitSnap = &GitSnapshot{}
+	}
+	if devTools == nil {
+		devTools = []DevTool{}
+	}
 
 	return &Snapshot{
 		Version:    1,

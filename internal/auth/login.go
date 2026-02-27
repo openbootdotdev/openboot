@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -23,9 +25,22 @@ var httpClient = &http.Client{
 
 const DefaultAPIBase = "https://openboot.dev"
 
+func isAllowedAPIURL(u string) bool {
+	if strings.HasPrefix(u, "https://") {
+		return true
+	}
+	if strings.HasPrefix(u, "http://localhost") || strings.HasPrefix(u, "http://127.0.0.1") {
+		return true
+	}
+	return false
+}
+
 func GetAPIBase() string {
 	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
-		return base
+		if isAllowedAPIURL(base) {
+			return base
+		}
+		ui.Warn(fmt.Sprintf("Ignoring insecure OPENBOOT_API_URL=%q (only https or http://localhost allowed)", base))
 	}
 	return DefaultAPIBase
 }
@@ -46,7 +61,10 @@ type cliPollResponse struct {
 }
 
 func LoginInteractive(apiBase string) (*StoredAuth, error) {
-	code := GenerateCode()
+	code, err := GenerateCode()
+	if err != nil {
+		return nil, err
+	}
 
 	codeID, err := startAuthSession(apiBase, code)
 	if err != nil {
@@ -134,7 +152,7 @@ var (
 )
 
 func pollForApproval(apiBase, codeID string) (*cliPollResponse, error) {
-	pollURL := fmt.Sprintf("%s/api/auth/cli/poll?code_id=%s", apiBase, codeID)
+	pollURL := fmt.Sprintf("%s/api/auth/cli/poll?code_id=%s", apiBase, url.QueryEscape(codeID))
 	timeout := time.After(pollTimeout)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()

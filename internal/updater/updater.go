@@ -254,23 +254,30 @@ func DownloadAndReplace() error {
 		return fmt.Errorf("create temp file: %w", err)
 	}
 
+	// Ensure tmp file is cleaned up on any failure (including panics).
+	// Set to false after successful rename.
+	needsCleanup := true
+	defer func() {
+		if needsCleanup {
+			os.Remove(tmpPath) //nolint:errcheck // best-effort cleanup
+		}
+	}()
+
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
-		os.Remove(tmpPath)
 		return fmt.Errorf("write binary: %w", err)
 	}
 	f.Close()
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("chmod: %w", err)
 	}
 
 	if err := os.Rename(tmpPath, binPath); err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("replace binary: %w", err)
 	}
 
+	needsCleanup = false
 	return nil
 }
 

@@ -11,6 +11,18 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
+var shellIdentifierRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func validateShellIdentifier(value, label string) error {
+	if value == "" {
+		return nil
+	}
+	if !shellIdentifierRe.MatchString(value) {
+		return fmt.Errorf("invalid %s: %q (only alphanumerics, hyphens, underscores allowed)", label, value)
+	}
+	return nil
+}
+
 func IsOhMyZshInstalled() bool {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -43,7 +55,9 @@ func InstallOhMyZsh(dryRun bool) error {
 		return err
 	}
 	zshrcPath := filepath.Join(home, ".zshrc")
-	os.Remove(zshrcPath)
+	if _, err := os.Stat(zshrcPath); err == nil {
+		_ = os.Rename(zshrcPath, zshrcPath+".openboot.bak")
+	}
 
 	return nil
 }
@@ -134,7 +148,16 @@ const restoreBlockEnd = "# <<< OpenBoot-Restore"
 
 var restoreBlockRe = regexp.MustCompile(`(?s)# >>> OpenBoot-Restore\n.*?# <<< OpenBoot-Restore\n?`)
 
-func buildRestoreBlock(theme string, plugins []string) string {
+func buildRestoreBlock(theme string, plugins []string) (string, error) {
+	if err := validateShellIdentifier(theme, "ZSH_THEME"); err != nil {
+		return "", err
+	}
+	for _, p := range plugins {
+		if err := validateShellIdentifier(p, "plugin"); err != nil {
+			return "", err
+		}
+	}
+
 	var sb strings.Builder
 	sb.WriteString(restoreBlockStart + "\n")
 	if theme != "" {
@@ -144,12 +167,12 @@ func buildRestoreBlock(theme string, plugins []string) string {
 		sb.WriteString(fmt.Sprintf("plugins=(%s)\n", strings.Join(plugins, " ")))
 	}
 	sb.WriteString(restoreBlockEnd + "\n")
-	return sb.String()
+	return sb.String(), nil
 }
 
 var (
 	looseThemeRe   = regexp.MustCompile(`(?m)^ZSH_THEME="[^"]*"\n?`)
-	loosePluginsRe = regexp.MustCompile(`(?m)^plugins=\([^)]*\)\n?`)
+	loosePluginsRe = regexp.MustCompile(`(?m)^plugins=\((?s:.*?)\)\n?`)
 )
 
 func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
@@ -158,7 +181,10 @@ func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 		return fmt.Errorf("read .zshrc: %w", err)
 	}
 
-	block := buildRestoreBlock(theme, plugins)
+	block, err := buildRestoreBlock(theme, plugins)
+	if err != nil {
+		return fmt.Errorf("build restore block: %w", err)
+	}
 	content := string(raw)
 
 	if restoreBlockRe.MatchString(content) {
@@ -176,8 +202,13 @@ func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 		content = content + block
 	}
 
-	if err := os.WriteFile(zshrcPath, []byte(content), 0644); err != nil {
+	tmpPath := zshrcPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write .zshrc: %w", err)
+	}
+	if err := os.Rename(tmpPath, zshrcPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename .zshrc: %w", err)
 	}
 	return nil
 }
@@ -207,6 +238,14 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 		if dryRun {
 			fmt.Printf("[DRY-RUN] Would create %s\n", zshrcPath)
 			return nil
+		}
+		if err := validateShellIdentifier(theme, "ZSH_THEME"); err != nil {
+			return err
+		}
+		for _, p := range plugins {
+			if err := validateShellIdentifier(p, "plugin"); err != nil {
+				return err
+			}
 		}
 		template := fmt.Sprintf(`export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="%s"

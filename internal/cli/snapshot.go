@@ -571,7 +571,10 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 
 func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 	localPath := importPath
-	if strings.HasPrefix(importPath, "http://") || strings.HasPrefix(importPath, "https://") {
+	if strings.HasPrefix(importPath, "http://") {
+		return nil, fmt.Errorf("insecure HTTP not allowed for snapshot import — use https:// instead")
+	}
+	if strings.HasPrefix(importPath, "https://") {
 		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
 		client := &http.Client{Timeout: 30 * time.Second}
 		resp, err := client.Get(importPath)

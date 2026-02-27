@@ -333,7 +333,8 @@ func TestIsAuthenticated_NoToken(t *testing.T) {
 }
 
 func TestGenerateCode_Length(t *testing.T) {
-	code := GenerateCode()
+	code, err := GenerateCode()
+	require.NoError(t, err)
 	assert.Equal(t, 8, len(code))
 }
 
@@ -341,7 +342,8 @@ func TestGenerateCode_Alphanumeric(t *testing.T) {
 	alphanumericRegex := regexp.MustCompile(`^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$`)
 
 	for i := 0; i < 100; i++ {
-		code := GenerateCode()
+		code, err := GenerateCode()
+		require.NoError(t, err)
 		assert.True(t, alphanumericRegex.MatchString(code), "code %s is not alphanumeric", code)
 	}
 }
@@ -350,7 +352,8 @@ func TestGenerateCode_Uniqueness(t *testing.T) {
 	codes := make(map[string]bool)
 
 	for i := 0; i < 1000; i++ {
-		code := GenerateCode()
+		code, err := GenerateCode()
+		require.NoError(t, err)
 		assert.False(t, codes[code], "duplicate code generated: %s", code)
 		codes[code] = true
 	}
@@ -359,8 +362,10 @@ func TestGenerateCode_Uniqueness(t *testing.T) {
 }
 
 func TestGenerateCode_NoFixedValue(t *testing.T) {
-	code1 := GenerateCode()
-	code2 := GenerateCode()
+	code1, err := GenerateCode()
+	require.NoError(t, err)
+	code2, err := GenerateCode()
+	require.NoError(t, err)
 	assert.NotEqual(t, code1, code2)
 }
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
@@ -59,7 +60,7 @@ For username/slug format, the config is fetched directly.`,
 		updater.AutoUpgrade(version)
 		cfg.Version = version
 		err := installer.Run(cfg)
-		if err == installer.ErrUserCancelled {
+		if errors.Is(err, installer.ErrUserCancelled) {
 			return nil
 		}
 		return err

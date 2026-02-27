@@ -70,7 +70,7 @@ func ListOutdated() ([]OutdatedPackage, error) {
 	cmd := exec.Command("brew", "outdated", "--json")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("brew outdated: %w", err)
 	}
 
 	var result struct {
@@ -579,19 +579,6 @@ func parseBrewError(output string) string {
 	}
 }
 
-func installSmartCask(pkg string) error {
-	cmd := brewInstallCmd("install", "--cask", pkg)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	if err := cmd.Run(); err != nil {
-		cmd2 := brewInstallCmd("install", pkg)
-		cmd2.Stdout = nil
-		cmd2.Stderr = nil
-		return cmd2.Run()
-	}
-	return nil
-}
-
 func Uninstall(packages []string, dryRun bool) error {
 	if len(packages) == 0 {
 		return nil
@@ -706,7 +693,7 @@ func Update(dryRun bool) error {
 
 	ui.Info("Updating Homebrew...")
 	if err := exec.Command("brew", "update").Run(); err != nil {
-		return err
+		return fmt.Errorf("brew update: %w", err)
 	}
 
 	ui.Info("Upgrading packages...")
@@ -751,10 +738,10 @@ func CheckDiskSpace() (float64, error) {
 func DoctorDiagnose() ([]string, error) {
 	cmd := exec.Command("brew", "doctor")
 	output, err := cmd.CombinedOutput()
-	if err != nil {
+	outputStr := string(output)
+	if err != nil && outputStr == "" {
 		return nil, fmt.Errorf("brew doctor failed: %w", err)
 	}
-	outputStr := string(output)
 
 	if strings.Contains(outputStr, "ready to brew") {
 		return nil, nil
@@ -789,7 +776,7 @@ func DoctorDiagnose() ([]string, error) {
 	}
 
 	if len(suggestions) == 0 && !strings.Contains(outputStr, "ready to brew") {
-		suggestions = append(suggestions, "Run 'brew doctor' to see full diagnostic output")
+		suggestions = append(suggestions, "Run: brew doctor (to see full diagnostic output)")
 	}
 
 	return suggestions, nil

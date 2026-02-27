@@ -20,7 +20,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-var ErrUserCancelled = fmt.Errorf("user cancelled")
+var ErrUserCancelled = errors.New("user cancelled")
 
 const (
 	estimatedSecondsPerFormula = 15
@@ -386,7 +386,10 @@ func stepInstallPackages(cfg *config.Config) error {
 		return nil
 	}
 
-	state, _ := loadState()
+	state, stateErr := loadState()
+	if stateErr != nil {
+		ui.Warn(fmt.Sprintf("Failed to load install state: %v", stateErr))
+	}
 
 	var newCli []string
 	var newCask []string
@@ -457,7 +460,10 @@ func stepInstallNpm(cfg *config.Config) error {
 		return nil
 	}
 
-	state, _ := loadState()
+	state, stateErr := loadState()
+	if stateErr != nil {
+		ui.Warn(fmt.Sprintf("Failed to load install state: %v", stateErr))
+	}
 
 	var newNpm []string
 	if !cfg.DryRun {
@@ -586,6 +592,9 @@ func stepDotfiles(cfg *config.Config) error {
 		dotfilesURL = dotfiles.GetDotfilesURL()
 		if dotfilesURL == "" {
 			dotfilesURL = cfg.DotfilesURL
+		}
+		if dotfilesURL == "" && cfg.Dotfiles == "clone" {
+			return fmt.Errorf("dotfiles clone requested but no repository URL provided (set OPENBOOT_DOTFILES or use --dotfiles-url)")
 		}
 	}
 
@@ -727,7 +736,15 @@ func stepPostInstall(cfg *config.Config) error {
 	}
 	fmt.Println()
 
-	if !cfg.Silent && !cfg.DryRun && system.HasTTY() {
+	if cfg.DryRun {
+		// dry-run: skip confirmation, will print commands below
+	} else if cfg.Silent || !system.HasTTY() {
+		if !cfg.AllowPostInstall {
+			ui.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")
+			fmt.Println()
+			return nil
+		}
+	} else {
 		run, err := ui.Confirm("Run post-install script?", true)
 		if err != nil {
 			return err
@@ -804,7 +821,9 @@ func showCompletion(cfg *config.Config) {
 	fmt.Println()
 
 	ui.Info("What was installed:")
-	ui.Info("  - Git configured with your identity")
+	if !cfg.PackagesOnly {
+		ui.Info("  - Git configured with your identity")
+	}
 	ui.Info(fmt.Sprintf("  - %d CLI packages", cliCount))
 	ui.Info(fmt.Sprintf("  - %d GUI applications", caskCount))
 	if npmCount > 0 {
@@ -920,6 +939,12 @@ func stepRestoreGit(cfg *config.Config) error {
 	}
 	if existingEmail == "" && git.UserEmail != "" {
 		emailToSet = git.UserEmail
+	}
+
+	if nameToSet == "" || emailToSet == "" {
+		ui.Warn("Incomplete git config in snapshot, skipping (need both name and email)")
+		fmt.Println()
+		return nil
 	}
 
 	if nameToSet != existingName || emailToSet != existingEmail {

@@ -42,6 +42,7 @@ type ScanProgress struct {
 	totalSteps     int
 	spinnerIdx     int
 	spinnerStop    chan bool
+	closeOnce      sync.Once
 	mu             sync.Mutex
 	isTTY          bool
 	rendered       bool
@@ -83,13 +84,10 @@ func NewScanProgress(totalSteps int) *ScanProgress {
 							break
 						}
 					}
-					active := hasActive
-					sp.mu.Unlock()
-					if active {
-						sp.mu.Lock()
+					if hasActive {
 						sp.render()
-						sp.mu.Unlock()
 					}
+					sp.mu.Unlock()
 				}
 			}
 		}()
@@ -123,7 +121,7 @@ func (sp *ScanProgress) Update(step snapshot.ScanStep) {
 }
 
 func (sp *ScanProgress) Finish() {
-	close(sp.spinnerStop)
+	sp.closeOnce.Do(func() { close(sp.spinnerStop) })
 
 	sp.mu.Lock()
 	defer sp.mu.Unlock()

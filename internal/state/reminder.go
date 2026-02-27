@@ -66,7 +66,7 @@ func SaveState(path string, s *ReminderState) error {
 }
 
 func ShouldShowReminder(s *ReminderState) bool {
-	return !s.Dismissed
+	return !s.Dismissed && !s.Skipped
 }
 
 func MarkDismissed(s *ReminderState) {

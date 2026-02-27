@@ -47,6 +47,7 @@ type StickyProgress struct {
 	mu         sync.Mutex
 	spinnerIdx int
 	stopCh     chan struct{}
+	closeOnce  sync.Once
 	sigCh      chan os.Signal
 	active     bool
 	succeeded  int
@@ -148,23 +149,19 @@ func (sp *StickyProgress) render() {
 
 func (sp *StickyProgress) SetCurrent(pkgName string) {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.currentPkg = pkgName
-	shouldRender := sp.active
-	sp.mu.Unlock()
-
-	if shouldRender {
+	if sp.active {
 		sp.render()
 	}
 }
 
 func (sp *StickyProgress) Increment() {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.completed++
 	sp.succeeded++
-	shouldRender := sp.active
-	sp.mu.Unlock()
-
-	if shouldRender {
+	if sp.active {
 		sp.render()
 	}
 }
@@ -177,15 +174,14 @@ func (sp *StickyProgress) SetSkipped(count int) {
 
 func (sp *StickyProgress) IncrementWithStatus(success bool) {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.completed++
 	if success {
 		sp.succeeded++
 	} else {
 		sp.failed++
 	}
-	shouldRender := sp.active
-	sp.mu.Unlock()
-	if shouldRender {
+	if sp.active {
 		sp.render()
 	}
 }
@@ -210,14 +206,14 @@ func (sp *StickyProgress) PauseForInteractive() {
 
 func (sp *StickyProgress) ResumeAfterInteractive() {
 	sp.mu.Lock()
+	defer sp.mu.Unlock()
 	sp.active = true
-	sp.mu.Unlock()
 	sp.render()
 }
 
 func (sp *StickyProgress) Finish() {
 	signal.Stop(sp.sigCh)
-	close(sp.stopCh)
+	sp.closeOnce.Do(func() { close(sp.stopCh) })
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	sp.active = false

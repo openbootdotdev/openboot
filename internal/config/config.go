@@ -4,14 +4,27 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+func isAllowedAPIURL(u string) bool {
+	if strings.HasPrefix(u, "https://") {
+		return true
+	}
+	if strings.HasPrefix(u, "http://localhost") || strings.HasPrefix(u, "http://127.0.0.1") {
+		return true
+	}
+	return false
+}
 
 var remoteHTTPClient = &http.Client{
 	Timeout: 15 * time.Second,
@@ -47,6 +60,7 @@ type Config struct {
 	SnapshotDotfiles string
 	DotfilesURL      string
 	PostInstall      string
+	AllowPostInstall bool
 }
 
 type SnapshotShellConfig struct {
@@ -78,6 +92,40 @@ type RemoteConfig struct {
 	Npm          []string `json:"npm"`
 	DotfilesRepo string   `json:"dotfiles_repo"`
 	PostInstall  []string `json:"post_install"`
+}
+
+var (
+	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
+	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
+)
+
+func (rc *RemoteConfig) Validate() error {
+	for _, p := range rc.Packages {
+		if !pkgNameRe.MatchString(p) {
+			return fmt.Errorf("invalid package name: %q", p)
+		}
+	}
+	for _, c := range rc.Casks {
+		if !pkgNameRe.MatchString(c) {
+			return fmt.Errorf("invalid cask name: %q", c)
+		}
+	}
+	for _, n := range rc.Npm {
+		if !pkgNameRe.MatchString(n) {
+			return fmt.Errorf("invalid npm package name: %q", n)
+		}
+	}
+	for _, t := range rc.Taps {
+		if !tapNameRe.MatchString(t) {
+			return fmt.Errorf("invalid tap name: %q (expected format: owner/repo)", t)
+		}
+	}
+	if rc.DotfilesRepo != "" {
+		if !strings.HasPrefix(rc.DotfilesRepo, "https://") && !strings.HasPrefix(rc.DotfilesRepo, "git@") {
+			return fmt.Errorf("invalid dotfiles_repo: %q (only https:// or git@ URLs allowed)", rc.DotfilesRepo)
+		}
+	}
+	return nil
 }
 
 type Preset struct {
@@ -120,15 +168,18 @@ func GetPresetNames() []string {
 
 func getAPIBase() string {
 	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
-		return base
+		if isAllowedAPIURL(base) {
+			return base
+		}
+		fmt.Fprintf(os.Stderr, "Warning: ignoring insecure OPENBOOT_API_URL=%q (only https or http://localhost allowed)\n", base)
 	}
 	return "https://openboot.dev"
 }
 
 func fetchConfigBySlug(apiBase, username, slug, token string) (*http.Response, error) {
-	url := fmt.Sprintf("%s/%s/%s/config", apiBase, username, slug)
+	configURL := fmt.Sprintf("%s/%s/%s/config", apiBase, url.PathEscape(username), url.PathEscape(slug))
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", configURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -163,8 +214,12 @@ func parseConfigResponse(resp *http.Response, username, slug, token string) (*Re
 	}
 
 	var rc RemoteConfig
-	if err := json.NewDecoder(resp.Body).Decode(&rc); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rc); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
+	}
+
+	if err := rc.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid remote config %s/%s: %w", username, slug, err)
 	}
 
 	return &rc, nil
@@ -202,9 +257,9 @@ func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 }
 
 func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
-	url := fmt.Sprintf("%s/api/configs/alias/%s", apiBase, alias)
+	aliasURL := fmt.Sprintf("%s/api/configs/alias/%s", apiBase, url.PathEscape(alias))
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", aliasURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -224,8 +279,12 @@ func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 	}
 
 	var rc RemoteConfig
-	if err := json.NewDecoder(resp.Body).Decode(&rc); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rc); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
+	}
+
+	if err := rc.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid remote config (alias %s): %w", alias, err)
 	}
 
 	return &rc, nil

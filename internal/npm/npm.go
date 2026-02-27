@@ -43,7 +43,12 @@ func GetInstalledPackages() (map[string]bool, error) {
 	cmd := exec.Command("npm", "list", "-g", "--depth=0", "--parseable")
 	output, err := cmd.Output()
 	if err != nil {
-		return packages, nil
+		if len(output) > 0 {
+			// npm list exits non-zero when packages have issues, but still
+			// provides parseable output — treat as success
+		} else {
+			return packages, fmt.Errorf("npm list -g: %w", err)
+		}
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")

@@ -581,7 +581,8 @@ func TestStepPostInstall_RunsCommandsInSilentMode(t *testing.T) {
 
 	markerFile := tmpDir + "/post-install-ran"
 	cfg := &config.Config{
-		Silent: true,
+		Silent:           true,
+		AllowPostInstall: true,
 		RemoteConfig: &config.RemoteConfig{
 			PostInstall: []string{"touch " + markerFile},
 		},
@@ -599,7 +600,8 @@ func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		Silent: true,
+		Silent:           true,
+		AllowPostInstall: true,
 		RemoteConfig: &config.RemoteConfig{
 			PostInstall: []string{"exit 1"},
 		},
@@ -616,7 +618,8 @@ func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
 
 	markerFile := tmpDir + "/second-ran"
 	cfg := &config.Config{
-		Silent: true,
+		Silent:           true,
+		AllowPostInstall: true,
 		RemoteConfig: &config.RemoteConfig{
 			// Use "false" (a command that fails with exit 1) instead of "exit 1"
 			// because exit terminates the entire script, while false just sets $?.
@@ -639,7 +642,8 @@ func TestStepPostInstall_SharedContext(t *testing.T) {
 
 	markerFile := tmpDir + "/shared-context"
 	cfg := &config.Config{
-		Silent: true,
+		Silent:           true,
+		AllowPostInstall: true,
 		RemoteConfig: &config.RemoteConfig{
 			PostInstall: []string{
 				"MY_VAR=hello",

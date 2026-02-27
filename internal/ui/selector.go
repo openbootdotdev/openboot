@@ -289,6 +289,7 @@ func (m SelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.searchQuery += msg.String()
 					m.updateFilteredPackages()
 					m.cursor = 0
+					m.scrollOffset = 0
 					m.onlineSearchQuery = m.searchQuery
 					m.onlineDebouncePending = true
 					m.onlineResults = nil

@@ -191,7 +191,7 @@ func TestDoctorDiagnose_UnknownWarnings(t *testing.T) {
 		"exit 0\n")
 	suggestions, err := DoctorDiagnose()
 	require.NoError(t, err)
-	assert.Contains(t, suggestions, "Run 'brew doctor' to see full diagnostic output")
+	assert.Contains(t, suggestions, "Run: brew doctor (to see full diagnostic output)")
 }
 
 func TestBrewInstallCmd_SetsNoAutoUpdate(t *testing.T) {

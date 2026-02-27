@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/config"
@@ -18,7 +20,14 @@ var httpClient = &http.Client{
 	},
 }
 
-const apiBase = "https://openboot.dev/api"
+func getAPIBase() string {
+	if base := os.Getenv("OPENBOOT_API_URL"); base != "" {
+		if strings.HasPrefix(base, "https://") || strings.HasPrefix(base, "http://localhost") || strings.HasPrefix(base, "http://127.0.0.1") {
+			return base + "/api"
+		}
+	}
+	return "https://openboot.dev/api"
+}
 
 type searchResult struct {
 	Name string `json:"name"`
@@ -31,14 +40,14 @@ type searchResponse struct {
 }
 
 func queryAPI(endpoint, query string) ([]config.Package, error) {
-	u := fmt.Sprintf("%s/%s/search?q=%s", apiBase, endpoint, url.QueryEscape(query))
+	u := fmt.Sprintf("%s/%s/search?q=%s", getAPIBase(), endpoint, url.QueryEscape(query))
 	resp, err := httpClient.Get(u)
 	if err != nil {
 		return nil, fmt.Errorf("%s search: %w", endpoint, err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, fmt.Errorf("read %s body: %w", endpoint, err)
 	}

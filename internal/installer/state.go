@@ -71,7 +71,7 @@ func (s *InstallState) save() error {
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
@@ -82,7 +82,15 @@ func (s *InstallState) save() error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return fmt.Errorf("write state: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename state: %w", err)
+	}
+	return nil
 }
 
 func (s *InstallState) markFormula(name string) error {

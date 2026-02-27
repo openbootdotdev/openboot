@@ -1,6 +1,7 @@
 package macos
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -92,6 +93,7 @@ func expandHome(path string) string {
 }
 
 func Configure(prefs []Preference, dryRun bool) error {
+	var errs []error
 	for _, pref := range prefs {
 		value := expandHome(pref.Value)
 
@@ -116,11 +118,11 @@ func Configure(prefs []Preference, dryRun bool) error {
 
 		cmd := exec.Command("defaults", args...)
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("Warning: failed to set %s %s: %v\n", pref.Domain, pref.Key, err)
+			errs = append(errs, fmt.Errorf("set %s %s: %w", pref.Domain, pref.Key, err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func CreateScreenshotsDir(dryRun bool) error {

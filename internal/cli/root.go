@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -73,7 +74,7 @@ shell configuration, and macOS preferences.`,
 		updater.AutoUpgrade(version)
 		cfg.Version = version
 		err := installer.Run(cfg)
-		if err == installer.ErrUserCancelled {
+		if errors.Is(err, installer.ErrUserCancelled) {
 			return nil
 		}
 		return err
@@ -93,6 +94,7 @@ func init() {
 	rootCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS preferences: configure, skip")
 	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
 	rootCmd.Flags().StringVar(&cfg.PostInstall, "post-install", "", "post-install script: skip")
+	rootCmd.Flags().BoolVar(&cfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
 
 	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
 

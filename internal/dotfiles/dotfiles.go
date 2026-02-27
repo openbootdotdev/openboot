@@ -49,7 +49,9 @@ func Clone(repoURL string, dryRun bool) error {
 			backupPath := dotfilesPath + ".openboot.bak"
 			// Remove stale backup from a previous remote change to avoid rename failure.
 			if _, err := os.Stat(backupPath); err == nil {
-				os.RemoveAll(backupPath)
+				if err := os.RemoveAll(backupPath); err != nil {
+					return fmt.Errorf("remove stale dotfiles backup %s: %w", backupPath, err)
+				}
 			}
 			fmt.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
 			if err := os.Rename(dotfilesPath, backupPath); err != nil {
