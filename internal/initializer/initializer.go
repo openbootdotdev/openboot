@@ -243,12 +243,11 @@ func stepRunVerify(cfg *Config) error {
 }
 
 func runScript(script string, workdir string) error {
-	parts := strings.Fields(script)
-	if len(parts) == 0 {
+	if strings.TrimSpace(script) == "" {
 		return fmt.Errorf("empty script")
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := exec.Command("bash", "-c", script)
 	cmd.Dir = workdir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

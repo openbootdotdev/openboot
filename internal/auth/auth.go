@@ -17,16 +17,19 @@ type StoredAuth struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func TokenPath() string {
+func TokenPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("get home directory: %w", err)
 	}
-	return filepath.Join(home, ".openboot", "auth.json")
+	return filepath.Join(home, ".openboot", "auth.json"), nil
 }
 
 func LoadToken() (*StoredAuth, error) {
-	path := TokenPath()
+	path, err := TokenPath()
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -48,7 +51,10 @@ func LoadToken() (*StoredAuth, error) {
 }
 
 func SaveToken(auth *StoredAuth) error {
-	path := TokenPath()
+	path, err := TokenPath()
+	if err != nil {
+		return err
+	}
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -68,8 +74,11 @@ func SaveToken(auth *StoredAuth) error {
 }
 
 func DeleteToken() error {
-	path := TokenPath()
-	err := os.Remove(path)
+	path, err := TokenPath()
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("delete auth: %w", err)
 	}
@@ -82,7 +91,7 @@ func IsAuthenticated() bool {
 }
 
 func GenerateCode() string {
-	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	code := make([]byte, 8)
 	for i := range code {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))

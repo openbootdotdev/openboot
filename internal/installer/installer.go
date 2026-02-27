@@ -428,10 +428,14 @@ func stepInstallPackages(cfg *config.Config) error {
 
 	if !cfg.DryRun {
 		for _, pkg := range installedCli {
-			state.markFormula(pkg)
+			if err := state.markFormula(pkg); err != nil {
+				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
+			}
 		}
 		for _, pkg := range installedCask {
-			state.markCask(pkg)
+			if err := state.markCask(pkg); err != nil {
+				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
+			}
 		}
 		ui.Success("Package installation complete")
 	}
@@ -486,7 +490,9 @@ func stepInstallNpm(cfg *config.Config) error {
 
 	if !cfg.DryRun && err == nil {
 		for _, pkg := range npmPkgs {
-			state.markNpm(pkg)
+			if err := state.markNpm(pkg); err != nil {
+				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
+			}
 		}
 	}
 
@@ -1143,7 +1149,9 @@ func showScreenRecordingReminder(cfg *config.Config) {
 	})
 	if err != nil {
 		state.MarkSkipped(reminderState)
-		_ = state.SaveState(statePath, reminderState)
+		if err := state.SaveState(statePath, reminderState); err != nil {
+			ui.Warn(fmt.Sprintf("Failed to save install state: %v", err))
+		}
 		return
 	}
 
@@ -1159,6 +1167,8 @@ func showScreenRecordingReminder(cfg *config.Config) {
 		state.MarkDismissed(reminderState)
 	}
 
-	_ = state.SaveState(statePath, reminderState)
+	if err := state.SaveState(statePath, reminderState); err != nil {
+		ui.Warn(fmt.Sprintf("Failed to save install state: %v", err))
+	}
 	fmt.Println()
 }

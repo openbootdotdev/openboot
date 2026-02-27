@@ -338,7 +338,7 @@ func TestGenerateCode_Length(t *testing.T) {
 }
 
 func TestGenerateCode_Alphanumeric(t *testing.T) {
-	alphanumericRegex := regexp.MustCompile(`^[A-Z0-9]{8}$`)
+	alphanumericRegex := regexp.MustCompile(`^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$`)
 
 	for i := 0; i < 100; i++ {
 		code := GenerateCode()
@@ -368,7 +368,8 @@ func TestTokenPath_Format(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	path := TokenPath()
+	path, err := TokenPath()
+	assert.NoError(t, err)
 	assert.Contains(t, path, ".openboot")
 	assert.Contains(t, path, "auth.json")
 	assert.True(t, filepath.IsAbs(path))
@@ -378,8 +379,10 @@ func TestTokenPath_ConsistentPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	path1 := TokenPath()
-	path2 := TokenPath()
+	path1, err := TokenPath()
+	assert.NoError(t, err)
+	path2, err := TokenPath()
+	assert.NoError(t, err)
 	assert.Equal(t, path1, path2)
 }
 

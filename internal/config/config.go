@@ -178,7 +178,7 @@ func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 	// If no explicit slug, try alias resolution first
 	if !slugExplicit {
 		alias := parts[0]
-		rc, err := fetchConfigByAlias(apiBase, alias)
+		rc, err := fetchConfigByAlias(apiBase, alias, token)
 		if err == nil {
 			return rc, nil
 		}
@@ -201,12 +201,16 @@ func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 	return parseConfigResponse(resp, username, slug, token)
 }
 
-func fetchConfigByAlias(apiBase, alias string) (*RemoteConfig, error) {
+func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 	url := fmt.Sprintf("%s/api/configs/alias/%s", apiBase, alias)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := remoteHTTPClient.Do(req)

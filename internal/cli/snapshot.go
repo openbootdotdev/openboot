@@ -222,12 +222,12 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 		return fmt.Errorf("no valid auth token found — please log in again")
 	}
 
-	configName, visibility, err := promptConfigDetails()
+	configName, configDesc, visibility, err := promptConfigDetails()
 	if err != nil {
 		return err
 	}
 
-	slug, err := postSnapshotToAPI(snap, configName, visibility, stored.Token, apiBase)
+	slug, err := postSnapshotToAPI(snap, configName, configDesc, visibility, stored.Token, apiBase)
 	if err != nil {
 		return err
 	}
@@ -244,16 +244,23 @@ func uploadSnapshot(snap *snapshot.Snapshot) error {
 	return nil
 }
 
-func promptConfigDetails() (string, string, error) {
+func promptConfigDetails() (string, string, string, error) {
 	fmt.Fprintln(os.Stderr)
 	configName, err := ui.Input("Config name", "My Mac Setup")
 	if err != nil {
-		return "", "", fmt.Errorf("get config name: %w", err)
+		return "", "", "", fmt.Errorf("get config name: %w", err)
 	}
 	configName = strings.TrimSpace(configName)
 	if configName == "" {
 		configName = "My Mac Setup"
 	}
+
+	fmt.Fprintln(os.Stderr)
+	configDesc, err := ui.Input("Description (optional)", "")
+	if err != nil {
+		return "", "", "", fmt.Errorf("get config description: %w", err)
+	}
+	configDesc = strings.TrimSpace(configDesc)
 
 	fmt.Fprintln(os.Stderr)
 	visibilityOptions := []string{
@@ -263,7 +270,7 @@ func promptConfigDetails() (string, string, error) {
 	}
 	visibilityChoice, err := ui.SelectOption("Who can see this config?", visibilityOptions)
 	if err != nil {
-		return "", "", fmt.Errorf("select visibility: %w", err)
+		return "", "", "", fmt.Errorf("select visibility: %w", err)
 	}
 
 	visibility := "unlisted"
@@ -273,14 +280,15 @@ func promptConfigDetails() (string, string, error) {
 		visibility = "private"
 	}
 
-	return configName, visibility, nil
+	return configName, configDesc, visibility, nil
 }
 
-func postSnapshotToAPI(snap *snapshot.Snapshot, configName, visibility, token, apiBase string) (string, error) {
+func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibility, token, apiBase string) (string, error) {
 	reqBody := map[string]interface{}{
-		"name":       configName,
-		"snapshot":   snap,
-		"visibility": visibility,
+		"name":        configName,
+		"description": configDesc,
+		"snapshot":    snap,
+		"visibility":  visibility,
 	}
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
