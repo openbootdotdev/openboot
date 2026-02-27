@@ -153,36 +153,6 @@ func TestIntegration_Updater_GetLatestVersion_MockServer(t *testing.T) {
 	assert.Equal(t, "v9.9.9", release.TagName)
 }
 
-func TestIntegration_Updater_NotifyIfUpdateAvailable_WithState(t *testing.T) {
-	// Given: state file indicates update is available
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	require.NoError(t, updater.SaveState(&updater.CheckState{
-		LastCheck:       time.Now(),
-		LatestVersion:   "v99.0.0",
-		UpdateAvailable: true,
-	}))
-
-	// When: notify is called with an older current version
-	// Then: does not panic; prints notification to stdout
-	updater.NotifyIfUpdateAvailable("1.0.0")
-}
-
-func TestIntegration_Updater_NotifyIfUpdateAvailable_AlreadyCurrent(t *testing.T) {
-	// Given: state file says no update available
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	require.NoError(t, updater.SaveState(&updater.CheckState{
-		LastCheck:       time.Now(),
-		LatestVersion:   "v1.0.0",
-		UpdateAvailable: false,
-	}))
-
-	// When: notify is called with current version matching latest
-	// Then: no output, no panic
-	updater.NotifyIfUpdateAvailable("1.0.0")
-}
-
 func TestIntegration_Updater_CheckInterval_Constant(t *testing.T) {
 	// Given: the check interval constant
 	// When: we verify its value

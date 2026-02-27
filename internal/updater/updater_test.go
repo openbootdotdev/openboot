@@ -1,3 +1,5 @@
+// NOTE: tests in this file must NOT use t.Parallel() due to shared
+// package-level variables (fetchLatestVersion, execBrewUpgrade).
 package updater
 
 import (
@@ -11,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// --- Version comparison ---
 
 func TestIsNewerVersion(t *testing.T) {
 	tests := []struct {
@@ -77,61 +81,8 @@ func TestIsNewerVersion(t *testing.T) {
 	}
 }
 
-func TestIsHomebrewPath(t *testing.T) {
-	homebrewPaths := []string{
-		"/opt/homebrew/Cellar/openboot/0.21.0/bin/openboot",
-		"/usr/local/Homebrew/Cellar/openboot/0.21.0/bin/openboot",
-		"/opt/homebrew/bin/openboot",
-		"/home/linuxbrew/.linuxbrew/Cellar/openboot/0.21.0/bin/openboot",
-	}
-	for _, p := range homebrewPaths {
-		assert.True(t, isHomebrewPath(p), "should detect Homebrew path: %s", p)
-	}
-
-	nonHomebrewPaths := []string{
-		"/usr/local/bin/openboot",
-		"/Users/user/.openboot/bin/openboot",
-		"/tmp/openboot",
-	}
-	for _, p := range nonHomebrewPaths {
-		assert.False(t, isHomebrewPath(p), "should not detect as Homebrew: %s", p)
-	}
-}
-
-func TestTrimVersionPrefix(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "with v prefix",
-			input:    "v1.2.3",
-			expected: "1.2.3",
-		},
-		{
-			name:     "without v prefix",
-			input:    "1.2.3",
-			expected: "1.2.3",
-		},
-		{
-			name:     "empty string",
-			input:    "",
-			expected: "",
-		},
-		{
-			name:     "just v",
-			input:    "v",
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := trimVersionPrefix(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
+func TestIsNewerVersion_DevBuild(t *testing.T) {
+	assert.False(t, isNewerVersion("v99.0.0", "dev"), "dev builds should never trigger update")
 }
 
 func TestCompareSemver(t *testing.T) {
@@ -171,16 +122,48 @@ func TestParseSemver(t *testing.T) {
 	}
 }
 
-func TestIsNewerVersion_DevBuild(t *testing.T) {
-	assert.False(t, isNewerVersion("v99.0.0", "dev"), "dev builds should never trigger update")
+func TestTrimVersionPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"with v prefix", "v1.2.3", "1.2.3"},
+		{"without v prefix", "1.2.3", "1.2.3"},
+		{"empty string", "", ""},
+		{"just v", "v", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, trimVersionPrefix(tt.input))
+		})
+	}
 }
 
-func TestGetHTTPClient_Singleton(t *testing.T) {
-	c1 := getHTTPClient()
-	c2 := getHTTPClient()
-	assert.Same(t, c1, c2, "getHTTPClient should return same instance")
-	assert.NotNil(t, c1)
+// --- Path detection ---
+
+func TestIsHomebrewPath(t *testing.T) {
+	homebrewPaths := []string{
+		"/opt/homebrew/Cellar/openboot/0.21.0/bin/openboot",
+		"/usr/local/Homebrew/Cellar/openboot/0.21.0/bin/openboot",
+		"/opt/homebrew/bin/openboot",
+		"/home/linuxbrew/.linuxbrew/Cellar/openboot/0.21.0/bin/openboot",
+	}
+	for _, p := range homebrewPaths {
+		assert.True(t, isHomebrewPath(p), "should detect Homebrew path: %s", p)
+	}
+
+	nonHomebrewPaths := []string{
+		"/usr/local/bin/openboot",
+		"/Users/user/.openboot/bin/openboot",
+		"/tmp/openboot",
+	}
+	for _, p := range nonHomebrewPaths {
+		assert.False(t, isHomebrewPath(p), "should not detect as Homebrew: %s", p)
+	}
 }
+
+// --- State persistence ---
 
 func TestGetCheckFilePath(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
@@ -188,14 +171,6 @@ func TestGetCheckFilePath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, path, ".openboot")
 	assert.Contains(t, path, "update_state.json")
-}
-
-func TestGetUserConfigPath(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	path, err := getUserConfigPath()
-	require.NoError(t, err)
-	assert.Contains(t, path, ".openboot")
-	assert.Contains(t, path, "config.json")
 }
 
 func TestLoadState_FileNotFound(t *testing.T) {
@@ -219,6 +194,16 @@ func TestSaveState_And_LoadState(t *testing.T) {
 	assert.Equal(t, "v1.2.3", loaded.LatestVersion)
 	assert.True(t, loaded.UpdateAvailable)
 	assert.True(t, now.Equal(loaded.LastCheck.Truncate(time.Second)), "expected %v, got %v", now, loaded.LastCheck)
+}
+
+// --- User config ---
+
+func TestGetUserConfigPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	path, err := getUserConfigPath()
+	require.NoError(t, err)
+	assert.Contains(t, path, ".openboot")
+	assert.Contains(t, path, "config.json")
 }
 
 func TestLoadUserConfig_Default_NoFile(t *testing.T) {
@@ -275,76 +260,55 @@ func TestLoadUserConfig_DisabledMode(t *testing.T) {
 	assert.Equal(t, AutoUpdateDisabled, cfg.AutoUpdate)
 }
 
-func TestAutoUpgrade_DisabledByEnv(t *testing.T) {
-	t.Setenv("OPENBOOT_DISABLE_AUTOUPDATE", "1")
-	AutoUpgrade("1.0.0")
-}
-
-func TestNotifyIfUpdateAvailable_NoStateFile(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	NotifyIfUpdateAvailable("1.0.0")
-}
-
-func TestNotifyIfUpdateAvailable_UpdateAvailable(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	require.NoError(t, SaveState(&CheckState{
-		LastCheck:       time.Now(),
-		LatestVersion:   "v2.0.0",
-		UpdateAvailable: true,
-	}))
-	NotifyIfUpdateAvailable("1.0.0")
-}
-
-func TestNotifyIfUpdateAvailable_NoUpdate(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	require.NoError(t, SaveState(&CheckState{
-		LastCheck:       time.Now(),
-		LatestVersion:   "v1.0.0",
-		UpdateAvailable: false,
-	}))
-	NotifyIfUpdateAvailable("1.0.0")
-}
-
 func TestAutoUpdateModeConstants(t *testing.T) {
 	assert.Equal(t, AutoUpdateMode("true"), AutoUpdateEnabled)
 	assert.Equal(t, AutoUpdateMode("notify"), AutoUpdateNotify)
 	assert.Equal(t, AutoUpdateMode("false"), AutoUpdateDisabled)
 }
 
-func TestHomebrewAutoUpgrade_NoStateFile(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	called := false
-	origExec := execBrewUpgrade
-	execBrewUpgrade = func(formula string) error { called = true; return nil }
-	defer func() { execBrewUpgrade = origExec }()
+// --- HTTP client ---
 
-	homebrewAutoUpgrade("1.0.0")
-
-	assert.False(t, called, "brew should not run when there is no state file")
+func TestGetHTTPClient_Singleton(t *testing.T) {
+	c1 := getHTTPClient()
+	c2 := getHTTPClient()
+	assert.Same(t, c1, c2, "getHTTPClient should return same instance")
+	assert.NotNil(t, c1)
 }
 
-func TestHomebrewAutoUpgrade_NoUpdateAvailable(t *testing.T) {
+// --- AutoUpgrade kill switches ---
+
+func TestAutoUpgrade_DisabledByEnv(t *testing.T) {
+	t.Setenv("OPENBOOT_DISABLE_AUTOUPDATE", "1")
+	AutoUpgrade("1.0.0") // should return immediately
+}
+
+func TestAutoUpgrade_DevVersion(t *testing.T) {
+	// dev builds should never trigger any network call or upgrade
+	AutoUpgrade("dev")
+}
+
+func TestAutoUpgrade_UserDisabled(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	require.NoError(t, SaveState(&CheckState{
-		LastCheck:       time.Now(),
-		LatestVersion:   "v1.0.0",
-		UpdateAvailable: false,
-	}))
+	cfgDir := filepath.Join(tmpDir, ".openboot")
+	require.NoError(t, os.MkdirAll(cfgDir, 0755))
+	data, _ := json.Marshal(UserConfig{AutoUpdate: AutoUpdateDisabled})
+	require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644))
 
+	// Should not make any network call — inject fetchLatestVersion to verify
 	called := false
-	origExec := execBrewUpgrade
-	execBrewUpgrade = func(formula string) error { called = true; return nil }
-	defer func() { execBrewUpgrade = origExec }()
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { called = true; return "v99.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
 
-	homebrewAutoUpgrade("1.0.0")
+	AutoUpgrade("1.0.0")
 
-	assert.False(t, called, "brew should not run when no update is available")
+	assert.False(t, called, "disabled mode should not check for updates")
 }
 
-func TestHomebrewAutoUpgrade_UpdateAvailable_Success(t *testing.T) {
+// --- resolveLatestVersion ---
+
+func TestResolveLatestVersion_FreshCache(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 	require.NoError(t, SaveState(&CheckState{
@@ -353,31 +317,155 @@ func TestHomebrewAutoUpgrade_UpdateAvailable_Success(t *testing.T) {
 		UpdateAvailable: true,
 	}))
 
+	// Should NOT call the API
+	called := false
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { called = true; return "v3.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	result := resolveLatestVersion("1.0.0")
+
+	assert.Equal(t, "v2.0.0", result, "should return cached version")
+	assert.False(t, called, "should not call API when cache is fresh")
+}
+
+func TestResolveLatestVersion_StaleCache(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	require.NoError(t, SaveState(&CheckState{
+		LastCheck:       time.Now().Add(-48 * time.Hour),
+		LatestVersion:   "v1.0.0",
+		UpdateAvailable: false,
+	}))
+
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return "v2.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	result := resolveLatestVersion("1.0.0")
+
+	assert.Equal(t, "v2.0.0", result, "should return fresh version from API")
+
+	// Verify state was saved
+	state, err := LoadState()
+	require.NoError(t, err)
+	assert.Equal(t, "v2.0.0", state.LatestVersion)
+	assert.True(t, state.UpdateAvailable)
+}
+
+func TestResolveLatestVersion_NoCache(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return "v2.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	result := resolveLatestVersion("1.0.0")
+
+	assert.Equal(t, "v2.0.0", result)
+
+	// Verify state was saved for next time
+	state, err := LoadState()
+	require.NoError(t, err)
+	assert.Equal(t, "v2.0.0", state.LatestVersion)
+}
+
+func TestResolveLatestVersion_APIError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return "", fmt.Errorf("network error") }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	result := resolveLatestVersion("1.0.0")
+
+	assert.Equal(t, "", result, "should return empty on API error")
+}
+
+func TestResolveLatestVersion_SameVersion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return "v1.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	result := resolveLatestVersion("1.0.0")
+
+	assert.Equal(t, "v1.0.0", result)
+
+	// State should record UpdateAvailable=false
+	state, err := LoadState()
+	require.NoError(t, err)
+	assert.False(t, state.UpdateAvailable)
+}
+
+// --- doBrewUpgrade ---
+
+func TestDoBrewUpgrade_Success(t *testing.T) {
 	var calledWith string
 	origExec := execBrewUpgrade
 	execBrewUpgrade = func(formula string) error { calledWith = formula; return nil }
 	defer func() { execBrewUpgrade = origExec }()
 
-	homebrewAutoUpgrade("1.0.0")
+	doBrewUpgrade("1.0.0", "v2.0.0")
 
-	assert.Equal(t, brewFormula, calledWith, "should call brew upgrade with fully-qualified formula")
+	assert.Equal(t, brewFormula, calledWith)
 }
 
-func TestHomebrewAutoUpgrade_UpdateAvailable_Failure(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-	require.NoError(t, SaveState(&CheckState{
-		LastCheck:       time.Now(),
-		LatestVersion:   "v2.0.0",
-		UpdateAvailable: true,
-	}))
-
+func TestDoBrewUpgrade_Failure(t *testing.T) {
 	called := false
 	origExec := execBrewUpgrade
 	execBrewUpgrade = func(formula string) error { called = true; return fmt.Errorf("brew failed") }
 	defer func() { execBrewUpgrade = origExec }()
 
-	homebrewAutoUpgrade("1.0.0")
+	doBrewUpgrade("1.0.0", "v2.0.0")
 
-	assert.True(t, called, "brew should have been called even when it fails")
+	assert.True(t, called, "brew should have been attempted")
+}
+
+// --- End-to-end: AutoUpgrade with Homebrew (via resolveLatestVersion) ---
+// Note: AutoUpgrade calls IsHomebrewInstall() which checks the actual binary path.
+// In tests, the binary is not in a Homebrew path, so it goes down the direct path.
+// We test the Homebrew upgrade logic via doBrewUpgrade directly.
+
+func TestAutoUpgrade_NotifyMode_ShowsMessage(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	// Set notify mode
+	cfgDir := filepath.Join(tmpDir, ".openboot")
+	require.NoError(t, os.MkdirAll(cfgDir, 0755))
+	data, _ := json.Marshal(UserConfig{AutoUpdate: AutoUpdateNotify})
+	require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644))
+
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return "v2.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	// Should not attempt brew or download — just notify
+	brewCalled := false
+	origExec := execBrewUpgrade
+	execBrewUpgrade = func(formula string) error { brewCalled = true; return nil }
+	defer func() { execBrewUpgrade = origExec }()
+
+	AutoUpgrade("1.0.0")
+
+	assert.False(t, brewCalled, "notify mode should not trigger upgrade")
+}
+
+func TestAutoUpgrade_NotifyMode_NoUpdate(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfgDir := filepath.Join(tmpDir, ".openboot")
+	require.NoError(t, os.MkdirAll(cfgDir, 0755))
+	data, _ := json.Marshal(UserConfig{AutoUpdate: AutoUpdateNotify})
+	require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), data, 0644))
+
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = func() (string, error) { return "v1.0.0", nil }
+	defer func() { fetchLatestVersion = origFetch }()
+
+	// Should not panic or error when already on latest
+	AutoUpgrade("1.0.0")
 }

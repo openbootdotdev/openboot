@@ -92,45 +92,124 @@ func IsHomebrewInstall() bool {
 	return isHomebrewPath(exe)
 }
 
+// AutoUpgrade checks for a newer version and upgrades if appropriate.
+//
+// Flow:
+//  1. Kill switch: OPENBOOT_DISABLE_AUTOUPDATE=1
+//  2. Dev guard: currentVersion == "dev"
+//  3. UserConfig (applies to ALL install methods):
+//     disabled → exit, notify → show message, enabled → upgrade
+//  4. resolveLatestVersion: uses 24h cache, falls back to sync GitHub API
+//  5. Upgrade method: Homebrew → brew upgrade, Direct → download binary
 func AutoUpgrade(currentVersion string) {
 	if os.Getenv("OPENBOOT_DISABLE_AUTOUPDATE") == "1" {
 		return
 	}
-
-	if IsHomebrewInstall() {
-		homebrewAutoUpgrade(currentVersion)
+	if currentVersion == "dev" {
 		return
 	}
 
 	cfg := LoadUserConfig()
-
-	switch cfg.AutoUpdate {
-	case AutoUpdateDisabled:
+	if cfg.AutoUpdate == AutoUpdateDisabled {
 		return
-	case AutoUpdateNotify:
-		NotifyIfUpdateAvailable(currentVersion)
-		checkForUpdatesAsync(currentVersion)
-		return
-	default:
-		latest, err := GetLatestVersion()
-		if err != nil {
-			return
-		}
-		if !isNewerVersion(latest, currentVersion) {
-			return
-		}
+	}
 
-		latestClean := trimVersionPrefix(latest)
-		ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s...", currentVersion, latestClean))
-		if err := DownloadAndReplace(); err != nil {
-			ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
-			ui.Muted("Run 'openboot update --self' to update manually")
-			fmt.Println()
-			return
-		}
+	latest := resolveLatestVersion(currentVersion)
+	if latest == "" || !isNewerVersion(latest, currentVersion) {
+		return
+	}
+
+	if cfg.AutoUpdate == AutoUpdateNotify {
+		notifyUpdate(currentVersion, latest)
+		return
+	}
+
+	if IsHomebrewInstall() {
+		doBrewUpgrade(currentVersion, latest)
+	} else {
+		doDirectUpgrade(currentVersion, latest)
+	}
+}
+
+// fetchLatestVersion is a package-level variable to allow test injection.
+var fetchLatestVersion = GetLatestVersion
+
+// resolveLatestVersion returns the latest known version, using a 24h cache
+// to avoid excessive GitHub API calls. Falls back to a synchronous API call
+// when the cache is missing or stale.
+func resolveLatestVersion(currentVersion string) string {
+	state, err := LoadState()
+	if err == nil && time.Since(state.LastCheck) < CheckInterval {
+		return state.LatestVersion
+	}
+
+	latest, err := fetchLatestVersion()
+	if err != nil {
+		return ""
+	}
+
+	if err := SaveState(&CheckState{
+		LastCheck:       time.Now(),
+		LatestVersion:   latest,
+		UpdateAvailable: isNewerVersion(latest, currentVersion),
+	}); err != nil {
+		ui.Muted(fmt.Sprintf("Warning: could not cache update state: %v", err))
+	}
+	return latest
+}
+
+func notifyUpdate(currentVersion, latestVersion string) {
+	latestClean := trimVersionPrefix(latestVersion)
+	currentClean := trimVersionPrefix(currentVersion)
+	ui.Warn(fmt.Sprintf("New version available: v%s (current: v%s)", latestClean, currentClean))
+	if IsHomebrewInstall() {
+		ui.Muted("Run 'brew upgrade openboot' to upgrade")
+	} else {
+		ui.Muted("Run 'openboot update --self' to upgrade")
+	}
+	fmt.Println()
+}
+
+const brewTap = "openbootdotdev/tap"
+const brewFormula = brewTap + "/openboot"
+
+// execBrewUpgrade is a package-level variable to allow test injection.
+var execBrewUpgrade = func(formula string) error {
+	script := fmt.Sprintf(
+		`git -C "$(brew --repo %s)" pull --ff-only && brew upgrade %s`,
+		brewTap, formula,
+	)
+	cmd := exec.Command("sh", "-c", script)
+	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
+	return cmd.Run()
+}
+
+func doBrewUpgrade(currentVersion, latestVersion string) {
+	latestClean := trimVersionPrefix(latestVersion)
+	currentClean := trimVersionPrefix(currentVersion)
+	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s via Homebrew...", currentClean, latestClean))
+	if err := execBrewUpgrade(brewFormula); err != nil {
+		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
+		ui.Muted("Run 'brew upgrade openboot' to update manually")
+		fmt.Println()
+	} else {
 		ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
 		fmt.Println()
 	}
+}
+
+func doDirectUpgrade(currentVersion, latestVersion string) {
+	latestClean := trimVersionPrefix(latestVersion)
+	currentClean := trimVersionPrefix(currentVersion)
+	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s...", currentClean, latestClean))
+	if err := DownloadAndReplace(); err != nil {
+		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
+		ui.Muted("Run 'openboot update --self' to update manually")
+		fmt.Println()
+		return
+	}
+	ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
+	fmt.Println()
 }
 
 func DownloadAndReplace() error {
@@ -143,6 +222,9 @@ func DownloadAndReplace() error {
 		arch = "arm64"
 	}
 
+	// Uses /latest/ redirect — always downloads whatever GitHub considers the
+	// current latest release. The displayed version (from resolveLatestVersion)
+	// may differ by one patch if a release lands between the check and download.
 	url := fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/openboot-darwin-%s", arch)
 
 	client := getHTTPClient()
@@ -192,38 +274,7 @@ func DownloadAndReplace() error {
 	return nil
 }
 
-func NotifyIfUpdateAvailable(currentVersion string) {
-	state, err := LoadState()
-	if err != nil {
-		return
-	}
-
-	if state.UpdateAvailable && isNewerVersion(state.LatestVersion, currentVersion) {
-		ui.Warn(fmt.Sprintf("New version available: %s (current: v%s)", state.LatestVersion, currentVersion))
-		ui.Muted("Run 'openboot update --self' to upgrade")
-		fmt.Println()
-	}
-}
-
-func checkForUpdatesAsync(currentVersion string) {
-	go func() {
-		state, _ := LoadState()
-		if state != nil && time.Since(state.LastCheck) < CheckInterval {
-			return
-		}
-
-		latestVersion, err := GetLatestVersion()
-		if err != nil {
-			return
-		}
-
-		SaveState(&CheckState{
-			LastCheck:       time.Now(),
-			LatestVersion:   latestVersion,
-			UpdateAvailable: isNewerVersion(latestVersion, currentVersion),
-		})
-	}()
-}
+// --- Version comparison ---
 
 func isNewerVersion(latest, current string) bool {
 	if latest == "" {
@@ -273,53 +324,13 @@ func trimVersionPrefix(v string) string {
 	return v
 }
 
+// --- Network ---
+
 func getHTTPClient() *http.Client {
 	httpClientOnce.Do(func() {
 		httpClient = &http.Client{Timeout: 15 * time.Second}
 	})
 	return httpClient
-}
-
-const brewTap = "openbootdotdev/tap"
-const brewFormula = brewTap + "/openboot"
-
-// execBrewUpgrade is a package-level variable to allow test injection.
-// It pulls the tap first (to get the latest formula without a full `brew update`)
-// then upgrades the formula. HOMEBREW_NO_AUTO_UPDATE=1 prevents brew from doing
-// a slow full update of all taps.
-var execBrewUpgrade = func(formula string) error {
-	script := fmt.Sprintf(
-		`git -C "$(brew --repo %s)" pull --ff-only && brew upgrade %s`,
-		brewTap, formula,
-	)
-	cmd := exec.Command("sh", "-c", script)
-	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
-	return cmd.Run()
-}
-
-func homebrewAutoUpgrade(currentVersion string) {
-	state, err := LoadState()
-	if err != nil {
-		checkForUpdatesAsync(currentVersion)
-		return
-	}
-	if !state.UpdateAvailable || !isNewerVersion(state.LatestVersion, currentVersion) {
-		checkForUpdatesAsync(currentVersion)
-		return
-	}
-
-	latestClean := trimVersionPrefix(state.LatestVersion)
-	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s via Homebrew...", currentVersion, latestClean))
-	if err := execBrewUpgrade(brewFormula); err != nil {
-		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
-		ui.Muted("Run 'brew upgrade openboot' to update manually")
-		fmt.Println()
-	} else {
-		ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
-		fmt.Println()
-	}
-
-	checkForUpdatesAsync(currentVersion)
 }
 
 func GetLatestVersion() (string, error) {
@@ -348,6 +359,8 @@ func GetLatestVersion() (string, error) {
 
 	return release.TagName, nil
 }
+
+// --- State persistence ---
 
 func getCheckFilePath() (string, error) {
 	home, err := os.UserHomeDir()
