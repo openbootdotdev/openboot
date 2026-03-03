@@ -77,6 +77,9 @@ shell configuration, and macOS preferences.`,
 		if errors.Is(err, installer.ErrUserCancelled) {
 			return nil
 		}
+		if err == nil {
+			saveSyncSourceIfRemote(cfg)
+		}
 		return err
 	},
 }
@@ -105,8 +108,10 @@ func init() {
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(snapshotCmd)
 	rootCmd.AddCommand(cleanCmd)
+	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
+	rootCmd.AddCommand(syncCmd)
 
 	rootCmd.SetUsageTemplate(usageTemplate)
 }

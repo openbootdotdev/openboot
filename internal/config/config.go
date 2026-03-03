@@ -86,6 +86,21 @@ type RemoteConfig struct {
 	Npm          []string `json:"npm"`
 	DotfilesRepo string   `json:"dotfiles_repo"`
 	PostInstall  []string `json:"post_install"`
+	Shell        *RemoteShellConfig `json:"shell"`
+	MacOSPrefs   []RemoteMacOSPref  `json:"macos_prefs"`
+}
+
+type RemoteShellConfig struct {
+	OhMyZsh bool     `json:"oh_my_zsh"`
+	Theme   string   `json:"theme"`
+	Plugins []string `json:"plugins"`
+}
+
+type RemoteMacOSPref struct {
+	Domain string `json:"domain"`
+	Key    string `json:"key"`
+	Value  string `json:"value"`
+	Desc   string `json:"desc"`
 }
 
 var (

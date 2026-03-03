@@ -45,9 +45,10 @@ openboot/
 │   ├── auth/             # OAuth-like login, token in ~/.openboot/auth.json (0600)
 │   ├── brew/             # Homebrew ops, parallel install (4 workers), retry logic, uninstall
 │   ├── cleaner/          # Diff current system vs desired state, remove extra packages
-│   ├── cli/              # Cobra commands: root, snapshot, doctor, clean, update, version
+│   ├── cli/              # Cobra commands: root, snapshot, doctor, clean, diff, sync, update, version
 │   ├── config/           # Embedded YAML (packages + presets), remote config fetch
 │   │   └── data/         # packages.yaml (9 categories), presets.yaml (3 presets)
+│   ├── diff/             # Read-only system vs config/snapshot comparison (pure logic)
 │   ├── dotfiles/         # Clone + stow/symlink with .openboot.bak backup
 │   ├── installer/        # Main orchestrator: 7-step wizard + snapshot restore
 │   ├── macos/            # `defaults write` preferences, app restart
@@ -55,6 +56,7 @@ openboot/
 │   ├── search/           # Online search via openboot.dev API (8s timeout)
 │   ├── shell/            # Oh-My-Zsh install, .zshrc config, snapshot restore
 │   ├── snapshot/         # Capture/match/restore environment state
+│   ├── sync/             # Compute diff + execute plan for remote config sync
 │   ├── system/           # RunCommand/RunCommandSilent, arch detection, git config
 │   ├── ui/               # TUI components (bubbletea Model pattern, lipgloss styling)
 │   └── updater/          # Auto-update: check GitHub → download → replace binary
@@ -79,6 +81,7 @@ cli (root)
 │   ├── shell (no deps)
 │   ├── system (no deps)
 │   └── ui → config, search, snapshot, system
+├── sync → config, snapshot, brew, npm, dotfiles, shell, macos, auth, ui
 ├── cleaner → brew, npm, snapshot, ui
 ├── updater → ui
 ├── auth → ui
@@ -99,6 +102,7 @@ cli (root)
 | Change snapshot restore | `internal/installer/installer.go` | stepRestoreGit, stepRestoreShell + packages/shell/macos |
 | Update self-update | `internal/updater/updater.go` | AutoUpgrade() called from root.go RunE |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |
+| Change sync behavior | `internal/sync/` + `internal/cli/sync.go` | Diff: sync/diff.go, Plan: sync/plan.go, Source: sync/source.go, TUI: cli/sync.go |
 
 ## Conventions
 

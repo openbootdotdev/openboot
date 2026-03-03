@@ -63,6 +63,9 @@ For username/slug format, the config is fetched directly.`,
 		if errors.Is(err, installer.ErrUserCancelled) {
 			return nil
 		}
+		if err == nil {
+			saveSyncSourceIfRemote(cfg)
+		}
 		return err
 	},
 }
