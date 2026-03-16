@@ -242,6 +242,83 @@ func parseConfigResponse(resp *http.Response, username, slug, token string) (*Re
 	return &rc, nil
 }
 
+// LoadRemoteConfigFromFile reads a JSON file and returns a RemoteConfig.
+// It auto-detects whether the file is in RemoteConfig or Snapshot format.
+// Snapshot files are converted by extracting the relevant fields.
+func LoadRemoteConfigFromFile(path string) (*RemoteConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config file: %w", err)
+	}
+
+	// Detect format: snapshot files have "captured_at" and nested "packages".
+	var probe struct {
+		CapturedAt string          `json:"captured_at"`
+		Packages   json.RawMessage `json:"packages"`
+	}
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+
+	if probe.CapturedAt != "" {
+		return loadSnapshotAsRemoteConfig(data)
+	}
+
+	var rc RemoteConfig
+	if err := json.Unmarshal(data, &rc); err != nil {
+		return nil, fmt.Errorf("parse remote config: %w", err)
+	}
+	if err := rc.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+	return &rc, nil
+}
+
+// snapshotFile mirrors the subset of snapshot.Snapshot needed for conversion,
+// avoiding an import cycle with the snapshot package.
+type snapshotFile struct {
+	Packages struct {
+		Formulae []string `json:"formulae"`
+		Casks    []string `json:"casks"`
+		Taps     []string `json:"taps"`
+		Npm      []string `json:"npm"`
+	} `json:"packages"`
+	Shell struct {
+		OhMyZsh bool     `json:"oh_my_zsh"`
+		Theme   string   `json:"theme"`
+		Plugins []string `json:"plugins"`
+	} `json:"shell"`
+	MacOSPrefs []RemoteMacOSPref `json:"macos_prefs"`
+}
+
+func loadSnapshotAsRemoteConfig(data []byte) (*RemoteConfig, error) {
+	var snap snapshotFile
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return nil, fmt.Errorf("parse snapshot file: %w", err)
+	}
+
+	rc := &RemoteConfig{
+		Packages: snap.Packages.Formulae,
+		Casks:    snap.Packages.Casks,
+		Taps:     snap.Packages.Taps,
+		Npm:      snap.Packages.Npm,
+		MacOSPrefs: snap.MacOSPrefs,
+	}
+	if snap.Shell.OhMyZsh {
+		rc.Shell = &RemoteShellConfig{
+			OhMyZsh: true,
+			Theme:   snap.Shell.Theme,
+			Plugins: snap.Shell.Plugins,
+		}
+	}
+	if err := rc.Validate(); err != nil {
+		return nil, fmt.Errorf("snapshot contains invalid data: %w", err)
+	}
+	// Note: snapshot files do not contain dotfiles_repo or post_install.
+	// Those fields must be set manually on openboot.dev after upload.
+	return rc, nil
+}
+
 func FetchRemoteConfig(userSlug string, token string) (*RemoteConfig, error) {
 	parts := strings.SplitN(userSlug, "/", 2)
 	slugExplicit := len(parts) > 1

@@ -33,6 +33,9 @@ shell configuration, and macOS preferences.`,
   # Install from your cloud config
   openboot -u githubusername
 
+  # Install from a local config or snapshot file
+  openboot --from config.json
+
   # Capture your current environment
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -62,7 +65,7 @@ shell configuration, and macOS preferences.`,
 			}
 			rc, err := config.FetchRemoteConfig(cfg.User, token)
 			if err != nil {
-				return fmt.Errorf("error fetching remote config: %v", err)
+				return fmt.Errorf("fetch remote config: %w", err)
 			}
 			cfg.RemoteConfig = rc
 			if cfg.Preset == "" {
@@ -74,6 +77,18 @@ shell configuration, and macOS preferences.`,
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg.Version = version
+
+		if fromFile, _ := cmd.Flags().GetString("from"); fromFile != "" {
+			rc, err := config.LoadRemoteConfigFromFile(fromFile)
+			if err != nil {
+				return fmt.Errorf("load config from file: %w", err)
+			}
+			cfg.RemoteConfig = rc
+			if cfg.Preset == "" {
+				cfg.Preset = rc.Preset
+			}
+		}
+
 		err := installer.Run(cfg)
 		if errors.Is(err, installer.ErrUserCancelled) {
 			return nil
@@ -90,6 +105,7 @@ func init() {
 
 	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
 	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "install from openboot.dev/username config")
+	rootCmd.Flags().String("from", "", "install from a local config or snapshot JSON file")
 	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
 	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "preview changes without installing")
 	rootCmd.Flags().BoolVar(&cfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
