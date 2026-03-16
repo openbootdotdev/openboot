@@ -609,14 +609,10 @@ func stepShell(cfg *config.Config) error {
 	ui.Header("Step 5: Shell Configuration")
 	fmt.Println()
 
-	// Smart detection: skip if Oh-My-Zsh is already installed
+	// Smart detection: skip Oh-My-Zsh if already installed
 	if shell.IsOhMyZshInstalled() && cfg.Shell == "" {
 		ui.Success("✓ Oh-My-Zsh already installed")
-		fmt.Println()
-		return nil
-	}
-
-	if cfg.Shell == "" {
+	} else if cfg.Shell == "" {
 		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
 			cfg.Shell = "install"
 		} else {
@@ -624,12 +620,11 @@ func stepShell(cfg *config.Config) error {
 			if err != nil {
 				return err
 			}
-			if !install {
-				ui.Muted("Skipping shell configuration")
-				fmt.Println()
-				return nil
+			if install {
+				cfg.Shell = "install"
+			} else {
+				ui.Muted("Skipping Oh-My-Zsh")
 			}
-			cfg.Shell = "install"
 		}
 	}
 
@@ -644,6 +639,13 @@ func stepShell(cfg *config.Config) error {
 				ui.Success("Oh-My-Zsh installed")
 			}
 		}
+	}
+
+	// Ensure Homebrew shellenv is in .zshrc (required on Apple Silicon).
+	// Runs after Oh-My-Zsh so its .zshrc template exists, and regardless of
+	// the Oh-My-Zsh choice because brew must be in PATH for new shells.
+	if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
+		return fmt.Errorf("ensure brew shellenv: %w", err)
 	}
 
 	fmt.Println()
@@ -952,6 +954,10 @@ func stepRestoreShell(cfg *config.Config) error {
 
 	if err := shell.RestoreFromSnapshot(shellCfg.OhMyZsh, shellCfg.Theme, shellCfg.Plugins, cfg.DryRun); err != nil {
 		return err
+	}
+
+	if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
+		return fmt.Errorf("ensure brew shellenv: %w", err)
 	}
 
 	if !cfg.DryRun {

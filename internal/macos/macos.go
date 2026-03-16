@@ -51,6 +51,17 @@ var DefaultPreferences = []Preference{
 	{"com.apple.TimeMachine", "DoNotOfferNewDisksForBackup", "bool", "true", "Don't prompt for Time Machine on new disks"},
 }
 
+func normalizeBool(value string) string {
+	switch strings.ToLower(value) {
+	case "1", "yes":
+		return "true"
+	case "0", "no":
+		return "false"
+	default:
+		return value
+	}
+}
+
 func InferPreferenceType(value string) string {
 	switch strings.ToLower(value) {
 	case "true", "false", "1", "0", "yes", "no":
@@ -105,7 +116,7 @@ func Configure(prefs []Preference, dryRun bool) error {
 		args := []string{"write", pref.Domain, pref.Key}
 		switch pref.Type {
 		case "bool":
-			args = append(args, "-bool", value)
+			args = append(args, "-bool", normalizeBool(value))
 		case "int":
 			args = append(args, "-int", value)
 		case "float":

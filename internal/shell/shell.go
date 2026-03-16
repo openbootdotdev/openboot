@@ -46,8 +46,17 @@ func InstallOhMyZsh(dryRun bool) error {
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
+	return cmd.Run()
+}
+
+const brewShellenvLine = `eval "$(/opt/homebrew/bin/brew shellenv)"`
+
+// EnsureBrewShellenv adds the Homebrew shellenv eval to ~/.zshrc on Apple
+// Silicon if it isn't already present. This is required because /opt/homebrew
+// is not in the default PATH.
+func EnsureBrewShellenv(dryRun bool) error {
+	if _, err := os.Stat("/opt/homebrew/bin/brew"); os.IsNotExist(err) {
+		return nil // Intel Mac or no Homebrew — not needed
 	}
 
 	home, err := system.HomeDir()
@@ -55,13 +64,35 @@ func InstallOhMyZsh(dryRun bool) error {
 		return err
 	}
 	zshrcPath := filepath.Join(home, ".zshrc")
-	if _, err := os.Stat(zshrcPath); err == nil {
-		if err := os.Rename(zshrcPath, zshrcPath+".openboot.bak"); err != nil {
-			return fmt.Errorf("backup %s: %w", zshrcPath, err)
+
+	// Create .zshrc if it doesn't exist.
+	if _, err := os.Stat(zshrcPath); os.IsNotExist(err) {
+		if dryRun {
+			fmt.Printf("[DRY-RUN] Would create %s with Homebrew shellenv\n", zshrcPath)
+			return nil
 		}
+		return os.WriteFile(zshrcPath, []byte(brewShellenvLine+"\n"), 0644)
 	}
 
-	return nil
+	raw, err := os.ReadFile(zshrcPath)
+	if err != nil {
+		return fmt.Errorf("read .zshrc: %w", err)
+	}
+	if strings.Contains(string(raw), "brew shellenv") {
+		return nil // already present
+	}
+
+	if dryRun {
+		fmt.Println("[DRY-RUN] Would add Homebrew shellenv to .zshrc")
+		return nil
+	}
+
+	content := string(raw)
+	if len(content) > 0 && content[len(content)-1] != '\n' {
+		content += "\n"
+	}
+	content = brewShellenvLine + "\n" + content
+	return os.WriteFile(zshrcPath, []byte(content), 0644)
 }
 
 func SetDefaultShell(dryRun bool) error {
