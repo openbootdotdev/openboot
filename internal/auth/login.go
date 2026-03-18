@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -39,12 +38,9 @@ func GetAPIBase() string {
 	return DefaultAPIBase
 }
 
-type cliStartRequest struct {
-	Code string `json:"code"`
-}
-
 type cliStartResponse struct {
 	CodeID string `json:"code_id"`
+	Code   string `json:"code"`
 }
 
 type cliPollResponse struct {
@@ -55,12 +51,7 @@ type cliPollResponse struct {
 }
 
 func LoginInteractive(apiBase string) (*StoredAuth, error) {
-	code, err := GenerateCode()
-	if err != nil {
-		return nil, err
-	}
-
-	codeID, err := startAuthSession(apiBase, code)
+	codeID, code, err := startAuthSession(apiBase)
 	if err != nil {
 		return nil, err
 	}
@@ -109,34 +100,32 @@ func LoginInteractive(apiBase string) (*StoredAuth, error) {
 	return stored, nil
 }
 
-func startAuthSession(apiBase, code string) (string, error) {
-	body, err := json.Marshal(cliStartRequest{Code: code})
+func startAuthSession(apiBase string) (codeID, code string, err error) {
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/auth/cli/start", apiBase), http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("marshal start request: %w", err)
+		return "", "", fmt.Errorf("create request: %w", err)
 	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/auth/cli/start", apiBase), bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("start auth session: %w", err)
+		return "", "", fmt.Errorf("start auth session: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("auth start failed with status %d", resp.StatusCode)
+		return "", "", fmt.Errorf("auth start failed with status %d", resp.StatusCode)
 	}
 
 	var result cliStartResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {
-		return "", fmt.Errorf("parse auth response: %w", err)
+		return "", "", fmt.Errorf("parse auth response: %w", err)
 	}
 
-	return result.CodeID, nil
+	if result.CodeID == "" || result.Code == "" {
+		return "", "", fmt.Errorf("server returned incomplete auth session")
+	}
+
+	return result.CodeID, result.Code, nil
 }
 
 // pollTimeout and pollInterval are package-level defaults, overridable in tests.

@@ -34,20 +34,43 @@ func TestStartAuthSession_Success(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "/api/auth/cli/start", r.URL.Path)
 
-		var req cliStartRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
-		assert.Equal(t, "ABCD1234", req.Code)
-
-		resp := cliStartResponse{CodeID: "code_id_12345"}
+		resp := cliStartResponse{CodeID: "code_id_12345", Code: "ABCD1234"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
-	codeID, err := startAuthSession(server.URL, "ABCD1234")
+	codeID, code, err := startAuthSession(server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, "code_id_12345", codeID)
+	assert.Equal(t, "ABCD1234", code)
+}
+
+func TestStartAuthSession_ReturnsServerCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := cliStartResponse{CodeID: "some_id", Code: "SERVERCODE"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	_, code, err := startAuthSession(server.URL)
+	require.NoError(t, err)
+	assert.Equal(t, "SERVERCODE", code, "code must come from the server, not be client-generated")
+}
+
+func TestStartAuthSession_NoRequestBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		assert.Empty(t, body, "start request must not send a body")
+		resp := cliStartResponse{CodeID: "id", Code: "CODE1234"}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	_, _, err := startAuthSession(server.URL)
+	require.NoError(t, err)
 }
 
 func TestStartAuthSession_HTTPError(t *testing.T) {
@@ -57,9 +80,10 @@ func TestStartAuthSession_HTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	codeID, err := startAuthSession(server.URL, "ABCD1234")
+	codeID, code, err := startAuthSession(server.URL)
 	assert.Error(t, err)
 	assert.Equal(t, "", codeID)
+	assert.Equal(t, "", code)
 	assert.Contains(t, err.Error(), "status 500")
 }
 
@@ -70,36 +94,48 @@ func TestStartAuthSession_InvalidResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	codeID, err := startAuthSession(server.URL, "ABCD1234")
+	codeID, code, err := startAuthSession(server.URL)
 	assert.Error(t, err)
 	assert.Equal(t, "", codeID)
+	assert.Equal(t, "", code)
 	assert.Contains(t, err.Error(), "parse auth response")
 }
 
 func TestStartAuthSession_MissingCodeID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := map[string]interface{}{}
+		resp := map[string]interface{}{"code": "ABCD1234"} // missing code_id
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
-	codeID, err := startAuthSession(server.URL, "ABCD1234")
-	require.NoError(t, err)
-	assert.Equal(t, "", codeID)
+	_, _, err := startAuthSession(server.URL)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "incomplete")
+}
+
+func TestStartAuthSession_MissingCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]interface{}{"code_id": "some_id"} // missing code
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	_, _, err := startAuthSession(server.URL)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "incomplete")
 }
 
 func TestStartAuthSession_NetworkError(t *testing.T) {
-	codeID, err := startAuthSession("http://invalid-host-that-does-not-exist-12345.local", "ABCD1234")
+	_, _, err := startAuthSession("http://invalid-host-that-does-not-exist-12345.local")
 	assert.Error(t, err)
-	assert.Equal(t, "", codeID)
 	assert.Contains(t, err.Error(), "start auth session")
 }
 
 func TestStartAuthSession_BadURL(t *testing.T) {
-	codeID, err := startAuthSession("not a valid url", "ABCD1234")
+	_, _, err := startAuthSession("not a valid url")
 	assert.Error(t, err)
-	assert.Equal(t, "", codeID)
 }
 
 func TestStartAuthSession_StatusUnauthorized(t *testing.T) {
@@ -108,9 +144,8 @@ func TestStartAuthSession_StatusUnauthorized(t *testing.T) {
 	}))
 	defer server.Close()
 
-	codeID, err := startAuthSession(server.URL, "ABCD1234")
+	_, _, err := startAuthSession(server.URL)
 	assert.Error(t, err)
-	assert.Equal(t, "", codeID)
 	assert.Contains(t, err.Error(), "status 401")
 }
 
@@ -317,7 +352,7 @@ func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
 			startCalled = true
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -354,7 +389,7 @@ func TestLoginInteractive_SuccessSQLiteFormat(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -401,7 +436,7 @@ func TestLoginInteractive_PollForApprovalError(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -426,7 +461,7 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -462,7 +497,7 @@ func TestLoginInteractive_SaveTokenError(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -492,7 +527,7 @@ func TestLoginInteractive_CreatedAtTimestamp(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -526,7 +561,7 @@ func TestLoginInteractive_TokenPersisted(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -574,7 +609,7 @@ func TestLoginInteractive_MultiplePolls(t *testing.T) {
 	pollCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -603,19 +638,41 @@ func TestLoginInteractive_MultiplePolls(t *testing.T) {
 	assert.GreaterOrEqual(t, pollCount, 2)
 }
 
-func TestStartAuthSession_ContentTypeHeader(t *testing.T) {
-	headerReceived := ""
+
+func TestLoginInteractive_BrowserURLUsesServerCode(t *testing.T) {
+	withFastPoll(t)
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	var capturedURL string
+	orig := openBrowserFunc
+	openBrowserFunc = func(url string) error {
+		capturedURL = url
+		return nil
+	}
+	t.Cleanup(func() { openBrowserFunc = orig })
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		headerReceived = r.Header.Get("Content-Type")
-		resp := cliStartResponse{CodeID: "code_id_123"}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if r.URL.Path == "/api/auth/cli/start" {
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "SERVERCODE"}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		} else if r.URL.Path == "/api/auth/cli/poll" {
+			resp := cliPollResponse{
+				Status:    "approved",
+				Token:     "obt_token_123",
+				Username:  "testuser",
+				ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}
 	}))
 	defer server.Close()
 
-	_, err := startAuthSession(server.URL, "ABCD1234")
+	_, err := LoginInteractive(server.URL)
 	require.NoError(t, err)
-	assert.Equal(t, "application/json", headerReceived)
+	assert.Contains(t, capturedURL, "SERVERCODE", "browser URL must use server-returned code, not a client-generated one")
 }
 
 func TestPollForApproval_QueryParameter(t *testing.T) {
@@ -650,7 +707,7 @@ func TestLoginInteractive_ExpiresAtParsing(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -671,21 +728,6 @@ func TestLoginInteractive_ExpiresAtParsing(t *testing.T) {
 	assert.Equal(t, expectedExpiry.Unix(), auth.ExpiresAt.Unix())
 }
 
-func TestStartAuthSession_RequestBody(t *testing.T) {
-	bodyReceived := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		bodyReceived = string(body)
-		resp := cliStartResponse{CodeID: "code_id_123"}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-	}))
-	defer server.Close()
-
-	_, err := startAuthSession(server.URL, "TESTCODE")
-	require.NoError(t, err)
-	assert.Contains(t, bodyReceived, "TESTCODE")
-}
 
 func TestPollOnce_UnknownStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -709,7 +751,7 @@ func TestLoginInteractive_EmptyUsername(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/auth/cli/start" {
-			resp := cliStartResponse{CodeID: "code_id_123"}
+			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(resp)
 		} else if r.URL.Path == "/api/auth/cli/poll" {
@@ -734,13 +776,13 @@ func TestLoginInteractive_EmptyUsername(t *testing.T) {
 func TestStartAuthSession_LargeCodeID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		largeCodeID := bytes.Repeat([]byte("x"), 10000)
-		resp := cliStartResponse{CodeID: string(largeCodeID)}
+		resp := cliStartResponse{CodeID: string(largeCodeID), Code: "ABCD1234"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
-	codeID, err := startAuthSession(server.URL, "ABCD1234")
+	codeID, _, err := startAuthSession(server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, 10000, len(codeID))
 }

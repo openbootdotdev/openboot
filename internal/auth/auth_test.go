@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"testing"
 	"time"
 
@@ -330,43 +329,6 @@ func TestIsAuthenticated_NoToken(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	assert.False(t, IsAuthenticated())
-}
-
-func TestGenerateCode_Length(t *testing.T) {
-	code, err := GenerateCode()
-	require.NoError(t, err)
-	assert.Equal(t, 8, len(code))
-}
-
-func TestGenerateCode_Alphanumeric(t *testing.T) {
-	alphanumericRegex := regexp.MustCompile(`^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$`)
-
-	for i := 0; i < 100; i++ {
-		code, err := GenerateCode()
-		require.NoError(t, err)
-		assert.True(t, alphanumericRegex.MatchString(code), "code %s is not alphanumeric", code)
-	}
-}
-
-func TestGenerateCode_Uniqueness(t *testing.T) {
-	codes := make(map[string]bool)
-
-	for i := 0; i < 1000; i++ {
-		code, err := GenerateCode()
-		require.NoError(t, err)
-		assert.False(t, codes[code], "duplicate code generated: %s", code)
-		codes[code] = true
-	}
-
-	assert.Equal(t, 1000, len(codes))
-}
-
-func TestGenerateCode_NoFixedValue(t *testing.T) {
-	code1, err := GenerateCode()
-	require.NoError(t, err)
-	code2, err := GenerateCode()
-	require.NoError(t, err)
-	assert.NotEqual(t, code1, code2)
 }
 
 func TestTokenPath_Format(t *testing.T) {

@@ -1,10 +1,8 @@
 package auth
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"time"
@@ -90,15 +88,3 @@ func IsAuthenticated() bool {
 	return err == nil && auth != nil
 }
 
-func GenerateCode() (string, error) {
-	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	code := make([]byte, 8)
-	for i := range code {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", fmt.Errorf("generate auth code: %w", err)
-		}
-		code[i] = charset[n.Int64()]
-	}
-	return string(code), nil
-}
