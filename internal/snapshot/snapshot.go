@@ -1,6 +1,10 @@
 package snapshot
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 type CaptureHealth struct {
 	FailedSteps []string `json:"failed_steps"`
@@ -31,6 +35,26 @@ type PackageSnapshot struct {
 	Casks    []string `json:"casks"`
 	Taps     []string `json:"taps"`
 	Npm      []string `json:"npm"`
+}
+
+// UnmarshalJSON accepts both the structured object format
+// {"formulae":[],"casks":[],...} and a flat string array ["pkg1","pkg2"]
+// where all items are treated as formulae.
+func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
+	type alias PackageSnapshot
+	var obj alias
+	if err := json.Unmarshal(data, &obj); err == nil {
+		*ps = PackageSnapshot(obj)
+		return nil
+	}
+
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		ps.Formulae = arr
+		return nil
+	}
+
+	return fmt.Errorf("packages must be an object {formulae,casks,taps,npm} or a string array")
 }
 
 type MacOSPref struct {

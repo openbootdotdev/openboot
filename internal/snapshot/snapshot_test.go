@@ -1,10 +1,12 @@
 package snapshot
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSnapshot_Creation tests basic snapshot creation and field initialization.
@@ -35,6 +37,51 @@ func TestPackageSnapshot_Empty(t *testing.T) {
 	assert.Empty(t, ps.Casks)
 	assert.Empty(t, ps.Npm)
 	assert.Empty(t, ps.Taps)
+}
+
+func TestPackageSnapshot_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected PackageSnapshot
+		wantErr  bool
+	}{
+		{
+			name:  "object format",
+			input: `{"formulae":["git","go"],"casks":["docker"],"taps":["homebrew/core"],"npm":["typescript"]}`,
+			expected: PackageSnapshot{
+				Formulae: []string{"git", "go"},
+				Casks:    []string{"docker"},
+				Taps:     []string{"homebrew/core"},
+				Npm:      []string{"typescript"},
+			},
+		},
+		{
+			name:  "flat array treated as formulae",
+			input: `["git","curl","jq"]`,
+			expected: PackageSnapshot{
+				Formulae: []string{"git", "curl", "jq"},
+			},
+		},
+		{
+			name:    "invalid type",
+			input:   `123`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ps PackageSnapshot
+			err := json.Unmarshal([]byte(tt.input), &ps)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, ps)
+		})
+	}
 }
 
 // TestMacOSPref_Creation tests MacOS preference creation.
