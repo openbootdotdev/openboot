@@ -19,37 +19,15 @@ type Preference struct {
 	Desc   string
 }
 
-var DefaultPreferences = []Preference{
-	{"NSGlobalDomain", "AppleShowAllExtensions", "bool", "true", "Show all file extensions"},
-	{"NSGlobalDomain", "AppleShowScrollBars", "string", "Always", "Always show scrollbars"},
-	{"NSGlobalDomain", "NSAutomaticSpellingCorrectionEnabled", "bool", "false", "Disable auto-correct"},
-	{"NSGlobalDomain", "NSAutomaticCapitalizationEnabled", "bool", "false", "Disable auto-capitalization"},
-	{"NSGlobalDomain", "KeyRepeat", "int", "2", "Fast key repeat rate"},
-	{"NSGlobalDomain", "InitialKeyRepeat", "int", "15", "Short delay until key repeat"},
-
-	{"com.apple.finder", "ShowPathbar", "bool", "true", "Show path bar in Finder"},
-	{"com.apple.finder", "ShowStatusBar", "bool", "true", "Show status bar in Finder"},
-	{"com.apple.finder", "FXPreferredViewStyle", "string", "Nlsv", "Use list view in Finder"},
-	{"com.apple.finder", "FXEnableExtensionChangeWarning", "bool", "false", "No extension change warning"},
-	{"com.apple.finder", "AppleShowAllFiles", "bool", "true", "Show hidden files in Finder"},
-
-	{"com.apple.dock", "autohide", "bool", "false", "Keep Dock visible"},
-	{"com.apple.dock", "show-recents", "bool", "false", "Don't show recent apps in Dock"},
-	{"com.apple.dock", "tilesize", "int", "48", "Set Dock icon size"},
-	{"com.apple.dock", "mineffect", "string", "scale", "Minimize windows with scale effect"},
-
-	{"com.apple.screencapture", "location", "string", "~/Screenshots", "Save screenshots to ~/Screenshots"},
-	{"com.apple.screencapture", "type", "string", "png", "Save screenshots as PNG"},
-	{"com.apple.screencapture", "disable-shadow", "bool", "true", "Disable screenshot shadows"},
-
-	{"com.apple.Safari", "IncludeDevelopMenu", "bool", "true", "Enable Safari Developer menu"},
-	{"com.apple.Safari", "WebKitDeveloperExtrasEnabledPreferenceKey", "bool", "true", "Enable Safari WebKit dev extras"},
-
-	{"com.apple.TextEdit", "RichText", "bool", "false", "Use plain text in TextEdit"},
-	{"com.apple.TextEdit", "PlainTextEncoding", "int", "4", "Use UTF-8 in TextEdit"},
-
-	{"com.apple.TimeMachine", "DoNotOfferNewDisksForBackup", "bool", "true", "Don't prompt for Time Machine on new disks"},
-}
+// DefaultPreferences is derived from DefaultCategories and is the single source
+// of truth for all macOS preferences. Add or change preferences in categories.go.
+var DefaultPreferences = func() []Preference {
+	var prefs []Preference
+	for _, cat := range DefaultCategories {
+		prefs = append(prefs, cat.Prefs...)
+	}
+	return prefs
+}()
 
 func normalizeBool(value string) string {
 	switch strings.ToLower(value) {

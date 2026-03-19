@@ -680,36 +680,48 @@ func stepMacOS(cfg *config.Config) error {
 	ui.Header("Step 7: macOS Preferences")
 	fmt.Println()
 
-	if cfg.Macos == "" {
-		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			cfg.Macos = "configure"
-		} else {
-			configure, err := ui.Confirm("Apply developer-friendly macOS preferences?", true)
-			if err != nil {
-				return err
-			}
-			if !configure {
-				ui.Muted("Skipping macOS preferences")
-				fmt.Println()
-				return nil
-			}
-			cfg.Macos = "configure"
-		}
-	}
-
-	if cfg.Macos == "configure" {
+	// --macos configure flag or non-interactive mode: apply all defaults directly.
+	if cfg.Macos == "configure" || cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
 		if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
 			ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
 		}
-
 		if err := macos.Configure(macos.DefaultPreferences, cfg.DryRun); err != nil {
 			ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
 		}
-
 		if !cfg.DryRun {
 			ui.Success("macOS preferences configured")
 			macos.RestartAffectedApps(cfg.DryRun)
 		}
+		fmt.Println()
+		return nil
+	}
+
+	ui.Info("Choose which macOS preferences to apply")
+	ui.Muted("Use Tab to switch categories, Space to toggle, Enter to confirm")
+	fmt.Println()
+
+	selected, confirmed, err := ui.RunMacOSSelector()
+	if err != nil {
+		return fmt.Errorf("macOS selector: %w", err)
+	}
+
+	if !confirmed || len(selected) == 0 {
+		ui.Muted("Skipping macOS preferences")
+		fmt.Println()
+		return nil
+	}
+
+	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
+		ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
+	}
+
+	if err := macos.Configure(selected, cfg.DryRun); err != nil {
+		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
+	}
+
+	if !cfg.DryRun {
+		ui.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(selected)))
+		macos.RestartAffectedApps(cfg.DryRun)
 	}
 
 	fmt.Println()

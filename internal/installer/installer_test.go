@@ -353,6 +353,26 @@ func TestStepMacOS_Skip(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStepMacOS_ConfigureFlag_DryRun(t *testing.T) {
+	// --macos configure bypasses the TUI and applies all defaults directly.
+	cfg := &config.Config{
+		Macos:  "configure",
+		DryRun: true,
+	}
+	err := stepMacOS(cfg)
+	assert.NoError(t, err)
+}
+
+func TestStepMacOS_Silent_DryRun(t *testing.T) {
+	// Silent mode bypasses the TUI and applies all defaults directly.
+	cfg := &config.Config{
+		Silent: true,
+		DryRun: true,
+	}
+	err := stepMacOS(cfg)
+	assert.NoError(t, err)
+}
+
 func TestInstallTimeConstants(t *testing.T) {
 	assert.Equal(t, 15, estimatedSecondsPerFormula)
 	assert.Equal(t, 30, estimatedSecondsPerCask)
