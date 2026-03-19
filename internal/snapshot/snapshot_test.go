@@ -57,6 +57,24 @@ func TestPackageSnapshot_UnmarshalJSON(t *testing.T) {
 			},
 		},
 		{
+			name:  "typed object array",
+			input: `[{"name":"git","type":"formula"},{"name":"docker","type":"cask"},{"name":"homebrew/core","type":"tap"},{"name":"typescript","type":"npm"}]`,
+			expected: PackageSnapshot{
+				Formulae: []string{"git"},
+				Casks:    []string{"docker"},
+				Taps:     []string{"homebrew/core"},
+				Npm:      []string{"typescript"},
+			},
+		},
+		{
+			name:  "typed object array with desc field",
+			input: `[{"name":"ack","type":"formula","desc":"grep for programmers"},{"name":"alfred","type":"cask","desc":"Productivity app"}]`,
+			expected: PackageSnapshot{
+				Formulae: []string{"ack"},
+				Casks:    []string{"alfred"},
+			},
+		},
+		{
 			name:  "flat array treated as formulae",
 			input: `["git","curl","jq"]`,
 			expected: PackageSnapshot{

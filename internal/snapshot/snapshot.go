@@ -37,10 +37,12 @@ type PackageSnapshot struct {
 	Npm      []string `json:"npm"`
 }
 
-// UnmarshalJSON accepts both the structured object format
-// {"formulae":[],"casks":[],...} and a flat string array ["pkg1","pkg2"]
-// where all items are treated as formulae.
+// UnmarshalJSON accepts three formats:
+//   - Structured object: {"formulae":[],"casks":[],"taps":[],"npm":[]}
+//   - Typed object array: [{"name":"git","type":"formula"},{"name":"docker","type":"cask"}]
+//   - Flat string array:  ["git","curl"] (all treated as formulae)
 func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
+	// Try structured object first.
 	type alias PackageSnapshot
 	var obj alias
 	if err := json.Unmarshal(data, &obj); err == nil {
@@ -48,13 +50,35 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	// Try typed object array: [{"name":"x","type":"formula|cask|tap|npm"}]
+	var typed []struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &typed); err == nil && len(typed) > 0 && typed[0].Name != "" {
+		for _, p := range typed {
+			switch p.Type {
+			case "cask":
+				ps.Casks = append(ps.Casks, p.Name)
+			case "tap":
+				ps.Taps = append(ps.Taps, p.Name)
+			case "npm":
+				ps.Npm = append(ps.Npm, p.Name)
+			default:
+				ps.Formulae = append(ps.Formulae, p.Name)
+			}
+		}
+		return nil
+	}
+
+	// Try flat string array.
 	var arr []string
 	if err := json.Unmarshal(data, &arr); err == nil {
 		ps.Formulae = arr
 		return nil
 	}
 
-	return fmt.Errorf("packages must be an object {formulae,casks,taps,npm} or a string array")
+	return fmt.Errorf("packages must be an object {formulae,casks,taps,npm} or an array")
 }
 
 type MacOSPref struct {
