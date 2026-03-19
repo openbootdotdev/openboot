@@ -1,7 +1,7 @@
 # OpenBoot Demo (~18s)
 #
 # Prerequisites:
-#   go build -ldflags "-X github.com/openbootdotdev/openboot/internal/cli.version=0.20.0" \
+#   go build -ldflags "-X github.com/openbootdotdev/openboot/internal/cli.version=0.44.0" \
 #     -o /tmp/openboot-demo ./cmd/openboot
 #   cp scripts/demo-wrapper.sh /tmp/openboot-demo-wrapper.sh
 #   chmod +x /tmp/openboot-demo-wrapper.sh
@@ -60,20 +60,23 @@ Sleep 600ms
 Escape
 Sleep 400ms
 
-# [13s] Confirm
+# Package selector confirm
 Enter
-Sleep 1.2s
+Sleep 2.5s
+
+# Shell: "Install Oh-My-Zsh?" → yes
 Enter
 Sleep 1.5s
 
-# [16s] Dry-run output + prompts fly by
-Sleep 1s
+# Dotfiles: "Do you have dotfiles repo?" → no (default)
 Enter
-Sleep 0.5s
-Enter
-Sleep 0.5s
-Enter
-Sleep 1s
+Sleep 2.5s
 
-# [19s] Completion — hold for 3s then end
+# macOS selector TUI — Enter opens confirmation dialog, second Enter confirms
+Enter
+Sleep 1.5s
+Enter
+Sleep 2s
+
+# Completion — hold for 3s then end
 Sleep 3s

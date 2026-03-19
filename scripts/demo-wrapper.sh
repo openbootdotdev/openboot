@@ -20,7 +20,7 @@ sleep 0.2
 echo ""
 echo -e "${DIM}Detected: darwin/arm64${RESET}"
 sleep 0.3
-echo "Downloading OpenBoot v0.20.0..."
+echo "Downloading OpenBoot v0.44.0..."
 sleep 0.8
 echo -e "${GREEN}✓${RESET} Downloaded to ~/.openboot/bin/openboot"
 sleep 0.2
@@ -30,5 +30,10 @@ echo -e "${GREEN}✓${RESET} Added to PATH"
 echo ""
 
 sleep 0.5
+
+# Use a fake HOME so the real git identity is not shown in the public demo
+export HOME=$(mktemp -d)
+git config --global user.name "Alex Chen"
+git config --global user.email "alex@example.com"
 
 exec /tmp/openboot-demo --dry-run
