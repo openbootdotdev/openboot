@@ -702,15 +702,50 @@ func TestSnapshotEditorAddToNpmTab(t *testing.T) {
 	assert.True(t, found, "prettier should be in NPM tab")
 }
 
-func TestSnapshotEditorAddModeBlockedOnMacOSPrefs(t *testing.T) {
+func TestSnapshotEditorAddMacOSPrefActivatesAddMode(t *testing.T) {
 	m := NewSnapshotEditor(makeTestSnapshot())
 	m.activeTab = 4 // macOS Prefs tab
 
-	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")})
+	result, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("+")})
 	updated := result.(SnapshotEditorModel)
 
-	assert.False(t, updated.addMode, "add mode should not activate on macOS Prefs tab")
-	assert.Contains(t, updated.toastMessage, "Cannot manually add macOS prefs")
+	assert.True(t, updated.addMode, "add mode should activate on macOS Prefs tab")
+}
+
+func TestSnapshotEditorAddMacOSPrefValidFormat(t *testing.T) {
+	m := NewSnapshotEditor(makeTestSnapshot())
+	m.activeTab = 4 // macOS Prefs tab
+	m.addMode = true
+	m.addInput = "com.apple.dock.tilesize=64"
+
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := result.(SnapshotEditorModel)
+
+	assert.False(t, updated.addMode)
+	assert.NotNil(t, cmd)
+	found := false
+	for _, item := range updated.tabs[4].items {
+		if item.name == "com.apple.dock.tilesize" {
+			found = true
+			assert.Equal(t, "64", item.value)
+			assert.True(t, item.isAdded)
+			assert.Equal(t, editorItemMacOSPref, item.itemType)
+		}
+	}
+	assert.True(t, found, "pref should be added to macOS Prefs tab")
+}
+
+func TestSnapshotEditorAddMacOSPrefInvalidFormat(t *testing.T) {
+	m := NewSnapshotEditor(makeTestSnapshot())
+	m.activeTab = 4 // macOS Prefs tab
+	m.addMode = true
+	m.addInput = "invalid-no-equals"
+
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := result.(SnapshotEditorModel)
+
+	assert.False(t, updated.addMode)
+	assert.Contains(t, updated.toastMessage, "Format:")
 	assert.NotNil(t, cmd)
 }
 

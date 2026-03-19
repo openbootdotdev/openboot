@@ -144,9 +144,21 @@ func runCustomInstall(cfg *config.Config) error {
 		cfg.DotfilesURL = cfg.RemoteConfig.DotfilesRepo
 	}
 
-	if err := stepShell(cfg); err != nil {
-		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
-		softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+	if cfg.RemoteConfig.Shell != nil {
+		cfg.SnapshotShell = &config.SnapshotShellConfig{
+			OhMyZsh: cfg.RemoteConfig.Shell.OhMyZsh,
+			Theme:   cfg.RemoteConfig.Shell.Theme,
+			Plugins: cfg.RemoteConfig.Shell.Plugins,
+		}
+		if err := stepRestoreShell(cfg); err != nil {
+			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+		}
+	} else {
+		if err := stepShell(cfg); err != nil {
+			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+		}
 	}
 
 	if err := stepDotfiles(cfg); err != nil {
@@ -154,9 +166,26 @@ func runCustomInstall(cfg *config.Config) error {
 		softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
 	}
 
-	if err := stepMacOS(cfg); err != nil {
-		ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
-		softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
+	if len(cfg.RemoteConfig.MacOSPrefs) > 0 {
+		cfg.SnapshotMacOS = make([]config.SnapshotMacOSPref, len(cfg.RemoteConfig.MacOSPrefs))
+		for i, p := range cfg.RemoteConfig.MacOSPrefs {
+			cfg.SnapshotMacOS[i] = config.SnapshotMacOSPref{
+				Domain: p.Domain,
+				Key:    p.Key,
+				Type:   p.Type,
+				Value:  p.Value,
+				Desc:   p.Desc,
+			}
+		}
+		if err := stepRestoreMacOS(cfg); err != nil {
+			ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
+		}
+	} else {
+		if err := stepMacOS(cfg); err != nil {
+			ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
+		}
 	}
 
 	if err := stepPostInstall(cfg); err != nil {

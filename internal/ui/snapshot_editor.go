@@ -24,6 +24,7 @@ const (
 type editorItem struct {
 	name        string
 	description string
+	value       string // for macOS pref items: the raw preference value
 	selected    bool
 	itemType    editorItemType
 	isAdded     bool // true = user added this, not from original snapshot
@@ -192,11 +193,6 @@ func (m SnapshotEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.withFilteredItems()
 
 		case msg.String() == "+":
-			// Block manual add on macOS Prefs tab (prefs require domain.key structure)
-			if m.tabs[m.activeTab].itemType == editorItemMacOSPref {
-				m.toastMessage = "Cannot manually add macOS prefs"
-				return m, editorToastClearCmd()
-			}
 			m.addMode = true
 			m.addInput = ""
 
@@ -321,6 +317,43 @@ func (m SnapshotEditorModel) updateAddMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		return m, nil
 	case "enter":
 		if m.addInput != "" {
+			if m.tabs[m.activeTab].itemType == editorItemMacOSPref {
+				// Expect "domain.key=value" format
+				eqIdx := strings.Index(m.addInput, "=")
+				if eqIdx > 0 {
+					domainKey := m.addInput[:eqIdx]
+					value := m.addInput[eqIdx+1:]
+					if strings.Contains(domainKey, ".") && value != "" {
+						tab := &m.tabs[m.activeTab]
+						duplicate := false
+						for _, item := range tab.items {
+							if item.name == domainKey {
+								duplicate = true
+								break
+							}
+						}
+						if !duplicate {
+							tab.items = append(tab.items, editorItem{
+								name:        domainKey,
+								description: fmt.Sprintf("= %s", value),
+								value:       value,
+								selected:    true,
+								itemType:    editorItemMacOSPref,
+								isAdded:     true,
+							})
+							m.toastMessage = fmt.Sprintf("+ Added %s", domainKey)
+							m.addMode = false
+							m.addInput = ""
+							m.cursor = len(tab.items) - 1
+							return m, editorToastClearCmd()
+						}
+					}
+				}
+				m.toastMessage = "Format: domain.key=value (e.g. com.apple.dock.tilesize=48)"
+				m.addMode = false
+				m.addInput = ""
+				return m, editorToastClearCmd()
+			}
 			tab := &m.tabs[m.activeTab]
 			// Check for duplicates
 			duplicate := false
@@ -410,7 +443,11 @@ func (m SnapshotEditorModel) View() string {
 		lines = append(lines, "")
 		tabName := m.tabs[m.activeTab].name
 		lines = append(lines, activeTabStyle.Render(fmt.Sprintf("Add to %s: %s▌", tabName, m.addInput)))
-		lines = append(lines, descStyle.Render("  Type a package name and press Enter to add, Esc to cancel"))
+		if m.tabs[m.activeTab].itemType == editorItemMacOSPref {
+			lines = append(lines, descStyle.Render("  Format: domain.key=value (e.g. com.apple.dock.tilesize=48) · Enter to add, Esc to cancel"))
+		} else {
+			lines = append(lines, descStyle.Render("  Type a package name and press Enter to add, Esc to cancel"))
+		}
 		lines = append(lines, "")
 	}
 
@@ -753,6 +790,15 @@ func buildEditedSnapshot(original *snapshot.Snapshot, m *SnapshotEditorModel) *s
 			case editorItemMacOSPref:
 				if pref, ok := originalPrefs[item.name]; ok {
 					edited.MacOSPrefs = append(edited.MacOSPrefs, pref)
+				} else if item.isAdded {
+					dotIdx := strings.Index(item.name, ".")
+					if dotIdx > 0 {
+						edited.MacOSPrefs = append(edited.MacOSPrefs, snapshot.MacOSPref{
+							Domain: item.name[:dotIdx],
+							Key:    item.name[dotIdx+1:],
+							Value:  item.value,
+						})
+					}
 				}
 			}
 		}
