@@ -749,6 +749,34 @@ func TestSnapshotEditorAddMacOSPrefInvalidFormat(t *testing.T) {
 	assert.NotNil(t, cmd)
 }
 
+func TestBuildEditedSnapshotAddedMacOSPrefSplitsOnLastDot(t *testing.T) {
+	snap := makeTestSnapshot()
+	m := NewSnapshotEditor(snap)
+
+	// Simulate user adding com.apple.dock.tilesize=48 — domain contains multiple dots
+	m.tabs[4].items = append(m.tabs[4].items, editorItem{
+		name:     "com.apple.dock.tilesize",
+		value:    "48",
+		selected: true,
+		itemType: editorItemMacOSPref,
+		isAdded:  true,
+	})
+
+	edited := buildEditedSnapshot(snap, &m)
+
+	var added *snapshot.MacOSPref
+	for i := range edited.MacOSPrefs {
+		if edited.MacOSPrefs[i].Key == "tilesize" {
+			added = &edited.MacOSPrefs[i]
+			break
+		}
+	}
+	require.NotNil(t, added, "added pref should appear in result")
+	assert.Equal(t, "com.apple.dock", added.Domain, "domain should be everything before the last dot")
+	assert.Equal(t, "tilesize", added.Key, "key should be the segment after the last dot")
+	assert.Equal(t, "48", added.Value)
+}
+
 func TestSnapshotEditorAddedItemVisualBadge(t *testing.T) {
 	m := NewSnapshotEditor(makeTestSnapshot())
 	m.width = 80

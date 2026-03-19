@@ -717,9 +717,9 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		cfg.DotfilesURL = edited.Dotfiles.RepoURL
 	}
 
-	cfg.SnapshotMacOS = make([]config.SnapshotMacOSPref, len(edited.MacOSPrefs))
+	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, len(edited.MacOSPrefs))
 	for i, p := range edited.MacOSPrefs {
-		cfg.SnapshotMacOS[i] = config.SnapshotMacOSPref{
+		cfg.SnapshotMacOS[i] = config.RemoteMacOSPref{
 			Domain: p.Domain,
 			Key:    p.Key,
 			Type:   p.Type,

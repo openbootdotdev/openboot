@@ -791,7 +791,7 @@ func buildEditedSnapshot(original *snapshot.Snapshot, m *SnapshotEditorModel) *s
 				if pref, ok := originalPrefs[item.name]; ok {
 					edited.MacOSPrefs = append(edited.MacOSPrefs, pref)
 				} else if item.isAdded {
-					dotIdx := strings.Index(item.name, ".")
+					dotIdx := strings.LastIndex(item.name, ".")
 					if dotIdx > 0 {
 						edited.MacOSPrefs = append(edited.MacOSPrefs, snapshot.MacOSPref{
 							Domain: item.name[:dotIdx],

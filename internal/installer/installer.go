@@ -167,16 +167,7 @@ func runCustomInstall(cfg *config.Config) error {
 	}
 
 	if len(cfg.RemoteConfig.MacOSPrefs) > 0 {
-		cfg.SnapshotMacOS = make([]config.SnapshotMacOSPref, len(cfg.RemoteConfig.MacOSPrefs))
-		for i, p := range cfg.RemoteConfig.MacOSPrefs {
-			cfg.SnapshotMacOS[i] = config.SnapshotMacOSPref{
-				Domain: p.Domain,
-				Key:    p.Key,
-				Type:   p.Type,
-				Value:  p.Value,
-				Desc:   p.Desc,
-			}
-		}
+		cfg.SnapshotMacOS = cfg.RemoteConfig.MacOSPrefs
 		if err := stepRestoreMacOS(cfg); err != nil {
 			ui.Error(fmt.Sprintf("macOS configuration failed: %v", err))
 			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
