@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -193,8 +194,9 @@ func doBrewUpgrade(currentVersion, latestVersion string) {
 		ui.Muted("Run 'brew upgrade openboot' to update manually")
 		fmt.Println()
 	} else {
-		ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
+		ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 		fmt.Println()
+		execSelf()
 	}
 }
 
@@ -208,8 +210,29 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 		fmt.Println()
 		return
 	}
-	ui.Success(fmt.Sprintf("Updated to v%s. Restart openboot to use the new version.", latestClean))
+	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 	fmt.Println()
+	execSelf()
+}
+
+// execSelf is a package-level variable to allow test injection.
+var execSelf = func() {
+	exe, err := os.Executable()
+	if err != nil {
+		ui.Warn(fmt.Sprintf("Could not restart: %v", err))
+		ui.Muted("Please run the command again to use the new version.")
+		return
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		ui.Warn(fmt.Sprintf("Could not restart: %v", err))
+		ui.Muted("Please run the command again to use the new version.")
+		return
+	}
+	if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
+		ui.Warn(fmt.Sprintf("Could not restart: %v", err))
+		ui.Muted("Please run the command again to use the new version.")
+	}
 }
 
 func DownloadAndReplace() error {

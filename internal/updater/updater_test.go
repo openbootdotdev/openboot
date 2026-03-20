@@ -407,9 +407,15 @@ func TestDoBrewUpgrade_Success(t *testing.T) {
 	execBrewUpgrade = func(formula string) error { calledWith = formula; return nil }
 	defer func() { execBrewUpgrade = origExec }()
 
+	restarted := false
+	origSelf := execSelf
+	execSelf = func() { restarted = true }
+	defer func() { execSelf = origSelf }()
+
 	doBrewUpgrade("1.0.0", "v2.0.0")
 
 	assert.Equal(t, brewFormula, calledWith)
+	assert.True(t, restarted, "should re-exec after successful upgrade")
 }
 
 func TestDoBrewUpgrade_Failure(t *testing.T) {
@@ -418,9 +424,15 @@ func TestDoBrewUpgrade_Failure(t *testing.T) {
 	execBrewUpgrade = func(formula string) error { called = true; return fmt.Errorf("brew failed") }
 	defer func() { execBrewUpgrade = origExec }()
 
+	restarted := false
+	origSelf := execSelf
+	execSelf = func() { restarted = true }
+	defer func() { execSelf = origSelf }()
+
 	doBrewUpgrade("1.0.0", "v2.0.0")
 
 	assert.True(t, called, "brew should have been attempted")
+	assert.False(t, restarted, "should not re-exec on failed upgrade")
 }
 
 // --- End-to-end: AutoUpgrade with Homebrew (via resolveLatestVersion) ---
