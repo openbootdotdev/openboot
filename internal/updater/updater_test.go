@@ -416,6 +416,8 @@ func TestDoBrewUpgrade_Success(t *testing.T) {
 
 	assert.Equal(t, brewFormula, calledWith)
 	assert.True(t, restarted, "should re-exec after successful upgrade")
+	assert.Equal(t, "1", os.Getenv("OPENBOOT_UPGRADING"), "should set OPENBOOT_UPGRADING before re-exec")
+	os.Unsetenv("OPENBOOT_UPGRADING")
 }
 
 func TestDoBrewUpgrade_Failure(t *testing.T) {
@@ -433,6 +435,18 @@ func TestDoBrewUpgrade_Failure(t *testing.T) {
 
 	assert.True(t, called, "brew should have been attempted")
 	assert.False(t, restarted, "should not re-exec on failed upgrade")
+}
+
+func TestAutoUpgrade_SkipsWhenUpgrading(t *testing.T) {
+	t.Setenv("OPENBOOT_UPGRADING", "1")
+
+	// If AutoUpgrade does NOT skip, it would call resolveLatestVersion
+	// which would try the network. The test passing without network
+	// proves the guard works.
+	AutoUpgrade("1.0.0")
+
+	// Env var should be cleared after being consumed
+	assert.Empty(t, os.Getenv("OPENBOOT_UPGRADING"), "should unset OPENBOOT_UPGRADING after consuming it")
 }
 
 // --- End-to-end: AutoUpgrade with Homebrew (via resolveLatestVersion) ---

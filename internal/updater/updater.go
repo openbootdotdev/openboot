@@ -106,6 +106,12 @@ func AutoUpgrade(currentVersion string) {
 	if os.Getenv("OPENBOOT_DISABLE_AUTOUPDATE") == "1" {
 		return
 	}
+	// Guard against infinite re-exec: after an upgrade, execSelf sets this
+	// env var so the new process skips AutoUpgrade on the first run.
+	if os.Getenv("OPENBOOT_UPGRADING") == "1" {
+		os.Unsetenv("OPENBOOT_UPGRADING")
+		return
+	}
 	if currentVersion == "dev" {
 		return
 	}
@@ -193,11 +199,13 @@ func doBrewUpgrade(currentVersion, latestVersion string) {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
 		ui.Muted("Run 'brew upgrade openboot' to update manually")
 		fmt.Println()
-	} else {
-		ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
-		fmt.Println()
-		execSelf()
+		return
 	}
+
+	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
+	fmt.Println()
+	os.Setenv("OPENBOOT_UPGRADING", "1")
+	execSelf()
 }
 
 func doDirectUpgrade(currentVersion, latestVersion string) {
@@ -212,6 +220,7 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 	}
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
 	fmt.Println()
+	os.Setenv("OPENBOOT_UPGRADING", "1")
 	execSelf()
 }
 
