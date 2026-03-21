@@ -30,14 +30,14 @@ release_validation_task:
   timeout_in: 45m
 
 # =============================================================================
-# L3: Full validation — manual trigger or release tags
+# L3: Full validation — runs on release tags
 # =============================================================================
 # Split into parallel tasks to maximize throughput.
 # Each task runs a subset of tests in its own VM.
 
 full_journey_task:
   name: "E2E Journey Tests"
-  trigger_type: manual
+  only_if: $CIRRUS_TAG != ''
   macos_instance:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
@@ -53,7 +53,7 @@ full_journey_task:
 
 full_edge_cases_task:
   name: "E2E Edge Case Tests"
-  trigger_type: manual
+  only_if: $CIRRUS_TAG != ''
   macos_instance:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
@@ -69,7 +69,7 @@ full_edge_cases_task:
 
 full_commands_task:
   name: "E2E Command + Interactive Tests"
-  trigger_type: manual
+  only_if: $CIRRUS_TAG != ''
   macos_instance:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
