@@ -1,4 +1,5 @@
-.PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all
+.PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
+       test-vm test-vm-short test-vm-run test-vm-quick test-vm-release test-vm-full
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
@@ -37,6 +38,36 @@ test-all:
 	$(MAKE) test-integration
 	-$(MAKE) test-e2e
 	$(MAKE) test-coverage
+
+# =============================================================================
+# VM-based E2E tests (Tart VMs) — three levels
+# =============================================================================
+
+# L1: Quick validation (~5min) — run after code changes
+#     Uses -short flag: skips tests that install real packages
+test-vm-quick: build
+	go test -v -timeout 10m -tags="e2e,vm" -short ./test/e2e/...
+
+# L2: Release validation (~20min) — run before tagging a release
+#     Core user journeys: dry-run safety, install + verify, diff/clean cycle,
+#     manual uninstall recovery, full setup, error messages
+test-vm-release: build
+	go test -v -timeout 30m -tags="e2e,vm" \
+	  -run "TestVM_Infra|TestVM_Journey_DryRun|TestVM_Journey_FirstTimeUser|TestVM_Journey_ManualUninstall|TestVM_Journey_DiffConsistency|TestVM_Journey_FullSetup|TestVM_Journey_ErrorMessages" \
+	  ./test/e2e/...
+
+# L3: Full validation (~60min) — run for major releases or CI
+#     All 48 tests: journeys + edge cases + commands + interactive
+test-vm-full: build
+	go test -v -timeout 90m -tags="e2e,vm" ./test/e2e/...
+
+# Aliases
+test-vm: test-vm-release
+test-vm-short: test-vm-quick
+
+# Single VM test by name (e.g. make test-vm-run TEST=TestVM_Journey_DryRun)
+test-vm-run: build
+	go test -v -timeout 45m -tags="e2e,vm" -run $(TEST) ./test/e2e/...
 
 build:
 	go build -ldflags="$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/openboot
