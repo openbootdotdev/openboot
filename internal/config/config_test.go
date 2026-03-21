@@ -426,6 +426,51 @@ func TestUnmarshalRemoteConfigFlexible_PreservesOtherFields(t *testing.T) {
 	assert.Len(t, rc.MacOSPrefs, 1)
 }
 
+func TestUnmarshalRemoteConfigFlexible_MacOSPrefsFromSnapshot(t *testing.T) {
+	data := []byte(`{
+		"name": "test config",
+		"packages": [
+			{"name": "git", "type": "formula"}
+		],
+		"snapshot": {
+			"version": 1,
+			"packages": {"formulae": ["git"], "casks": [], "taps": [], "npm": []},
+			"macos_prefs": [
+				{"domain": "com.apple.dock", "key": "autohide", "type": "bool", "value": "true", "desc": "Auto-hide dock"},
+				{"domain": "NSGlobalDomain", "key": "AppleShowScrollBars", "type": "string", "value": "Always", "desc": ""}
+			]
+		},
+		"visibility": "unlisted"
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"git"}, rc.Packages)
+	require.Len(t, rc.MacOSPrefs, 2)
+	assert.Equal(t, "com.apple.dock", rc.MacOSPrefs[0].Domain)
+	assert.Equal(t, "autohide", rc.MacOSPrefs[0].Key)
+	assert.Equal(t, "bool", rc.MacOSPrefs[0].Type)
+	assert.Equal(t, "true", rc.MacOSPrefs[0].Value)
+	assert.Equal(t, "NSGlobalDomain", rc.MacOSPrefs[1].Domain)
+}
+
+func TestUnmarshalRemoteConfigFlexible_TopLevelMacOSPrefsNotOverridden(t *testing.T) {
+	data := []byte(`{
+		"packages": ["git"],
+		"macos_prefs": [{"domain": "com.apple.dock", "key": "autohide", "type": "bool", "value": "true"}],
+		"snapshot": {
+			"macos_prefs": [
+				{"domain": "other.domain", "key": "k", "type": "string", "value": "v"}
+			]
+		}
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	require.Len(t, rc.MacOSPrefs, 1)
+	assert.Equal(t, "com.apple.dock", rc.MacOSPrefs[0].Domain, "top-level macos_prefs should take precedence")
+}
+
 func TestUnmarshalRemoteConfigFlexible_InvalidJSON(t *testing.T) {
 	data := []byte(`not json`)
 	_, err := UnmarshalRemoteConfigFlexible(data)

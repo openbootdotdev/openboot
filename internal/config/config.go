@@ -111,6 +111,7 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 	// Try direct unmarshal first (flat string arrays).
 	var rc RemoteConfig
 	if err := json.Unmarshal(data, &rc); err == nil {
+		backfillMacOSPrefsFromSnapshot(&rc, data)
 		return &rc, nil
 	}
 
@@ -177,7 +178,29 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 	if err := json.Unmarshal(normalised, &result); err != nil {
 		return nil, err
 	}
+	backfillMacOSPrefsFromSnapshot(&result, data)
 	return &result, nil
+}
+
+// backfillMacOSPrefsFromSnapshot copies macos_prefs from the embedded snapshot
+// object when the top-level field is empty. This handles exported configs where
+// macos_prefs are nested under "snapshot" rather than at the top level.
+// Callers are responsible for calling Validate() on the returned RemoteConfig.
+func backfillMacOSPrefsFromSnapshot(rc *RemoteConfig, data []byte) {
+	if len(rc.MacOSPrefs) > 0 {
+		return
+	}
+	var wrapper struct {
+		Snapshot struct {
+			MacOSPrefs []RemoteMacOSPref `json:"macos_prefs"`
+		} `json:"snapshot"`
+	}
+	// Unmarshal error is intentionally ignored: data was already successfully
+	// parsed once, so failure here means the snapshot sub-object is malformed
+	// and we simply skip backfill rather than failing the entire load.
+	if err := json.Unmarshal(data, &wrapper); err == nil && len(wrapper.Snapshot.MacOSPrefs) > 0 {
+		rc.MacOSPrefs = wrapper.Snapshot.MacOSPrefs
+	}
 }
 
 var (
