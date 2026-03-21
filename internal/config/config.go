@@ -68,17 +68,86 @@ type SnapshotGitConfig struct {
 	UserEmail string
 }
 
+// PackageEntry represents a package with an optional description.
+type PackageEntry struct {
+	Name string `json:"name"`
+	Desc string `json:"desc,omitempty"`
+}
+
+// PackageEntryList is a list of PackageEntry that unmarshals from either
+// ["git","curl"] (flat strings) or [{"name":"git","desc":"..."}] (objects).
+type PackageEntryList []PackageEntry
+
+// UnmarshalJSON handles both flat string arrays and object arrays.
+func (p *PackageEntryList) UnmarshalJSON(data []byte) error {
+	// Try flat string array first (most common from server responses).
+	var names []string
+	if err := json.Unmarshal(data, &names); err == nil {
+		result := make([]PackageEntry, len(names))
+		for i, n := range names {
+			result[i] = PackageEntry{Name: n}
+		}
+		*p = result
+		return nil
+	}
+
+	// Try object array [{name, desc}]. Reject if any entry has a "type"
+	// field — those must be split by UnmarshalRemoteConfigFlexible instead.
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("packages must be a string array or object array: %w", err)
+	}
+
+	entries := make([]PackageEntry, 0, len(raw))
+	for _, item := range raw {
+		var probe struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(item, &probe); err == nil && probe.Type != "" {
+			// Has a "type" field — bail so the caller's typed-object path handles it.
+			return fmt.Errorf("object has type field; needs typed splitting")
+		}
+		var entry PackageEntry
+		if err := json.Unmarshal(item, &entry); err != nil {
+			return fmt.Errorf("invalid package entry: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+	*p = entries
+	return nil
+}
+
+// Names returns a slice of just the package names.
+func (p PackageEntryList) Names() []string {
+	names := make([]string, len(p))
+	for i, e := range p {
+		names[i] = e.Name
+	}
+	return names
+}
+
+// DescMap returns a map of name → desc for entries that have descriptions.
+func (p PackageEntryList) DescMap() map[string]string {
+	m := make(map[string]string, len(p))
+	for _, e := range p {
+		if e.Desc != "" {
+			m[e.Name] = e.Desc
+		}
+	}
+	return m
+}
+
 type RemoteConfig struct {
-	Username     string   `json:"username"`
-	Slug         string   `json:"slug"`
-	Name         string   `json:"name"`
-	Preset       string   `json:"preset"`
-	Packages     []string `json:"packages"`
-	Casks        []string `json:"casks"`
-	Taps         []string `json:"taps"`
-	Npm          []string `json:"npm"`
-	DotfilesRepo string   `json:"dotfiles_repo"`
-	PostInstall  []string `json:"post_install"`
+	Username     string           `json:"username"`
+	Slug         string           `json:"slug"`
+	Name         string           `json:"name"`
+	Preset       string           `json:"preset"`
+	Packages     PackageEntryList `json:"packages"`
+	Casks        PackageEntryList `json:"casks"`
+	Taps         []string         `json:"taps"`
+	Npm          PackageEntryList `json:"npm"`
+	DotfilesRepo string           `json:"dotfiles_repo"`
+	PostInstall  []string         `json:"post_install"`
 	Shell        *RemoteShellConfig `json:"shell"`
 	MacOSPrefs   []RemoteMacOSPref  `json:"macos_prefs"`
 }
@@ -97,11 +166,12 @@ type RemoteMacOSPref struct {
 	Desc   string `json:"desc"`
 }
 
-// typedPackage represents a package entry with name and type, as returned
-// by the openboot.dev API (e.g. {"name":"git","type":"formula"}).
+// typedPackage represents a package entry with name, type, and optional
+// description, as returned by the openboot.dev API.
 type typedPackage struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	Desc string `json:"desc,omitempty"`
 }
 
 // UnmarshalRemoteConfigFlexible parses JSON into a RemoteConfig, accepting
@@ -131,38 +201,42 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 		return nil, fmt.Errorf("packages must be a string array or typed object array: %w", err)
 	}
 
-	var formulae, casks, taps, npm []string
+	var formulae, casks, npm PackageEntryList
+	var taps []string
 	for _, p := range typed {
+		entry := PackageEntry{Name: p.Name, Desc: p.Desc}
 		switch p.Type {
 		case "cask":
-			casks = append(casks, p.Name)
+			casks = append(casks, entry)
 		case "tap":
 			taps = append(taps, p.Name)
 		case "npm":
-			npm = append(npm, p.Name)
+			npm = append(npm, entry)
 		default:
-			formulae = append(formulae, p.Name)
+			formulae = append(formulae, entry)
 		}
 	}
 
-	// Replace packages with flat arrays and re-unmarshal.
+	// Replace packages with typed arrays and re-unmarshal.
 	converted := make(map[string]json.RawMessage, len(raw))
 	for k, v := range raw {
 		converted[k] = v
 	}
-	if f, err := json.Marshal(formulae); err == nil {
-		converted["packages"] = f
-	}
-	marshalIfNonEmpty := func(key string, items []string) {
-		if len(items) > 0 {
-			if data, err := json.Marshal(items); err == nil {
-				converted[key] = data
-			}
+	marshalInto := func(key string, items interface{}) {
+		if data, err := json.Marshal(items); err == nil {
+			converted[key] = data
 		}
 	}
-	marshalIfNonEmpty("casks", casks)
-	marshalIfNonEmpty("taps", taps)
-	marshalIfNonEmpty("npm", npm)
+	marshalInto("packages", formulae)
+	if len(casks) > 0 {
+		marshalInto("casks", casks)
+	}
+	if len(taps) > 0 {
+		marshalInto("taps", taps)
+	}
+	if len(npm) > 0 {
+		marshalInto("npm", npm)
+	}
 
 	normalised, err := json.Marshal(converted)
 	if err != nil {
@@ -250,27 +324,27 @@ func ValidateDotfilesURL(rawURL string) error {
 
 func (rc *RemoteConfig) Validate() error {
 	for _, p := range rc.Packages {
-		if len(p) > maxPackageNameLen {
-			return fmt.Errorf("package name too long (%d chars, max %d): %q", len(p), maxPackageNameLen, p)
+		if len(p.Name) > maxPackageNameLen {
+			return fmt.Errorf("package name too long (%d chars, max %d): %q", len(p.Name), maxPackageNameLen, p.Name)
 		}
-		if !pkgNameRe.MatchString(p) {
-			return fmt.Errorf("invalid package name: %q", p)
+		if !pkgNameRe.MatchString(p.Name) {
+			return fmt.Errorf("invalid package name: %q", p.Name)
 		}
 	}
 	for _, c := range rc.Casks {
-		if len(c) > maxPackageNameLen {
-			return fmt.Errorf("cask name too long (%d chars, max %d): %q", len(c), maxPackageNameLen, c)
+		if len(c.Name) > maxPackageNameLen {
+			return fmt.Errorf("cask name too long (%d chars, max %d): %q", len(c.Name), maxPackageNameLen, c.Name)
 		}
-		if !pkgNameRe.MatchString(c) {
-			return fmt.Errorf("invalid cask name: %q", c)
+		if !pkgNameRe.MatchString(c.Name) {
+			return fmt.Errorf("invalid cask name: %q", c.Name)
 		}
 	}
 	for _, n := range rc.Npm {
-		if len(n) > maxPackageNameLen {
-			return fmt.Errorf("npm package name too long (%d chars, max %d): %q", len(n), maxPackageNameLen, n)
+		if len(n.Name) > maxPackageNameLen {
+			return fmt.Errorf("npm package name too long (%d chars, max %d): %q", len(n.Name), maxPackageNameLen, n.Name)
 		}
-		if !pkgNameRe.MatchString(n) {
-			return fmt.Errorf("invalid npm package name: %q", n)
+		if !pkgNameRe.MatchString(n.Name) {
+			return fmt.Errorf("invalid npm package name: %q", n.Name)
 		}
 	}
 	for _, t := range rc.Taps {
@@ -426,10 +500,10 @@ func LoadRemoteConfigFromFile(path string) (*RemoteConfig, error) {
 // avoiding an import cycle with the snapshot package.
 type snapshotFile struct {
 	Packages struct {
-		Formulae []string `json:"formulae"`
-		Casks    []string `json:"casks"`
-		Taps     []string `json:"taps"`
-		Npm      []string `json:"npm"`
+		Formulae PackageEntryList `json:"formulae"`
+		Casks    PackageEntryList `json:"casks"`
+		Taps     []string         `json:"taps"`
+		Npm      PackageEntryList `json:"npm"`
 	} `json:"packages"`
 	Shell struct {
 		OhMyZsh bool     `json:"oh_my_zsh"`

@@ -483,3 +483,63 @@ func TestLinkWithStow_ZshBackupRestoredOnFailure(t *testing.T) {
 		assert.Equal(t, originalContent, string(content), ".zshrc should be restored after stow failure")
 	}
 }
+
+func TestBackupConflicts_BacksUpRegularFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pkgDir := filepath.Join(tmpDir, "pkg")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".gitconfig"), []byte("new"), 0644))
+
+	targetDir := filepath.Join(tmpDir, "home")
+	require.NoError(t, os.MkdirAll(targetDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(targetDir, ".gitconfig"), []byte("original"), 0644))
+
+	backed, err := backupConflicts(pkgDir, targetDir)
+	require.NoError(t, err)
+	assert.Len(t, backed, 1)
+
+	// Original file should be removed.
+	_, err = os.Stat(filepath.Join(targetDir, ".gitconfig"))
+	assert.True(t, os.IsNotExist(err))
+
+	// Backup should contain original content.
+	data, err := os.ReadFile(filepath.Join(targetDir, ".gitconfig.openboot.bak"))
+	require.NoError(t, err)
+	assert.Equal(t, "original", string(data))
+}
+
+func TestBackupConflicts_SkipsSymlinks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pkgDir := filepath.Join(tmpDir, "pkg")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".vimrc"), []byte("new"), 0644))
+
+	targetDir := filepath.Join(tmpDir, "home")
+	require.NoError(t, os.MkdirAll(targetDir, 0755))
+	// Create a symlink target — should not be backed up.
+	src := filepath.Join(tmpDir, "real_vimrc")
+	require.NoError(t, os.WriteFile(src, []byte("linked"), 0644))
+	require.NoError(t, os.Symlink(src, filepath.Join(targetDir, ".vimrc")))
+
+	backed, err := backupConflicts(pkgDir, targetDir)
+	require.NoError(t, err)
+	assert.Len(t, backed, 0)
+}
+
+func TestBackupConflicts_SkipsMissingTargets(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pkgDir := filepath.Join(tmpDir, "pkg")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".config"), []byte("new"), 0644))
+
+	targetDir := filepath.Join(tmpDir, "home")
+	require.NoError(t, os.MkdirAll(targetDir, 0755))
+	// No .config in targetDir — nothing to back up.
+
+	backed, err := backupConflicts(pkgDir, targetDir)
+	require.NoError(t, err)
+	assert.Len(t, backed, 0)
+}

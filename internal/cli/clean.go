@@ -130,7 +130,7 @@ func cleanFromRemote(userSlug string) (*cleaner.CleanResult, error) {
 		return nil, fmt.Errorf("fetch remote config: %w", err)
 	}
 
-	return cleaner.DiffFromLists(rc.Packages, rc.Casks, rc.Npm, rc.Taps)
+	return cleaner.DiffFromLists(rc.Packages.Names(), rc.Casks.Names(), rc.Npm.Names(), rc.Taps)
 }
 
 func cleanFromLocalSnapshot() (*cleaner.CleanResult, error) {

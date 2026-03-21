@@ -32,9 +32,9 @@ func TestPersistentPreRunE_UserFetchesRemoteConfig(t *testing.T) {
 		Username: "testuser",
 		Slug:     "default",
 		Preset:   "developer",
-		Packages: []string{"git"},
-		Casks:    []string{"firefox"},
-		Npm:      []string{"typescript"},
+		Packages: config.PackageEntryList{{Name: "git"}},
+		Casks:    config.PackageEntryList{{Name: "firefox"}},
+		Npm:      config.PackageEntryList{{Name: "typescript"}},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

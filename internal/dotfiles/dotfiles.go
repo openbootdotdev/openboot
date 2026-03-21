@@ -188,6 +188,49 @@ func ensureStow(dryRun bool) error {
 	return nil
 }
 
+// backupConflicts walks a stow package directory and backs up any existing
+// regular files in targetDir that would conflict with stow. Returns the list
+// of backup pairs so they can be restored on failure or cleaned up on success.
+func backupConflicts(pkgDir, targetDir string) ([][2]string, error) {
+	var backed [][2]string
+
+	err := filepath.WalkDir(pkgDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(pkgDir, path)
+		if relErr != nil {
+			return relErr
+		}
+		target := filepath.Join(targetDir, rel)
+
+		info, statErr := os.Lstat(target)
+		if statErr != nil || info.Mode()&os.ModeSymlink != 0 {
+			// Target doesn't exist or is already a symlink — no conflict.
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		backupPath := target + ".openboot.bak"
+		if bErr := backupFile(target, backupPath); bErr != nil {
+			return fmt.Errorf("backup %s: %w", target, bErr)
+		}
+		if rErr := os.Remove(target); rErr != nil {
+			return fmt.Errorf("remove %s after backup: %w", target, rErr)
+		}
+		backed = append(backed, [2]string{backupPath, target})
+		return nil
+	})
+
+	return backed, err
+}
+
 func linkWithStow(dotfilesPath string, dryRun bool) error {
 	if err := ensureStow(dryRun); err != nil {
 		return err
@@ -216,21 +259,17 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 			continue
 		}
 
-		// For the zsh package: back up .zshrc before removing it so we can
-		// restore it if stow fails, preventing an unrecoverable loss of shell config.
-		var zshrcBackedUp bool
-		var zshrcPath, zshrcBackupPath string
+		pkgDir := filepath.Join(dotfilesPath, pkg)
+
+		// Back up any existing regular files that would conflict with stow.
+		backed, backupErr := backupConflicts(pkgDir, home)
+		if backupErr != nil {
+			errs = append(errs, fmt.Errorf("stow %s: %w", pkg, backupErr))
+			continue
+		}
+
+		// Remove Oh-My-Zsh leftover that also blocks the zsh package.
 		if pkg == "zsh" {
-			zshrcPath = filepath.Join(home, ".zshrc")
-			zshrcBackupPath = zshrcPath + ".openboot.bak"
-			if _, statErr := os.Stat(zshrcPath); statErr == nil {
-				if err := backupFile(zshrcPath, zshrcBackupPath); err != nil {
-					errs = append(errs, fmt.Errorf("stow %s: %w", pkg, err))
-					continue
-				}
-				zshrcBackedUp = true
-			}
-			os.Remove(zshrcPath)
 			os.Remove(filepath.Join(home, ".zshrc.pre-oh-my-zsh"))
 		}
 
@@ -239,17 +278,18 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			// Restore .zshrc backup so the user isn't left without a shell config.
-			if zshrcBackedUp {
-				restoreFile(zshrcBackupPath, zshrcPath)
+			// Restore all backups so the user isn't left without their config.
+			for _, pair := range backed {
+				restoreFile(pair[0], pair[1])
 			}
 			errs = append(errs, fmt.Errorf("stow %s: %w", pkg, err))
 			continue
 		}
 
-		if zshrcBackedUp {
-			if err := os.Remove(zshrcBackupPath); err != nil {
-				ui.Warn(fmt.Sprintf("could not remove .zshrc backup: %v", err))
+		// Stow succeeded — clean up backups.
+		for _, pair := range backed {
+			if rmErr := os.Remove(pair[0]); rmErr != nil {
+				ui.Warn(fmt.Sprintf("could not remove backup %s: %v", pair[0], rmErr))
 			}
 		}
 	}

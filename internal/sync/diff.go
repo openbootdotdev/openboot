@@ -125,17 +125,17 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	}
 
 	// Package diffs — exclude cask names from formulae comparison
-	casksSet := ToSet(rc.Casks)
+	casksSet := ToSet(rc.Casks.Names())
 	remoteFormulae := make([]string, 0, len(rc.Packages))
 	for _, p := range rc.Packages {
-		if !casksSet[p] {
-			remoteFormulae = append(remoteFormulae, p)
+		if !casksSet[p.Name] {
+			remoteFormulae = append(remoteFormulae, p.Name)
 		}
 	}
 	d.MissingFormulae, d.ExtraFormulae = diffLists(remoteFormulae, localFormulae)
-	d.MissingCasks, d.ExtraCasks = diffLists(rc.Casks, localCasks)
+	d.MissingCasks, d.ExtraCasks = diffLists(rc.Casks.Names(), localCasks)
 	d.MissingTaps, d.ExtraTaps = diffLists(rc.Taps, localTaps)
-	d.MissingNpm, d.ExtraNpm = diffLists(rc.Npm, localNpm)
+	d.MissingNpm, d.ExtraNpm = diffLists(rc.Npm.Names(), localNpm)
 
 	// Dotfiles diff
 	if rc.DotfilesRepo != "" {

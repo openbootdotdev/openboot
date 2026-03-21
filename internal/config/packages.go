@@ -96,6 +96,20 @@ func IsCaskPackage(name string) bool {
 	return false
 }
 
+// CatalogDescriptionMap builds a name → description lookup from the embedded
+// packages catalog. Use as a fallback when PackageEntry.Desc is empty.
+func CatalogDescriptionMap() map[string]string {
+	m := make(map[string]string)
+	for _, cat := range Categories {
+		for _, pkg := range cat.Packages {
+			if pkg.Description != "" {
+				m[pkg.Name] = pkg.Description
+			}
+		}
+	}
+	return m
+}
+
 func IsTapPackage(name string) bool {
 	parts := 0
 	for _, c := range name {

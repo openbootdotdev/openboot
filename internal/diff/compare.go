@@ -28,9 +28,9 @@ func CompareSnapshotToRemote(system *snapshot.Snapshot, remote *config.RemoteCon
 	return &DiffResult{
 		Source: source,
 		Packages: PackageDiff{
-			Formulae: DiffLists(system.Packages.Formulae, remote.Packages),
-			Casks:    DiffLists(system.Packages.Casks, remote.Casks),
-			Npm:      DiffLists(system.Packages.Npm, remote.Npm),
+			Formulae: DiffLists(system.Packages.Formulae, remote.Packages.Names()),
+			Casks:    DiffLists(system.Packages.Casks, remote.Casks.Names()),
+			Npm:      DiffLists(system.Packages.Npm, remote.Npm.Names()),
 			Taps:     DiffLists(system.Packages.Taps, remote.Taps),
 		},
 	}

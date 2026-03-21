@@ -21,7 +21,7 @@ func TestRemoteConfigToAPIPackages(t *testing.T) {
 		{
 			name: "formulae only",
 			rc: &config.RemoteConfig{
-				Packages: []string{"git", "go"},
+				Packages: config.PackageEntryList{{Name: "git"}, {Name: "go"}},
 			},
 			expected: []apiPackage{
 				{Name: "git", Type: "formula"},
@@ -31,9 +31,9 @@ func TestRemoteConfigToAPIPackages(t *testing.T) {
 		{
 			name: "all types including taps",
 			rc: &config.RemoteConfig{
-				Packages: []string{"git"},
-				Casks:    []string{"docker"},
-				Npm:      []string{"typescript"},
+				Packages: config.PackageEntryList{{Name: "git"}},
+				Casks:    config.PackageEntryList{{Name: "docker"}},
+				Npm:      config.PackageEntryList{{Name: "typescript"}},
 				Taps:     []string{"homebrew/cask-fonts", "hashicorp/tap"},
 			},
 			expected: []apiPackage{
@@ -69,11 +69,11 @@ func TestRemoteConfigToAPIPackages(t *testing.T) {
 
 func TestRemoteConfigToAPIPackagesImmutability(t *testing.T) {
 	rc := &config.RemoteConfig{
-		Packages: []string{"git"},
+		Packages: config.PackageEntryList{{Name: "git"}},
 		Taps:     []string{"homebrew/core"},
 	}
 
-	originalPackages := make([]string, len(rc.Packages))
+	originalPackages := make(config.PackageEntryList, len(rc.Packages))
 	copy(originalPackages, rc.Packages)
 	originalTaps := make([]string, len(rc.Taps))
 	copy(originalTaps, rc.Taps)
@@ -91,7 +91,7 @@ func TestTapsNotInRequestBodyAsTopLevelField(t *testing.T) {
 	// reqBody without a "taps" key — this test documents that contract
 	// by checking remoteConfigToAPIPackages includes taps.
 	rc := &config.RemoteConfig{
-		Packages: []string{"git"},
+		Packages: config.PackageEntryList{{Name: "git"}},
 		Taps:     []string{"hashicorp/tap"},
 	}
 

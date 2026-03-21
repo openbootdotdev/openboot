@@ -163,20 +163,23 @@ func pushConfig(data []byte, slug, token, username, apiBase string) error {
 type apiPackage struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	Desc string `json:"desc,omitempty"`
 }
 
 func remoteConfigToAPIPackages(rc *config.RemoteConfig) []apiPackage {
 	totalCap := len(rc.Packages) + len(rc.Casks) + len(rc.Npm) + len(rc.Taps)
 	pkgs := make([]apiPackage, 0, totalCap)
-	appendTyped := func(items []string, typeName string) {
-		for _, item := range items {
-			pkgs = append(pkgs, apiPackage{Name: item, Type: typeName})
+	appendEntries := func(entries config.PackageEntryList, typeName string) {
+		for _, e := range entries {
+			pkgs = append(pkgs, apiPackage{Name: e.Name, Type: typeName, Desc: e.Desc})
 		}
 	}
-	appendTyped(rc.Packages, "formula")
-	appendTyped(rc.Casks, "cask")
-	appendTyped(rc.Npm, "npm")
-	appendTyped(rc.Taps, "tap")
+	appendEntries(rc.Packages, "formula")
+	appendEntries(rc.Casks, "cask")
+	appendEntries(rc.Npm, "npm")
+	for _, t := range rc.Taps {
+		pkgs = append(pkgs, apiPackage{Name: t, Type: "tap"})
+	}
 	return pkgs
 }
 

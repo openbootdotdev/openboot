@@ -70,10 +70,10 @@ func TestFetchRemoteConfig_PublicConfig_NoToken(t *testing.T) {
 		Slug:         "myconfig",
 		Name:         "Test Config",
 		Preset:       "developer",
-		Packages:     []string{"git", "curl"},
-		Casks:        []string{"firefox"},
+		Packages:     PackageEntryList{{Name: "git"}, {Name: "curl"}},
+		Casks:        PackageEntryList{{Name: "firefox"}},
 		Taps:         []string{"homebrew/cask-fonts"},
-		Npm:          []string{"typescript"},
+		Npm:          PackageEntryList{{Name: "typescript"}},
 		DotfilesRepo: "https://github.com/testuser/dotfiles",
 	}
 
@@ -357,10 +357,10 @@ func TestUnmarshalRemoteConfigFlexible_FlatStringArrays(t *testing.T) {
 
 	rc, err := UnmarshalRemoteConfigFlexible(data)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"git", "curl"}, rc.Packages)
-	assert.Equal(t, []string{"firefox"}, rc.Casks)
+	assert.Equal(t, PackageEntryList{{Name: "git"}, {Name: "curl"}}, rc.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "firefox"}}, rc.Casks)
 	assert.Equal(t, []string{"homebrew/cask-fonts"}, rc.Taps)
-	assert.Equal(t, []string{"typescript"}, rc.Npm)
+	assert.Equal(t, PackageEntryList{{Name: "typescript"}}, rc.Npm)
 }
 
 func TestUnmarshalRemoteConfigFlexible_TypedObjectArray(t *testing.T) {
@@ -380,10 +380,10 @@ func TestUnmarshalRemoteConfigFlexible_TypedObjectArray(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "testuser", rc.Username)
 	assert.Equal(t, "My Setup", rc.Name)
-	assert.Equal(t, []string{"git", "curl"}, rc.Packages)
-	assert.Equal(t, []string{"firefox"}, rc.Casks)
+	assert.Equal(t, PackageEntryList{{Name: "git"}, {Name: "curl"}}, rc.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "firefox"}}, rc.Casks)
 	assert.Equal(t, []string{"homebrew/cask-fonts"}, rc.Taps)
-	assert.Equal(t, []string{"typescript"}, rc.Npm)
+	assert.Equal(t, PackageEntryList{{Name: "typescript"}}, rc.Npm)
 }
 
 func TestUnmarshalRemoteConfigFlexible_TypedObjectWithDesc(t *testing.T) {
@@ -396,8 +396,8 @@ func TestUnmarshalRemoteConfigFlexible_TypedObjectWithDesc(t *testing.T) {
 
 	rc, err := UnmarshalRemoteConfigFlexible(data)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"git"}, rc.Packages)
-	assert.Equal(t, []string{"firefox"}, rc.Casks)
+	assert.Equal(t, PackageEntryList{{Name: "git", Desc: "Version control"}}, rc.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "firefox", Desc: "Web browser"}}, rc.Casks)
 }
 
 func TestUnmarshalRemoteConfigFlexible_PreservesOtherFields(t *testing.T) {
@@ -420,7 +420,7 @@ func TestUnmarshalRemoteConfigFlexible_PreservesOtherFields(t *testing.T) {
 	assert.Equal(t, "myconfig", rc.Slug)
 	assert.Equal(t, "developer", rc.Preset)
 	assert.Equal(t, "https://github.com/testuser/dotfiles", rc.DotfilesRepo)
-	assert.Equal(t, []string{"git"}, rc.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "git"}}, rc.Packages)
 	require.NotNil(t, rc.Shell)
 	assert.True(t, rc.Shell.OhMyZsh)
 	assert.Equal(t, "robbyrussell", rc.Shell.Theme)
@@ -446,7 +446,7 @@ func TestUnmarshalRemoteConfigFlexible_MacOSPrefsFromSnapshot(t *testing.T) {
 
 	rc, err := UnmarshalRemoteConfigFlexible(data)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"git"}, rc.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "git"}}, rc.Packages)
 	require.Len(t, rc.MacOSPrefs, 2)
 	assert.Equal(t, "com.apple.dock", rc.MacOSPrefs[0].Domain)
 	assert.Equal(t, "autohide", rc.MacOSPrefs[0].Key)
@@ -488,17 +488,17 @@ func TestRemoteConfig_Validate_NameTooLong(t *testing.T) {
 	}{
 		{
 			name:    "package name too long",
-			config:  RemoteConfig{Packages: []string{longName}},
+			config:  RemoteConfig{Packages: PackageEntryList{{Name: longName}}},
 			wantErr: "package name too long (201 chars, max 200)",
 		},
 		{
 			name:    "cask name too long",
-			config:  RemoteConfig{Casks: []string{longName}},
+			config:  RemoteConfig{Casks: PackageEntryList{{Name: longName}}},
 			wantErr: "cask name too long (201 chars, max 200)",
 		},
 		{
 			name:    "npm name too long",
-			config:  RemoteConfig{Npm: []string{longName}},
+			config:  RemoteConfig{Npm: PackageEntryList{{Name: longName}}},
 			wantErr: "npm package name too long (201 chars, max 200)",
 		},
 		{
@@ -508,7 +508,7 @@ func TestRemoteConfig_Validate_NameTooLong(t *testing.T) {
 		},
 		{
 			name:   "package name at limit is valid",
-			config: RemoteConfig{Packages: []string{strings.Repeat("a", 200)}},
+			config: RemoteConfig{Packages: PackageEntryList{{Name: strings.Repeat("a", 200)}}},
 		},
 	}
 

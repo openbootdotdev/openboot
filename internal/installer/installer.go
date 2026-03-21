@@ -116,13 +116,13 @@ func runCustomInstall(cfg *config.Config) error {
 	fmt.Println()
 
 	if formulaeCount > 0 {
-		ui.Muted("  CLI tools: " + strings.Join(cfg.RemoteConfig.Packages, ", "))
+		ui.Muted("  CLI tools: " + strings.Join(cfg.RemoteConfig.Packages.Names(), ", "))
 	}
 	if caskCount > 0 {
-		ui.Muted("  Apps:      " + strings.Join(cfg.RemoteConfig.Casks, ", "))
+		ui.Muted("  Apps:      " + strings.Join(cfg.RemoteConfig.Casks.Names(), ", "))
 	}
 	if npmCount > 0 {
-		ui.Muted("  npm:       " + strings.Join(cfg.RemoteConfig.Npm, ", "))
+		ui.Muted("  npm:       " + strings.Join(cfg.RemoteConfig.Npm.Names(), ", "))
 	}
 	fmt.Println()
 
@@ -146,7 +146,7 @@ func runCustomInstall(cfg *config.Config) error {
 
 	cfg.SelectedPkgs = make(map[string]bool)
 	for _, pkg := range cfg.RemoteConfig.Packages {
-		cfg.SelectedPkgs[pkg] = true
+		cfg.SelectedPkgs[pkg.Name] = true
 	}
 
 	if err := stepInstallPackages(cfg); err != nil {
@@ -399,7 +399,7 @@ func stepPackageCustomization(cfg *config.Config) error {
 
 	if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
 		for _, pkg := range cfg.RemoteConfig.Packages {
-			cfg.SelectedPkgs[pkg] = true
+			cfg.SelectedPkgs[pkg.Name] = true
 		}
 	}
 
@@ -492,7 +492,7 @@ func stepInstallNpm(cfg *config.Config) error {
 	var npmPkgs []string
 
 	if cfg.RemoteConfig != nil {
-		npmPkgs = cfg.RemoteConfig.Npm
+		npmPkgs = cfg.RemoteConfig.Npm.Names()
 	} else {
 		pkgs := categorizeSelectedPackages(cfg)
 		npmPkgs = pkgs.npm
@@ -1116,11 +1116,11 @@ func categorizeSelectedPackages(cfg *config.Config) categorizedPackages {
 	if cfg.RemoteConfig != nil {
 		caskSet := make(map[string]bool)
 		for _, c := range cfg.RemoteConfig.Casks {
-			caskSet[c] = true
+			caskSet[c.Name] = true
 		}
 		npmSet := make(map[string]bool)
 		for _, n := range cfg.RemoteConfig.Npm {
-			npmSet[n] = true
+			npmSet[n.Name] = true
 		}
 		for pkg := range cfg.SelectedPkgs {
 			if npmSet[pkg] || config.IsNpmPackage(pkg) {

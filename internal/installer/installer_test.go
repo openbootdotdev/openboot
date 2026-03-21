@@ -50,8 +50,8 @@ func TestCategorizeSelectedPackages_EmptySelection(t *testing.T) {
 func TestCategorizeSelectedPackages_RemoteConfig(t *testing.T) {
 	cfg := &config.Config{
 		RemoteConfig: &config.RemoteConfig{
-			Casks: []string{"visual-studio-code", "firefox"},
-			Npm:   []string{"typescript", "eslint"},
+			Casks: config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "firefox"}},
+			Npm:   config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
 		},
 		SelectedPkgs: map[string]bool{
 			"git":                true,
@@ -71,8 +71,8 @@ func TestCategorizeSelectedPackages_RemoteConfig(t *testing.T) {
 func TestCategorizeSelectedPackages_RemoteConfig_NoCasks(t *testing.T) {
 	cfg := &config.Config{
 		RemoteConfig: &config.RemoteConfig{
-			Casks: []string{},
-			Npm:   []string{},
+			Casks: config.PackageEntryList{},
+			Npm:   config.PackageEntryList{},
 		},
 		SelectedPkgs: map[string]bool{
 			"git":  true,
@@ -125,8 +125,8 @@ func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
 		RemoteConfig: &config.RemoteConfig{
 			Username: "testuser",
 			Slug:     "default",
-			Packages: []string{"git", "curl"},
-			Casks:    []string{"firefox"},
+			Packages: config.PackageEntryList{{Name: "git"}, {Name: "curl"}},
+			Casks:    config.PackageEntryList{{Name: "firefox"}},
 			Taps:     []string{"homebrew/cask"},
 		},
 	}
@@ -447,7 +447,7 @@ func TestRunCustomInstall_RunsShellDotfilesMacOS(t *testing.T) {
 		RemoteConfig: &config.RemoteConfig{
 			Username: "testuser",
 			Slug:     "default",
-			Packages: []string{"git"},
+			Packages: config.PackageEntryList{{Name: "git"}},
 		},
 	}
 
@@ -467,7 +467,7 @@ func TestRunCustomInstall_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
 		RemoteConfig: &config.RemoteConfig{
 			Username:     "testuser",
 			Slug:         "default",
-			Packages:     []string{"git"},
+			Packages:     config.PackageEntryList{{Name: "git"}},
 			DotfilesRepo: "https://github.com/testuser/dotfiles",
 		},
 	}
@@ -488,7 +488,7 @@ func TestRunCustomInstall_DotfilesFallsBackToDefault(t *testing.T) {
 		RemoteConfig: &config.RemoteConfig{
 			Username: "testuser",
 			Slug:     "default",
-			Packages: []string{"git"},
+			Packages: config.PackageEntryList{{Name: "git"}},
 		},
 		Dotfiles: "link",
 	}
@@ -691,7 +691,7 @@ func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
 		RemoteConfig: &config.RemoteConfig{
 			Username:    "testuser",
 			Slug:        "default",
-			Packages:    []string{"git"},
+			Packages:    config.PackageEntryList{{Name: "git"}},
 			PostInstall: []string{"mise install", "npm install -g pnpm"},
 		},
 	}

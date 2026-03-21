@@ -187,9 +187,9 @@ func TestCompareSnapshotToRemote(t *testing.T) {
 		Git:   snapshot.GitSnapshot{UserName: "Alice"},
 	}
 	remote := &config.RemoteConfig{
-		Packages: []string{"git", "ripgrep"},
-		Casks:    []string{"firefox", "slack"},
-		Npm:      []string{"typescript"},
+		Packages: config.PackageEntryList{{Name: "git"}, {Name: "ripgrep"}},
+		Casks:    config.PackageEntryList{{Name: "firefox"}, {Name: "slack"}},
+		Npm:      config.PackageEntryList{{Name: "typescript"}},
 		Taps:     []string{"homebrew/core"},
 	}
 

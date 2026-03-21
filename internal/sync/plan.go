@@ -157,6 +157,9 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 		if err := dotfiles.Clone(plan.UpdateDotfiles, dryRun); err != nil {
 			errs = append(errs, fmt.Errorf("update dotfiles: %w", err))
 			result.Errors = append(result.Errors, fmt.Sprintf("dotfiles: %v", err))
+		} else if err := dotfiles.Link(dryRun); err != nil {
+			errs = append(errs, fmt.Errorf("link dotfiles: %w", err))
+			result.Errors = append(result.Errors, fmt.Sprintf("dotfiles link: %v", err))
 		} else {
 			result.Updated++
 		}
