@@ -20,7 +20,7 @@ release_validation_task:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
-    - brew install go sshpass hudochenkov/sshpass/sshpass cirruslabs/cli/tart
+    - brew install go hudochenkov/sshpass/sshpass cirruslabs/cli/tart
   build_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
     - make build
@@ -42,7 +42,7 @@ full_journey_task:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
-    - brew install go sshpass hudochenkov/sshpass/sshpass cirruslabs/cli/tart
+    - brew install go hudochenkov/sshpass/sshpass cirruslabs/cli/tart
   build_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
     - make build
@@ -58,7 +58,7 @@ full_edge_cases_task:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
-    - brew install go sshpass hudochenkov/sshpass/sshpass cirruslabs/cli/tart
+    - brew install go hudochenkov/sshpass/sshpass cirruslabs/cli/tart
   build_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
     - make build
@@ -74,7 +74,7 @@ full_commands_task:
     image: ghcr.io/cirruslabs/macos-sequoia-base:latest
   install_deps_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
-    - brew install go sshpass hudochenkov/sshpass/sshpass cirruslabs/cli/tart
+    - brew install go hudochenkov/sshpass/sshpass cirruslabs/cli/tart
   build_script:
     - eval "$(/opt/homebrew/bin/brew shellenv)"
     - make build
