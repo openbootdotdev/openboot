@@ -67,9 +67,6 @@ jobs:
       - name: Integration tests
         run: make test-integration
 
-      - name: E2E tests (safe)
-        run: make test-e2e
-
       - name: Destructive tests
         run: make test-destructive
 

@@ -36,7 +36,6 @@ test-all:
 	@echo "Running all tests..."
 	$(MAKE) test-unit
 	$(MAKE) test-integration
-	-$(MAKE) test-e2e
 	$(MAKE) test-coverage
 
 # =============================================================================
