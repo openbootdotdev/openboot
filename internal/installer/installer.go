@@ -115,15 +115,9 @@ func runCustomInstall(cfg *config.Config) error {
 	ui.Info(fmt.Sprintf("Estimated install time: ~%d min for %d packages", minutes, totalPackages))
 	fmt.Println()
 
-	if formulaeCount > 0 {
-		ui.Muted("  CLI tools: " + strings.Join(cfg.RemoteConfig.Packages.Names(), ", "))
-	}
-	if caskCount > 0 {
-		ui.Muted("  Apps:      " + strings.Join(cfg.RemoteConfig.Casks.Names(), ", "))
-	}
-	if npmCount > 0 {
-		ui.Muted("  npm:       " + strings.Join(cfg.RemoteConfig.Npm.Names(), ", "))
-	}
+	printPackageList("CLI tools", cfg.RemoteConfig.Packages)
+	printPackageList("Apps", cfg.RemoteConfig.Casks)
+	printPackageList("npm", cfg.RemoteConfig.Npm)
 	fmt.Println()
 
 	if !cfg.Silent && !cfg.DryRun {
@@ -1112,6 +1106,31 @@ func runUpdate(cfg *config.Config) error {
 	fmt.Println()
 	ui.Header("Update Complete!")
 	return nil
+}
+
+func printPackageList(label string, pkgs config.PackageEntryList) {
+	if len(pkgs) == 0 {
+		return
+	}
+	hasDesc := false
+	for _, pkg := range pkgs {
+		if pkg.Desc != "" {
+			hasDesc = true
+			break
+		}
+	}
+	if !hasDesc {
+		ui.Muted(fmt.Sprintf("  %s: %s", label, strings.Join(pkgs.Names(), ", ")))
+		return
+	}
+	ui.Muted(fmt.Sprintf("  %s:", label))
+	for _, pkg := range pkgs {
+		if pkg.Desc != "" {
+			ui.Muted(fmt.Sprintf("    %s — %s", pkg.Name, pkg.Desc))
+		} else {
+			ui.Muted(fmt.Sprintf("    %s", pkg.Name))
+		}
+	}
 }
 
 func estimateInstallMinutes(formulaeCount, caskCount, npmCount int) int {

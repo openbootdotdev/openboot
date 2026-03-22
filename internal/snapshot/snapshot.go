@@ -67,7 +67,8 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
 			Desc string `json:"desc"`
 		} `json:"npm"`
 	}
-	if err := json.Unmarshal(data, &richObj); err == nil && len(richObj.Formulae) > 0 {
+	if err := json.Unmarshal(data, &richObj); err == nil &&
+		(len(richObj.Formulae) > 0 || len(richObj.Casks) > 0 || len(richObj.Npm) > 0) {
 		ps.Descriptions = make(map[string]string)
 		for _, p := range richObj.Formulae {
 			ps.Formulae = append(ps.Formulae, p.Name)
@@ -125,6 +126,47 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error {
 	}
 
 	return fmt.Errorf("packages must be an object {formulae,casks,taps,npm} or an array")
+}
+
+// MarshalJSON outputs packages as rich objects when descriptions exist,
+// falling back to plain string arrays for backward compatibility.
+func (ps PackageSnapshot) MarshalJSON() ([]byte, error) {
+	if len(ps.Descriptions) == 0 {
+		type alias PackageSnapshot
+		return json.Marshal(alias(ps))
+	}
+
+	type entry struct {
+		Name string `json:"name"`
+		Desc string `json:"desc,omitempty"`
+	}
+
+	formulae := make([]entry, len(ps.Formulae))
+	for i, name := range ps.Formulae {
+		formulae[i] = entry{Name: name, Desc: ps.Descriptions[name]}
+	}
+
+	casks := make([]entry, len(ps.Casks))
+	for i, name := range ps.Casks {
+		casks[i] = entry{Name: name, Desc: ps.Descriptions[name]}
+	}
+
+	npm := make([]entry, len(ps.Npm))
+	for i, name := range ps.Npm {
+		npm[i] = entry{Name: name, Desc: ps.Descriptions[name]}
+	}
+
+	return json.Marshal(struct {
+		Formulae []entry  `json:"formulae"`
+		Casks    []entry  `json:"casks"`
+		Taps     []string `json:"taps"`
+		Npm      []entry  `json:"npm"`
+	}{
+		Formulae: formulae,
+		Casks:    casks,
+		Taps:     ps.Taps,
+		Npm:      npm,
+	})
 }
 
 type MacOSPref struct {

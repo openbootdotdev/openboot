@@ -461,3 +461,108 @@ func TestSnapshot_CatalogMatchWithLowRate(t *testing.T) {
 	assert.Equal(t, 4, len(snap.CatalogMatch.Unmatched))
 	assert.InDelta(t, 0.2, snap.CatalogMatch.MatchRate, 0.01)
 }
+
+func TestPackageSnapshot_MarshalJSON_NoDescriptions(t *testing.T) {
+	ps := PackageSnapshot{
+		Formulae: []string{"git", "curl"},
+		Casks:    []string{"docker"},
+		Taps:     []string{"homebrew/core"},
+		Npm:      []string{"typescript"},
+	}
+
+	data, err := json.Marshal(ps)
+	require.NoError(t, err)
+
+	// Should output plain string arrays (backward compat)
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	var formulae []string
+	require.NoError(t, json.Unmarshal(raw["formulae"], &formulae))
+	assert.Equal(t, []string{"git", "curl"}, formulae)
+}
+
+func TestPackageSnapshot_MarshalJSON_WithDescriptions(t *testing.T) {
+	ps := PackageSnapshot{
+		Formulae:     []string{"git", "curl"},
+		Casks:        []string{"docker"},
+		Taps:         []string{"homebrew/core"},
+		Npm:          []string{"typescript"},
+		Descriptions: map[string]string{
+			"git":        "Version control system",
+			"curl":       "Transfer data with URLs",
+			"docker":     "Container platform",
+			"typescript": "Typed JavaScript",
+		},
+	}
+
+	data, err := json.Marshal(ps)
+	require.NoError(t, err)
+
+	// Should output rich objects with desc
+	type entry struct {
+		Name string `json:"name"`
+		Desc string `json:"desc"`
+	}
+	var raw struct {
+		Formulae []entry  `json:"formulae"`
+		Casks    []entry  `json:"casks"`
+		Taps     []string `json:"taps"`
+		Npm      []entry  `json:"npm"`
+	}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	assert.Equal(t, "git", raw.Formulae[0].Name)
+	assert.Equal(t, "Version control system", raw.Formulae[0].Desc)
+	assert.Equal(t, "curl", raw.Formulae[1].Name)
+	assert.Equal(t, "Transfer data with URLs", raw.Formulae[1].Desc)
+	assert.Equal(t, "docker", raw.Casks[0].Name)
+	assert.Equal(t, "Container platform", raw.Casks[0].Desc)
+	assert.Equal(t, []string{"homebrew/core"}, raw.Taps)
+}
+
+func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
+	original := PackageSnapshot{
+		Formulae:     []string{"git", "curl"},
+		Casks:        []string{"docker"},
+		Taps:         []string{"homebrew/core"},
+		Npm:          []string{"typescript"},
+		Descriptions: map[string]string{
+			"git":        "Version control system",
+			"curl":       "Transfer data with URLs",
+			"docker":     "Container platform",
+			"typescript": "Typed JavaScript",
+		},
+	}
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var restored PackageSnapshot
+	require.NoError(t, json.Unmarshal(data, &restored))
+
+	assert.Equal(t, original.Formulae, restored.Formulae)
+	assert.Equal(t, original.Casks, restored.Casks)
+	assert.Equal(t, original.Taps, restored.Taps)
+	assert.Equal(t, original.Npm, restored.Npm)
+	assert.Equal(t, original.Descriptions, restored.Descriptions)
+}
+
+func TestPackageSnapshot_MarshalJSON_RoundTrip_CaskOnly(t *testing.T) {
+	original := PackageSnapshot{
+		Casks: []string{"docker", "slack"},
+		Descriptions: map[string]string{
+			"docker": "Container platform",
+			"slack":  "Team communication",
+		},
+	}
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var restored PackageSnapshot
+	require.NoError(t, json.Unmarshal(data, &restored))
+
+	assert.Equal(t, original.Casks, restored.Casks)
+	assert.Equal(t, original.Descriptions, restored.Descriptions)
+}
