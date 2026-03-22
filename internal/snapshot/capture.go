@@ -295,26 +295,7 @@ func captureBrewList(args ...string) ([]string, error) {
 }
 
 func CaptureFormulae() ([]string, error) {
-	all, err := captureBrewList("leaves")
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalize tap formulae: "user/repo/formula" → "formula"
-	// These are real packages installed from third-party taps.
-	// The tap itself is captured separately by CaptureTaps().
-	// Storing just the formula name avoids confusion in the UI
-	// and matches what "brew install formula" expects.
-	var formulae []string
-	for _, f := range all {
-		if strings.Contains(f, "/") {
-			parts := strings.Split(f, "/")
-			formulae = append(formulae, parts[len(parts)-1])
-		} else {
-			formulae = append(formulae, f)
-		}
-	}
-	return formulae, nil
+	return captureBrewList("leaves")
 }
 
 func CaptureCasks() ([]string, error) {
