@@ -295,7 +295,20 @@ func captureBrewList(args ...string) ([]string, error) {
 }
 
 func CaptureFormulae() ([]string, error) {
-	return captureBrewList("leaves")
+	all, err := captureBrewList("leaves")
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter out tap formulae (e.g. "openbootdotdev/tap", "user/tap/formula")
+	// which brew leaves includes but are not standalone packages.
+	var formulae []string
+	for _, f := range all {
+		if !strings.Contains(f, "/") {
+			formulae = append(formulae, f)
+		}
+	}
+	return formulae, nil
 }
 
 func CaptureCasks() ([]string, error) {
