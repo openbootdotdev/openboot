@@ -300,11 +300,17 @@ func CaptureFormulae() ([]string, error) {
 		return nil, err
 	}
 
-	// Filter out tap formulae (e.g. "openbootdotdev/tap", "user/tap/formula")
-	// which brew leaves includes but are not standalone packages.
+	// Normalize tap formulae: "user/repo/formula" → "formula"
+	// These are real packages installed from third-party taps.
+	// The tap itself is captured separately by CaptureTaps().
+	// Storing just the formula name avoids confusion in the UI
+	// and matches what "brew install formula" expects.
 	var formulae []string
 	for _, f := range all {
-		if !strings.Contains(f, "/") {
+		if strings.Contains(f, "/") {
+			parts := strings.Split(f, "/")
+			formulae = append(formulae, parts[len(parts)-1])
+		} else {
 			formulae = append(formulae, f)
 		}
 	}
