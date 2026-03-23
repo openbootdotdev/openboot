@@ -30,11 +30,35 @@ var DefaultCategories = []PrefCategory{
 		Name: "Finder",
 		Icon: "📁",
 		Prefs: []Preference{
+			// View
 			{"com.apple.finder", "ShowPathbar", "bool", "true", "Show path bar in Finder"},
 			{"com.apple.finder", "ShowStatusBar", "bool", "true", "Show status bar in Finder"},
+			{"com.apple.finder", "ShowSidebar", "bool", "true", "Show sidebar in Finder"},
+			{"com.apple.finder", "ShowTabView", "bool", "true", "Show tab bar in Finder"},
+			{"com.apple.finder", "ShowPreviewPane", "bool", "false", "Show preview pane in Finder"},
 			{"com.apple.finder", "FXPreferredViewStyle", "string", "Nlsv", "Use list view in Finder"},
-			{"com.apple.finder", "FXEnableExtensionChangeWarning", "bool", "false", "No extension change warning"},
 			{"com.apple.finder", "AppleShowAllFiles", "bool", "true", "Show hidden files in Finder"},
+			{"com.apple.finder", "_FXShowPosixPathInTitle", "bool", "true", "Show full POSIX path in Finder title"},
+			// Behavior
+			{"com.apple.finder", "FXEnableExtensionChangeWarning", "bool", "false", "No extension change warning"},
+			{"com.apple.finder", "FXDefaultSearchScope", "string", "SCcf", "Search current folder by default"},
+			{"com.apple.finder", "_FXSortFoldersFirst", "bool", "true", "Keep folders on top when sorting by name"},
+			{"com.apple.finder", "_FXSortFoldersFirstOnDesktop", "bool", "true", "Keep folders on top on Desktop"},
+			{"com.apple.finder", "WarnOnEmptyTrash", "bool", "false", "Don't warn before emptying Trash"},
+			{"com.apple.finder", "FXRemoveOldTrashItems", "bool", "true", "Remove Trash items after 30 days"},
+			{"com.apple.finder", "QuitMenuItem", "bool", "true", "Allow quitting Finder via ⌘Q"},
+			// New Window
+			{"com.apple.finder", "NewWindowTarget", "string", "PfHm", "New Finder window target (PfHm=Home, PfDe=Desktop, PfDo=Documents, PfLo=Other)"},
+			{"com.apple.finder", "NewWindowTargetPath", "string", "", "Custom path for new Finder windows (when target is PfLo)"},
+			// Desktop icons
+			{"com.apple.finder", "ShowExternalHardDrivesOnDesktop", "bool", "true", "Show external drives on Desktop"},
+			{"com.apple.finder", "ShowHardDrivesOnDesktop", "bool", "false", "Don't show hard drives on Desktop"},
+			{"com.apple.finder", "ShowMountedServersOnDesktop", "bool", "false", "Don't show servers on Desktop"},
+			{"com.apple.finder", "ShowRemovableMediaOnDesktop", "bool", "true", "Show removable media on Desktop"},
+			{"com.apple.finder", "ShowRecentTags", "bool", "true", "Show recent tags in sidebar"},
+			// .DS_Store
+			{"com.apple.desktopservices", "DSDontWriteNetworkStores", "bool", "true", "No .DS_Store on network volumes"},
+			{"com.apple.desktopservices", "DSDontWriteUSBStores", "bool", "true", "No .DS_Store on USB volumes"},
 		},
 	},
 	{
