@@ -450,19 +450,6 @@ func showSnapshotSummary(snap *snapshot.Snapshot) {
 			snapBoldStyle.Render("Preset:"))
 	}
 
-	omzStatus := "not installed"
-	if snap.Shell.OhMyZsh {
-		theme := snap.Shell.Theme
-		if theme == "" {
-			theme = "default"
-		}
-		pluginCount := len(snap.Shell.Plugins)
-		omzStatus = fmt.Sprintf("Oh-My-Zsh (%s theme, %d plugins)", theme, pluginCount)
-	}
-	fmt.Fprintf(os.Stderr, "  %s %s + %s\n",
-		snapBoldStyle.Render("Shell:"),
-		snap.Shell.Default, omzStatus)
-
 	if snap.Git.UserName != "" || snap.Git.UserEmail != "" {
 		fmt.Fprintf(os.Stderr, "  %s %s <%s>\n",
 			snapBoldStyle.Render("Git:"),
@@ -520,21 +507,6 @@ func showSnapshotPreview(snap *snapshot.Snapshot) {
 	for _, pref := range snap.MacOSPrefs {
 		fmt.Fprintf(os.Stderr, "    %s.%s = %s\n", pref.Domain, pref.Key, pref.Value)
 	}
-
-	omzStatus := "not installed"
-	if snap.Shell.OhMyZsh {
-		omzStatus = "installed"
-	}
-	theme := snap.Shell.Theme
-	if theme == "" {
-		theme = "none"
-	}
-	plugins := "none"
-	if len(snap.Shell.Plugins) > 0 {
-		plugins = strings.Join(snap.Shell.Plugins, ", ")
-	}
-	fmt.Fprintf(os.Stderr, "  %s %s (Oh-My-Zsh: %s, Theme: %s, Plugins: %s)\n",
-		snapBoldStyle.Render("Shell:"), snap.Shell.Default, omzStatus, theme, plugins)
 
 	fmt.Fprintf(os.Stderr, "  %s %s <%s>\n",
 		snapBoldStyle.Render("Git:"), snap.Git.UserName, snap.Git.UserEmail)
@@ -663,18 +635,6 @@ func showRestoreInfo(snap *snapshot.Snapshot, source string) {
 		fmt.Fprintf(os.Stderr, "  %s %s <%s>\n",
 			snapBoldStyle.Render("Git:"), snap.Git.UserName, snap.Git.UserEmail)
 	}
-	if snap.Shell.OhMyZsh {
-		theme := snap.Shell.Theme
-		if theme == "" {
-			theme = "default"
-		}
-		plugins := "none"
-		if len(snap.Shell.Plugins) > 0 {
-			plugins = strings.Join(snap.Shell.Plugins, ", ")
-		}
-		fmt.Fprintf(os.Stderr, "  %s Oh-My-Zsh (theme: %s, plugins: %s)\n",
-			snapBoldStyle.Render("Shell:"), theme, plugins)
-	}
 	fmt.Fprintln(os.Stderr)
 }
 
@@ -747,12 +707,6 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 	cfg.SnapshotGit = &config.SnapshotGitConfig{
 		UserName:  edited.Git.UserName,
 		UserEmail: edited.Git.UserEmail,
-	}
-
-	cfg.SnapshotShell = &config.SnapshotShellConfig{
-		OhMyZsh: edited.Shell.OhMyZsh,
-		Theme:   edited.Shell.Theme,
-		Plugins: edited.Shell.Plugins,
 	}
 
 	if edited.Dotfiles.RepoURL != "" {

@@ -113,11 +113,6 @@ func TestSyncDiffHasChanges(t *testing.T) {
 		assert.True(t, d.HasChanges())
 	})
 
-	t.Run("shell changed", func(t *testing.T) {
-		d := &SyncDiff{ShellChanged: true}
-		assert.True(t, d.HasChanges())
-	})
-
 	t.Run("macos prefs changed", func(t *testing.T) {
 		d := &SyncDiff{MacOSChanged: []MacOSPrefDiff{{Domain: "com.apple.dock", Key: "autohide"}}}
 		assert.True(t, d.HasChanges())
@@ -135,26 +130,20 @@ func TestSyncDiffTotals(t *testing.T) {
 		ExtraNpm:        []string{"create-react-app"},
 		ExtraTaps:       []string{"some/tap"},
 		DotfilesChanged: true,
-		ShellChanged:    true,
-		ShellDiff: &ShellDiff{
-			ThemeChanged:   true,
-			MissingPlugins: []string{"zsh-autosuggestions"},
-			ExtraPlugins:   []string{"old-plugin"},
-		},
-		MacOSChanged: []MacOSPrefDiff{{Domain: "com.apple.dock", Key: "autohide"}},
+		MacOSChanged:    []MacOSPrefDiff{{Domain: "com.apple.dock", Key: "autohide"}},
 	}
 
-	// Missing: 2 formulae + 1 cask + 1 npm + 1 tap + 1 plugin = 6
-	assert.Equal(t, 6, d.TotalMissing())
+	// Missing: 2 formulae + 1 cask + 1 npm + 1 tap = 5
+	assert.Equal(t, 5, d.TotalMissing())
 
-	// Extra: 1 formula + 1 cask + 1 npm + 1 tap + 1 plugin = 5
-	assert.Equal(t, 5, d.TotalExtra())
+	// Extra: 1 formula + 1 cask + 1 npm + 1 tap = 4
+	assert.Equal(t, 4, d.TotalExtra())
 
-	// Changed: 1 dotfiles + 1 theme + 1 macos pref = 3
-	assert.Equal(t, 3, d.TotalChanged())
+	// Changed: 1 dotfiles + 1 macos pref = 2
+	assert.Equal(t, 2, d.TotalChanged())
 }
 
-func TestSyncDiffTotalsNilShellDiff(t *testing.T) {
+func TestSyncDiffTotalsPackagesAndMacOS(t *testing.T) {
 	d := &SyncDiff{
 		MissingFormulae: []string{"ripgrep"},
 		ExtraFormulae:   []string{"htop"},
@@ -162,36 +151,10 @@ func TestSyncDiffTotalsNilShellDiff(t *testing.T) {
 		MacOSChanged:    []MacOSPrefDiff{{Domain: "d", Key: "k"}},
 	}
 
-	// No ShellDiff → plugins not counted
 	assert.Equal(t, 1, d.TotalMissing())
 	assert.Equal(t, 1, d.TotalExtra())
-	// Changed: 1 dotfiles + 0 theme + 1 macos = 2
+	// Changed: 1 dotfiles + 1 macos = 2
 	assert.Equal(t, 2, d.TotalChanged())
-}
-
-func TestSyncDiffTotalChangedThemeOnly(t *testing.T) {
-	d := &SyncDiff{
-		ShellChanged: true,
-		ShellDiff: &ShellDiff{
-			ThemeChanged: true,
-			RemoteTheme:  "agnoster",
-			LocalTheme:   "robbyrussell",
-		},
-	}
-	assert.Equal(t, 1, d.TotalChanged())
-}
-
-func TestSyncDiffTotalChangedNoTheme(t *testing.T) {
-	d := &SyncDiff{
-		ShellChanged: true,
-		ShellDiff: &ShellDiff{
-			ThemeChanged:   false,
-			MissingPlugins: []string{"zsh-autosuggestions"},
-		},
-	}
-	// ThemeChanged=false → no changed count, but MissingPlugins counted in TotalMissing
-	assert.Equal(t, 0, d.TotalChanged())
-	assert.Equal(t, 1, d.TotalMissing())
 }
 
 func TestSyncDiffHasChangesAllFields(t *testing.T) {

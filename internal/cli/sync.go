@@ -200,21 +200,6 @@ func printSyncDiff(d *syncpkg.SyncDiff) {
 		fmt.Println()
 	}
 
-	// Shell changes
-	if d.ShellChanged && d.ShellDiff != nil {
-		fmt.Printf("  %s\n", ui.Green("Shell Changes"))
-		if d.ShellDiff.ThemeChanged {
-			fmt.Printf("    Theme: %s %s %s\n", d.ShellDiff.LocalTheme, ui.Yellow("→"), d.ShellDiff.RemoteTheme)
-		}
-		if len(d.ShellDiff.MissingPlugins) > 0 {
-			fmt.Printf("    New plugins: %s\n", strings.Join(d.ShellDiff.MissingPlugins, ", "))
-		}
-		if len(d.ShellDiff.ExtraPlugins) > 0 {
-			fmt.Printf("    Extra plugins: %s\n", strings.Join(d.ShellDiff.ExtraPlugins, ", "))
-		}
-		fmt.Println()
-	}
-
 	// macOS changes
 	if len(d.MacOSChanged) > 0 {
 		fmt.Printf("  %s\n", ui.Green("macOS Changes"))
@@ -290,30 +275,6 @@ func buildSyncPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig, dryRun bool, in
 		}
 	}
 
-	// Shell changes
-	if d.ShellChanged && d.ShellDiff != nil {
-		if d.ShellDiff.ThemeChanged {
-			apply, err := ui.Confirm(
-				fmt.Sprintf("Update theme: %s → %s?", d.ShellDiff.LocalTheme, d.ShellDiff.RemoteTheme), true)
-			if err != nil {
-				return nil, fmt.Errorf("confirm theme: %w", err)
-			}
-			if apply {
-				plan.UpdateTheme = d.ShellDiff.RemoteTheme
-			}
-		}
-		if len(d.ShellDiff.MissingPlugins) > 0 {
-			apply, err := ui.Confirm(
-				fmt.Sprintf("Install plugins: %s?", strings.Join(d.ShellDiff.MissingPlugins, ", ")), true)
-			if err != nil {
-				return nil, fmt.Errorf("confirm plugins: %w", err)
-			}
-			if apply {
-				plan.InstallPlugins = d.ShellDiff.MissingPlugins
-			}
-		}
-	}
-
 	// macOS changes
 	if len(d.MacOSChanged) > 0 {
 		apply, err := ui.Confirm(fmt.Sprintf("Apply %d macOS preference change(s)?", len(d.MacOSChanged)), true)
@@ -355,13 +316,6 @@ func buildDryRunPlan(d *syncpkg.SyncDiff) *syncpkg.SyncPlan {
 		InstallCasks:    d.MissingCasks,
 		InstallNpm:      d.MissingNpm,
 		InstallTaps:     d.MissingTaps,
-	}
-
-	if d.ShellDiff != nil {
-		if d.ShellDiff.ThemeChanged {
-			plan.UpdateTheme = d.ShellDiff.RemoteTheme
-		}
-		plan.InstallPlugins = d.ShellDiff.MissingPlugins
 	}
 
 	if d.DotfilesChanged {

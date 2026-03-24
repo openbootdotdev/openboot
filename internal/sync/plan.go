@@ -9,7 +9,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/dotfiles"
 	"github.com/openbootdotdev/openboot/internal/macos"
 	"github.com/openbootdotdev/openboot/internal/npm"
-	"github.com/openbootdotdev/openboot/internal/shell"
 )
 
 // SyncPlan describes the concrete actions to apply after the user selects
@@ -30,11 +29,6 @@ type SyncPlan struct {
 	// Dotfiles
 	UpdateDotfiles string // new repo URL (empty = no change)
 
-	// Shell
-	UpdateTheme    string   // new theme (empty = no change)
-	InstallPlugins []string // plugins to add
-	RemovePlugins  []string // plugins to remove
-
 	// macOS
 	UpdateMacOSPrefs []config.RemoteMacOSPref
 }
@@ -51,11 +45,8 @@ type SyncResult struct {
 func (p *SyncPlan) TotalActions() int {
 	n := len(p.InstallFormulae) + len(p.InstallCasks) + len(p.InstallNpm) + len(p.InstallTaps) +
 		len(p.UninstallFormulae) + len(p.UninstallCasks) + len(p.UninstallNpm) + len(p.UninstallTaps) +
-		len(p.InstallPlugins) + len(p.RemovePlugins) + len(p.UpdateMacOSPrefs)
+		len(p.UpdateMacOSPrefs)
 	if p.UpdateDotfiles != "" {
-		n++
-	}
-	if p.UpdateTheme != "" {
 		n++
 	}
 	return n
@@ -160,16 +151,6 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 		} else if err := dotfiles.Link(dryRun); err != nil {
 			errs = append(errs, fmt.Errorf("link dotfiles: %w", err))
 			result.Errors = append(result.Errors, fmt.Sprintf("dotfiles link: %v", err))
-		} else {
-			result.Updated++
-		}
-	}
-
-	// Update shell theme and/or install plugins
-	if plan.UpdateTheme != "" || len(plan.InstallPlugins) > 0 {
-		if err := shell.RestoreFromSnapshot(true, plan.UpdateTheme, plan.InstallPlugins, dryRun); err != nil {
-			errs = append(errs, fmt.Errorf("update shell: %w", err))
-			result.Errors = append(result.Errors, fmt.Sprintf("shell: %v", err))
 		} else {
 			result.Updated++
 		}

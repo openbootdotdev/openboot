@@ -29,19 +29,6 @@ type PackageDiff struct {
 	Taps     ListDiff
 }
 
-// ShellDiff holds shell configuration differences. nil means data unavailable.
-type ShellDiff struct {
-	Theme   *ValueChange // nil = same or unavailable
-	Plugins ListDiff
-	OhMyZsh *ValueChange // nil = same
-}
-
-// GitDiff holds git configuration differences. nil means data unavailable.
-type GitDiff struct {
-	UserName  *ValueChange
-	UserEmail *ValueChange
-}
-
 // MacOSDiff holds macOS preference differences.
 type MacOSDiff struct {
 	Changed []MacOSPrefChange
@@ -79,14 +66,20 @@ type DevToolDelta struct {
 	Reference string
 }
 
+// DotfilesDiff holds dotfiles repository differences.
+type DotfilesDiff struct {
+	RepoChanged *ValueChange // nil = same or unavailable
+	Dirty       bool         // uncommitted changes in local repo
+	Unpushed    bool         // local commits not pushed to remote
+}
+
 // DiffResult is the top-level diff output.
 type DiffResult struct {
 	Source   Source
 	Packages PackageDiff
-	Shell    *ShellDiff   // nil when not compared (e.g. remote config)
-	Git      *GitDiff     // nil when not compared or when identical
-	MacOS    *MacOSDiff   // nil when not compared (e.g. remote config)
-	DevTools *DevToolDiff // nil when not compared (e.g. remote config)
+	MacOS    *MacOSDiff    // nil when not compared
+	DevTools *DevToolDiff  // nil when not compared
+	Dotfiles *DotfilesDiff // nil when not compared
 }
 
 // DiffLists computes a bidirectional set diff between system and reference string slices.
@@ -125,7 +118,13 @@ func DiffLists(system, reference []string) ListDiff {
 
 // HasChanges reports whether the diff result contains any differences.
 func (r *DiffResult) HasChanges() bool {
-	return r.TotalMissing() > 0 || r.TotalExtra() > 0 || r.TotalChanged() > 0
+	if r.TotalMissing() > 0 || r.TotalExtra() > 0 || r.TotalChanged() > 0 {
+		return true
+	}
+	if r.Dotfiles != nil && (r.Dotfiles.Dirty || r.Dotfiles.Unpushed || r.Dotfiles.RepoChanged != nil) {
+		return true
+	}
+	return false
 }
 
 // TotalMissing returns the count of items in the reference but missing from the system.
@@ -135,9 +134,6 @@ func (r *DiffResult) TotalMissing() int {
 		len(r.Packages.Npm.Missing) +
 		len(r.Packages.Taps.Missing)
 
-	if r.Shell != nil {
-		n += len(r.Shell.Plugins.Missing)
-	}
 	if r.MacOS != nil {
 		n += len(r.MacOS.Missing)
 	}
@@ -154,9 +150,6 @@ func (r *DiffResult) TotalExtra() int {
 		len(r.Packages.Npm.Extra) +
 		len(r.Packages.Taps.Extra)
 
-	if r.Shell != nil {
-		n += len(r.Shell.Plugins.Extra)
-	}
 	if r.MacOS != nil {
 		n += len(r.MacOS.Extra)
 	}
@@ -169,27 +162,14 @@ func (r *DiffResult) TotalExtra() int {
 // TotalChanged returns the count of values that differ between system and reference.
 func (r *DiffResult) TotalChanged() int {
 	n := 0
-	if r.Shell != nil {
-		if r.Shell.Theme != nil {
-			n++
-		}
-		if r.Shell.OhMyZsh != nil {
-			n++
-		}
-	}
-	if r.Git != nil {
-		if r.Git.UserName != nil {
-			n++
-		}
-		if r.Git.UserEmail != nil {
-			n++
-		}
-	}
 	if r.MacOS != nil {
 		n += len(r.MacOS.Changed)
 	}
 	if r.DevTools != nil {
 		n += len(r.DevTools.Changed)
+	}
+	if r.Dotfiles != nil && r.Dotfiles.RepoChanged != nil {
+		n++
 	}
 	return n
 }

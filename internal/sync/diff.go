@@ -29,21 +29,8 @@ type SyncDiff struct {
 	RemoteDotfiles  string
 	LocalDotfiles   string
 
-	// Shell
-	ShellChanged bool
-	ShellDiff    *ShellDiff
-
 	// macOS Preferences
 	MacOSChanged []MacOSPrefDiff
-}
-
-// ShellDiff records differences in shell configuration.
-type ShellDiff struct {
-	ThemeChanged   bool
-	RemoteTheme    string
-	LocalTheme     string
-	MissingPlugins []string
-	ExtraPlugins   []string
 }
 
 // MacOSPrefDiff records a single macOS preference that differs.
@@ -67,35 +54,23 @@ func (d *SyncDiff) HasChanges() bool {
 		len(d.ExtraNpm) > 0 ||
 		len(d.ExtraTaps) > 0 ||
 		d.DotfilesChanged ||
-		d.ShellChanged ||
 		len(d.MacOSChanged) > 0
 }
 
 // TotalMissing returns the count of items in remote but not on the local system.
 func (d *SyncDiff) TotalMissing() int {
-	n := len(d.MissingFormulae) + len(d.MissingCasks) + len(d.MissingNpm) + len(d.MissingTaps)
-	if d.ShellDiff != nil {
-		n += len(d.ShellDiff.MissingPlugins)
-	}
-	return n
+	return len(d.MissingFormulae) + len(d.MissingCasks) + len(d.MissingNpm) + len(d.MissingTaps)
 }
 
 // TotalExtra returns the count of items on the local system but not in remote.
 func (d *SyncDiff) TotalExtra() int {
-	n := len(d.ExtraFormulae) + len(d.ExtraCasks) + len(d.ExtraNpm) + len(d.ExtraTaps)
-	if d.ShellDiff != nil {
-		n += len(d.ShellDiff.ExtraPlugins)
-	}
-	return n
+	return len(d.ExtraFormulae) + len(d.ExtraCasks) + len(d.ExtraNpm) + len(d.ExtraTaps)
 }
 
 // TotalChanged returns the count of values that differ (theme, dotfiles, macOS prefs).
 func (d *SyncDiff) TotalChanged() int {
 	n := len(d.MacOSChanged)
 	if d.DotfilesChanged {
-		n++
-	}
-	if d.ShellDiff != nil && d.ShellDiff.ThemeChanged {
 		n++
 	}
 	return n
@@ -144,27 +119,6 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 			d.DotfilesChanged = true
 			d.RemoteDotfiles = rc.DotfilesRepo
 			d.LocalDotfiles = localURL
-		}
-	}
-
-	// Shell diff
-	if rc.Shell != nil {
-		localShell, shellErr := snapshot.CaptureShell()
-		if shellErr != nil {
-			return nil, fmt.Errorf("capture local shell: %w", shellErr)
-		}
-
-		sd := &ShellDiff{}
-		if rc.Shell.Theme != "" && rc.Shell.Theme != localShell.Theme {
-			sd.ThemeChanged = true
-			sd.RemoteTheme = rc.Shell.Theme
-			sd.LocalTheme = localShell.Theme
-		}
-		sd.MissingPlugins, sd.ExtraPlugins = diffLists(rc.Shell.Plugins, localShell.Plugins)
-
-		if sd.ThemeChanged || len(sd.MissingPlugins) > 0 || len(sd.ExtraPlugins) > 0 {
-			d.ShellChanged = true
-			d.ShellDiff = sd
 		}
 	}
 

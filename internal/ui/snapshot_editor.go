@@ -534,7 +534,6 @@ func (m SnapshotEditorModel) View() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, m.shellSummary())
 	lines = append(lines, m.gitSummary())
 	lines = append(lines, m.devToolsSummary())
 
@@ -668,15 +667,6 @@ func (m SnapshotEditorModel) renderSearchItem(item editorItem, globalIdx int) st
 	return padLine(truncateLine(line, m.width), m.width)
 }
 
-func (m SnapshotEditorModel) shellSummary() string {
-	snap := m.snapshot
-	summary := fmt.Sprintf("Shell: %s", snap.Shell.Default)
-	if snap.Shell.OhMyZsh {
-		summary += fmt.Sprintf(" (Oh-My-Zsh: installed, Theme: %s)", snap.Shell.Theme)
-	}
-	return descStyle.Render("  " + summary)
-}
-
 func (m SnapshotEditorModel) gitSummary() string {
 	snap := m.snapshot
 	if snap.Git.UserName == "" && snap.Git.UserEmail == "" {
@@ -767,7 +757,6 @@ func buildEditedSnapshot(original *snapshot.Snapshot, m *SnapshotEditorModel) *s
 		Version:       original.Version,
 		CapturedAt:    original.CapturedAt,
 		Hostname:      original.Hostname,
-		Shell:         original.Shell,
 		Git:           original.Git,
 		DevTools:      original.DevTools,
 		MatchedPreset: original.MatchedPreset,

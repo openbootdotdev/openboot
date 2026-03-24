@@ -343,29 +343,6 @@ func TestPrintSyncDiffPackages(t *testing.T) {
 	assert.Contains(t, output, "htop")
 }
 
-func TestPrintSyncDiffShell(t *testing.T) {
-	d := &syncpkg.SyncDiff{
-		ShellChanged: true,
-		ShellDiff: &syncpkg.ShellDiff{
-			ThemeChanged:   true,
-			RemoteTheme:    "agnoster",
-			LocalTheme:     "robbyrussell",
-			MissingPlugins: []string{"zsh-autosuggestions"},
-			ExtraPlugins:   []string{"old-plugin"},
-		},
-	}
-
-	output := captureStdout(func() {
-		printSyncDiff(d)
-	})
-
-	assert.Contains(t, output, "Theme:")
-	assert.Contains(t, output, "robbyrussell")
-	assert.Contains(t, output, "agnoster")
-	assert.Contains(t, output, "New plugins: zsh-autosuggestions")
-	assert.Contains(t, output, "Extra plugins: old-plugin")
-}
-
 func TestPrintSyncDiffMacOS(t *testing.T) {
 	d := &syncpkg.SyncDiff{
 		MacOSChanged: []syncpkg.MacOSPrefDiff{
@@ -469,13 +446,6 @@ func TestBuildDryRunPlan(t *testing.T) {
 		MissingTaps:     []string{"homebrew/cask-fonts"},
 		DotfilesChanged: true,
 		RemoteDotfiles:  "https://github.com/user/dots",
-		ShellChanged:    true,
-		ShellDiff: &syncpkg.ShellDiff{
-			ThemeChanged:   true,
-			RemoteTheme:    "agnoster",
-			LocalTheme:     "robbyrussell",
-			MissingPlugins: []string{"zsh-autosuggestions"},
-		},
 		MacOSChanged: []syncpkg.MacOSPrefDiff{
 			{Domain: "com.apple.dock", Key: "autohide", RemoteValue: "true", Desc: "Dock auto-hide"},
 		},
@@ -487,8 +457,6 @@ func TestBuildDryRunPlan(t *testing.T) {
 	assert.Equal(t, []string{"raycast"}, plan.InstallCasks)
 	assert.Equal(t, []string{"turbo"}, plan.InstallNpm)
 	assert.Equal(t, []string{"homebrew/cask-fonts"}, plan.InstallTaps)
-	assert.Equal(t, "agnoster", plan.UpdateTheme)
-	assert.Equal(t, []string{"zsh-autosuggestions"}, plan.InstallPlugins)
 	assert.Equal(t, "https://github.com/user/dots", plan.UpdateDotfiles)
 	assert.Len(t, plan.UpdateMacOSPrefs, 1)
 	assert.Equal(t, "com.apple.dock", plan.UpdateMacOSPrefs[0].Domain)
@@ -500,12 +468,10 @@ func TestBuildDryRunPlanEmpty(t *testing.T) {
 	assert.True(t, plan.IsEmpty())
 }
 
-func TestBuildDryRunPlanNoShellDiff(t *testing.T) {
+func TestBuildDryRunPlanPackagesOnly(t *testing.T) {
 	d := &syncpkg.SyncDiff{
 		MissingFormulae: []string{"ripgrep"},
 	}
 	plan := buildDryRunPlan(d)
 	assert.Equal(t, []string{"ripgrep"}, plan.InstallFormulae)
-	assert.Empty(t, plan.UpdateTheme)
-	assert.Empty(t, plan.InstallPlugins)
 }

@@ -18,14 +18,15 @@ var diffCmd = &cobra.Command{
 
 Sources (checked in order):
   1. --from <file>         Compare against a snapshot file
-  2. --user <username>     Compare against your openboot.dev config
-  3. Local snapshot         Compare against ~/.openboot/snapshot.json
+  2. --user <username>     Compare against a specific openboot.dev config
+  3. Logged in             Compare against your own openboot.dev config
+  4. Not logged in         Error with guidance
 
 This is a read-only operation — nothing is installed or removed.
 
 Examples:
-  openboot diff                              Diff against local snapshot
-  openboot diff --user alice/my-config       Diff against cloud config
+  openboot diff                              Diff against your openboot.dev config (requires login)
+  openboot diff --user alice/my-config       Diff against someone else's config
   openboot diff --from my-setup.json         Diff against a snapshot file
   openboot diff --json                       Output as JSON
   openboot diff --packages-only              Only compare packages`,
@@ -61,7 +62,12 @@ func runDiff(cmd *cobra.Command) error {
 	case user != "":
 		result, err = diffFromRemote(system, user)
 	default:
-		result, err = diffFromLocalSnapshot(system)
+		// If logged in, diff against the user's own remote config
+		stored, authErr := auth.LoadToken()
+		if authErr != nil || stored == nil {
+			return fmt.Errorf("no comparison target specified\n\n  Log in to diff against your openboot.dev config:\n    openboot login\n\n  Or specify a target explicitly:\n    openboot diff --user <username>     Compare against a remote config\n    openboot diff --from <file>         Compare against a snapshot file")
+		}
+		result, err = diffFromRemote(system, stored.Username)
 	}
 
 	if err != nil {
@@ -111,12 +117,3 @@ func diffFromRemote(system *snapshot.Snapshot, userSlug string) (*diff.DiffResul
 	return diff.CompareSnapshotToRemote(system, rc, source), nil
 }
 
-func diffFromLocalSnapshot(system *snapshot.Snapshot) (*diff.DiffResult, error) {
-	reference, err := snapshot.LoadLocal()
-	if err != nil {
-		return nil, fmt.Errorf("no local snapshot found — run 'openboot snapshot --local' first, or use --from or --user flags: %w", err)
-	}
-
-	source := diff.Source{Kind: "local", Path: snapshot.LocalPath()}
-	return diff.CompareSnapshots(system, reference, source), nil
-}

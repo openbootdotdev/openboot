@@ -15,13 +15,11 @@ func TestSyncPlanTotalActions(t *testing.T) {
 		InstallTaps:       []string{"homebrew/cask-fonts"},
 		UninstallFormulae: []string{"htop"},
 		UpdateDotfiles:    "https://github.com/user/dots",
-		UpdateTheme:       "agnoster",
-		InstallPlugins:    []string{"zsh-autosuggestions"},
 		UpdateMacOSPrefs:  []config.RemoteMacOSPref{{Domain: "com.apple.dock", Key: "autohide", Value: "true"}},
 	}
 
-	// 2 + 1 + 1 + 1 + 1 + 1(dotfiles) + 1(theme) + 1(plugins) + 1(macos) = 10
-	assert.Equal(t, 10, plan.TotalActions())
+	// 2 + 1 + 1 + 1 + 1 + 1(dotfiles) + 1(macos) = 8
+	assert.Equal(t, 8, plan.TotalActions())
 }
 
 func TestSyncPlanIsEmpty(t *testing.T) {
@@ -39,9 +37,7 @@ func TestSyncPlanEmptySlices(t *testing.T) {
 		UninstallCasks:    []string{},
 		UninstallNpm:      []string{},
 		UninstallTaps:     []string{},
-		InstallPlugins:    []string{},
-		RemovePlugins:     []string{},
-		UpdateMacOSPrefs:  []config.RemoteMacOSPref{},
+		UpdateMacOSPrefs: []config.RemoteMacOSPref{},
 	}
 
 	assert.True(t, plan.IsEmpty())
@@ -59,27 +55,12 @@ func TestSyncPlanTotalActionsUninstallOnly(t *testing.T) {
 	assert.False(t, plan.IsEmpty())
 }
 
-func TestSyncPlanTotalActionsPluginsOnly(t *testing.T) {
-	plan := &SyncPlan{
-		InstallPlugins: []string{"zsh-autosuggestions", "zsh-syntax-highlighting"},
-		RemovePlugins:  []string{"old-plugin"},
-	}
-	assert.Equal(t, 3, plan.TotalActions())
-}
-
 func TestSyncPlanTotalActionsDotfilesOnly(t *testing.T) {
 	plan := &SyncPlan{
 		UpdateDotfiles: "https://github.com/user/dots",
 	}
 	assert.Equal(t, 1, plan.TotalActions())
 	assert.False(t, plan.IsEmpty())
-}
-
-func TestSyncPlanTotalActionsThemeOnly(t *testing.T) {
-	plan := &SyncPlan{
-		UpdateTheme: "agnoster",
-	}
-	assert.Equal(t, 1, plan.TotalActions())
 }
 
 func TestSyncPlanTotalActionsMacOSOnly(t *testing.T) {

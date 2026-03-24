@@ -28,12 +28,6 @@ func makeTestSnapshot() *snapshot.Snapshot {
 			{Domain: "com.apple.dock", Key: "autohide", Value: "1", Desc: "Auto-hide Dock"},
 			{Domain: "com.apple.finder", Key: "ShowPathbar", Value: "1", Desc: "Show path bar"},
 		},
-		Shell: snapshot.ShellSnapshot{
-			Default: "zsh",
-			OhMyZsh: true,
-			Theme:   "robbyrussell",
-			Plugins: []string{"git", "zsh-autosuggestions"},
-		},
 		Git: snapshot.GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
@@ -128,26 +122,6 @@ func TestSnapshotEditorSelectedCountsSummary(t *testing.T) {
 	assert.Contains(t, summary, "1 taps")
 	assert.Contains(t, summary, "2 preferences")
 	assert.Contains(t, summary, "selected")
-}
-
-func TestSnapshotEditorShellSummary(t *testing.T) {
-	snap := makeTestSnapshot()
-	m := NewSnapshotEditor(snap)
-
-	summary := m.shellSummary()
-	assert.Contains(t, summary, "zsh")
-	assert.Contains(t, summary, "Oh-My-Zsh")
-	assert.Contains(t, summary, "robbyrussell")
-}
-
-func TestSnapshotEditorShellSummaryNoOhMyZsh(t *testing.T) {
-	snap := makeTestSnapshot()
-	snap.Shell.OhMyZsh = false
-	m := NewSnapshotEditor(snap)
-
-	summary := m.shellSummary()
-	assert.Contains(t, summary, "zsh")
-	assert.NotContains(t, summary, "Oh-My-Zsh")
 }
 
 func TestSnapshotEditorGitSummaryWithConfig(t *testing.T) {
@@ -356,7 +330,6 @@ func TestBuildEditedSnapshotPreservesMetadata(t *testing.T) {
 
 	assert.Equal(t, snap.Version, edited.Version)
 	assert.Equal(t, snap.Hostname, edited.Hostname)
-	assert.Equal(t, snap.Shell, edited.Shell)
 	assert.Equal(t, snap.Git, edited.Git)
 	assert.Equal(t, snap.DevTools, edited.DevTools)
 }

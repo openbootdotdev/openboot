@@ -160,27 +160,18 @@ func runCustomInstall(cfg *config.Config) error {
 		cfg.DotfilesURL = cfg.RemoteConfig.DotfilesRepo
 	}
 
-	if cfg.RemoteConfig.Shell != nil {
-		cfg.SnapshotShell = &config.SnapshotShellConfig{
-			OhMyZsh: cfg.RemoteConfig.Shell.OhMyZsh,
-			Theme:   cfg.RemoteConfig.Shell.Theme,
-			Plugins: cfg.RemoteConfig.Shell.Plugins,
-		}
-		if err := stepRestoreShell(cfg); err != nil {
-			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
-		}
-	} else {
-		if err := stepShell(cfg); err != nil {
-			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
-		}
+	if err := stepShell(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
 	}
 
 	if err := stepDotfiles(cfg); err != nil {
 		ui.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
 		softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
 	}
+
+	// If dotfiles were applied, .zshrc is managed by dotfiles.
+	// If no dotfiles, stepShell already handled brew shellenv.
 
 	if len(cfg.RemoteConfig.MacOSPrefs) > 0 {
 		cfg.SnapshotMacOS = cfg.RemoteConfig.MacOSPrefs
@@ -663,22 +654,37 @@ func stepDotfiles(cfg *config.Config) error {
 	return nil
 }
 
+// hasDotfiles reports whether dotfiles will be applied in this install.
+// Checks remote config, env var, cfg flag, and local ~/.dotfiles existence.
+func hasDotfiles(cfg *config.Config) bool {
+	if cfg.Dotfiles == "skip" {
+		return false
+	}
+	if cfg.DotfilesURL != "" {
+		return true
+	}
+	if dotfiles.GetDotfilesURL() != "" {
+		return true
+	}
+	return false
+}
+
 func stepShell(cfg *config.Config) error {
 	if cfg.Shell == "skip" {
 		return nil
 	}
 
-	ui.Header("Step 5: Shell Configuration")
+	ui.Header("Shell Configuration")
 	fmt.Println()
 
-	// Smart detection: skip Oh-My-Zsh if already installed
-	if shell.IsOhMyZshInstalled() && cfg.Shell == "" {
-		ui.Success("✓ Oh-My-Zsh already installed")
+	// Install Oh-My-Zsh if not present — dotfiles .zshrc may depend on it
+	if shell.IsOhMyZshInstalled() {
+		ui.Success("Oh-My-Zsh already installed")
 	} else if cfg.Shell == "" {
 		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
 			cfg.Shell = "install"
 		} else {
-			install, err := ui.Confirm("Install Oh-My-Zsh and configure shell?", true)
+			install, err := ui.Confirm("Install Oh-My-Zsh?", true)
 			if err != nil {
 				return err
 			}
@@ -703,11 +709,11 @@ func stepShell(cfg *config.Config) error {
 		}
 	}
 
-	// Ensure Homebrew shellenv is in .zshrc (required on Apple Silicon).
-	// Runs after Oh-My-Zsh so its .zshrc template exists, and regardless of
-	// the Oh-My-Zsh choice because brew must be in PATH for new shells.
-	if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
-		return fmt.Errorf("ensure brew shellenv: %w", err)
+	// Only modify .zshrc if user has no dotfiles — dotfiles manage .zshrc themselves.
+	if !hasDotfiles(cfg) {
+		if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
+			return fmt.Errorf("ensure brew shellenv: %w", err)
+		}
 	}
 
 	fmt.Println()
@@ -928,16 +934,9 @@ func RunFromSnapshot(cfg *config.Config) error {
 		}
 	}
 
-	if cfg.SnapshotShell != nil && cfg.SnapshotShell.OhMyZsh {
-		if err := stepRestoreShell(cfg); err != nil {
-			ui.Error(fmt.Sprintf("Shell restore failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("shell restore: %w", err))
-		}
-	} else {
-		if err := stepShell(cfg); err != nil {
-			ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
-		}
+	if err := stepShell(cfg); err != nil {
+		ui.Error(fmt.Sprintf("Shell setup failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
 	}
 
 	if err := stepRestoreMacOS(cfg); err != nil {
@@ -1014,34 +1013,6 @@ func stepRestoreGit(cfg *config.Config) error {
 	}
 
 	ui.Success(fmt.Sprintf("Git restored: %s <%s>", nameToSet, emailToSet))
-	fmt.Println()
-	return nil
-}
-
-func stepRestoreShell(cfg *config.Config) error {
-	ui.Header("Restore: Shell Configuration")
-	fmt.Println()
-
-	shellCfg := cfg.SnapshotShell
-
-	if cfg.DryRun {
-		fmt.Println("[DRY-RUN] Would restore shell config from snapshot")
-	}
-
-	ui.Info(fmt.Sprintf("Theme: %s, Plugins: %v", shellCfg.Theme, shellCfg.Plugins))
-	fmt.Println()
-
-	if err := shell.RestoreFromSnapshot(shellCfg.OhMyZsh, shellCfg.Theme, shellCfg.Plugins, cfg.DryRun); err != nil {
-		return err
-	}
-
-	if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
-		return fmt.Errorf("ensure brew shellenv: %w", err)
-	}
-
-	if !cfg.DryRun {
-		ui.Success("Shell configuration restored")
-	}
 	fmt.Println()
 	return nil
 }

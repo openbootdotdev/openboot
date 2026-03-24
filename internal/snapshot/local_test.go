@@ -73,10 +73,6 @@ func TestLoadFile_ValidSnapshot(t *testing.T) {
 			Casks:    []string{"docker"},
 			Npm:      []string{"typescript"},
 		},
-		Shell: ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-		},
 		Git: GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
@@ -97,7 +93,6 @@ func TestLoadFile_ValidSnapshot(t *testing.T) {
 	assert.Equal(t, snap.Version, loaded.Version)
 	assert.Equal(t, snap.Hostname, loaded.Hostname)
 	assert.Equal(t, snap.Packages.Formulae, loaded.Packages.Formulae)
-	assert.Equal(t, snap.Shell.Default, loaded.Shell.Default)
 	assert.Equal(t, snap.Git.UserName, loaded.Git.UserName)
 }
 
@@ -207,12 +202,6 @@ func TestLoadFile_WithAllFields(t *testing.T) {
 		MacOSPrefs: []MacOSPref{
 			{Domain: "com.apple.finder", Key: "ShowPathbar", Value: "1", Desc: "Show path bar"},
 		},
-		Shell: ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-			Plugins: []string{"git", "docker"},
-			Theme:   "robbyrussell",
-		},
 		Git: GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
@@ -244,7 +233,6 @@ func TestLoadFile_WithAllFields(t *testing.T) {
 	assert.Equal(t, snap.Hostname, loaded.Hostname)
 	assert.Equal(t, len(snap.Packages.Formulae), len(loaded.Packages.Formulae))
 	assert.Equal(t, len(snap.MacOSPrefs), len(loaded.MacOSPrefs))
-	assert.Equal(t, snap.Shell.OhMyZsh, loaded.Shell.OhMyZsh)
 	assert.Equal(t, snap.Git.UserName, loaded.Git.UserName)
 	assert.Equal(t, len(snap.DevTools), len(loaded.DevTools))
 	assert.Equal(t, snap.MatchedPreset, loaded.MatchedPreset)
@@ -325,12 +313,6 @@ func TestLoadFile_RoundTrip(t *testing.T) {
 			Casks:    []string{"docker"},
 			Npm:      []string{"typescript"},
 		},
-		Shell: ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-			Plugins: []string{"git"},
-			Theme:   "robbyrussell",
-		},
 		Git: GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
@@ -350,7 +332,6 @@ func TestLoadFile_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.Version, loaded.Version)
 	assert.Equal(t, original.Hostname, loaded.Hostname)
 	assert.Equal(t, original.Packages.Formulae, loaded.Packages.Formulae)
-	assert.Equal(t, original.Shell.Default, loaded.Shell.Default)
 	assert.Equal(t, original.Git.UserName, loaded.Git.UserName)
 }
 

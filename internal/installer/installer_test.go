@@ -420,9 +420,8 @@ func TestRunFromSnapshot_SoftFailuresReturnError(t *testing.T) {
 		Shell:         "skip",
 		Macos:         "skip",
 		Dotfiles:      "skip",
-		SelectedPkgs:  map[string]bool{},
-		SnapshotGit:   nil,
-		SnapshotShell: nil,
+		SelectedPkgs: map[string]bool{},
+		SnapshotGit:  nil,
 	}
 
 	err := RunFromSnapshot(cfg)

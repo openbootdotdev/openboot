@@ -1,39 +1,68 @@
 package diff
 
 import (
-	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
 // CompareSnapshots performs a full diff between the current system snapshot and a reference snapshot.
-// All sections (packages, shell, git, macOS, dev tools) are compared.
 func CompareSnapshots(system, reference *snapshot.Snapshot, source Source) *DiffResult {
-	result := &DiffResult{
+	return &DiffResult{
 		Source:   source,
 		Packages: diffPackages(system, reference),
-		Shell:    diffShell(system.Shell, reference.Shell),
-		Git:      diffGit(system.Git, reference.Git),
 		MacOS:    diffMacOS(system.MacOSPrefs, reference.MacOSPrefs),
 		DevTools: diffDevTools(system.DevTools, reference.DevTools),
+		Dotfiles: diffDotfiles(system.Dotfiles.RepoURL, reference.Dotfiles.RepoURL),
 	}
-	return result
 }
 
 // CompareSnapshotToRemote compares the system snapshot against a remote config.
-// Remote configs only contain package data, so Shell/Git/MacOS/DevTools are nil.
+// The remote API includes casks in the packages list, so we exclude them to get pure formulae.
 func CompareSnapshotToRemote(system *snapshot.Snapshot, remote *config.RemoteConfig, source Source) *DiffResult {
-	return &DiffResult{
+	// Remote packages list contains both formulae and casks — filter out casks
+	caskSet := toSet(remote.Casks.Names())
+	var formulaeOnly []string
+	for _, name := range remote.Packages.Names() {
+		if !caskSet[name] {
+			formulaeOnly = append(formulaeOnly, name)
+		}
+	}
+
+	result := &DiffResult{
 		Source: source,
 		Packages: PackageDiff{
-			Formulae: DiffLists(system.Packages.Formulae, remote.Packages.Names()),
+			Formulae: DiffLists(system.Packages.Formulae, formulaeOnly),
 			Casks:    DiffLists(system.Packages.Casks, remote.Casks.Names()),
 			Npm:      DiffLists(system.Packages.Npm, remote.Npm.Names()),
 			Taps:     DiffLists(system.Packages.Taps, remote.Taps),
 		},
 	}
+
+	// Dotfiles comparison
+	result.Dotfiles = diffDotfiles(system.Dotfiles.RepoURL, remote.DotfilesRepo)
+
+	// macOS preferences comparison
+	if len(remote.MacOSPrefs) > 0 {
+		refPrefs := make([]snapshot.MacOSPref, len(remote.MacOSPrefs))
+		for i, p := range remote.MacOSPrefs {
+			refPrefs[i] = snapshot.MacOSPref{
+				Domain: p.Domain,
+				Key:    p.Key,
+				Type:   p.Type,
+				Value:  p.Value,
+				Desc:   p.Desc,
+			}
+		}
+		result.MacOS = diffMacOS(system.MacOSPrefs, refPrefs)
+	}
+
+	return result
 }
 
 func diffPackages(system, reference *snapshot.Snapshot) PackageDiff {
@@ -43,40 +72,6 @@ func diffPackages(system, reference *snapshot.Snapshot) PackageDiff {
 		Npm:      DiffLists(system.Packages.Npm, reference.Packages.Npm),
 		Taps:     DiffLists(system.Packages.Taps, reference.Packages.Taps),
 	}
-}
-
-func diffShell(system, reference snapshot.ShellSnapshot) *ShellDiff {
-	sd := &ShellDiff{
-		Plugins: DiffLists(system.Plugins, reference.Plugins),
-	}
-
-	if system.Theme != reference.Theme {
-		sd.Theme = &ValueChange{System: system.Theme, Reference: reference.Theme}
-	}
-
-	sysOMZ := fmt.Sprintf("%t", system.OhMyZsh)
-	refOMZ := fmt.Sprintf("%t", reference.OhMyZsh)
-	if sysOMZ != refOMZ {
-		sd.OhMyZsh = &ValueChange{System: sysOMZ, Reference: refOMZ}
-	}
-
-	return sd
-}
-
-func diffGit(system, reference snapshot.GitSnapshot) *GitDiff {
-	gd := &GitDiff{}
-
-	if system.UserName != reference.UserName {
-		gd.UserName = &ValueChange{System: system.UserName, Reference: reference.UserName}
-	}
-	if system.UserEmail != reference.UserEmail {
-		gd.UserEmail = &ValueChange{System: system.UserEmail, Reference: reference.UserEmail}
-	}
-
-	if gd.UserName == nil && gd.UserEmail == nil {
-		return nil
-	}
-	return gd
 }
 
 func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
@@ -161,6 +156,42 @@ func diffDevTools(system, reference []snapshot.DevTool) *DevToolDiff {
 
 	sort.Strings(dd.Missing)
 	sort.Strings(dd.Extra)
+
+	return dd
+}
+
+// diffDotfiles compares dotfiles repo URLs and checks local repo health.
+func diffDotfiles(systemURL, referenceURL string) *DotfilesDiff {
+	dd := &DotfilesDiff{}
+
+	// Compare repo URLs (normalize trailing .git)
+	sysNorm := strings.TrimSuffix(strings.TrimSpace(systemURL), ".git")
+	refNorm := strings.TrimSuffix(strings.TrimSpace(referenceURL), ".git")
+	if sysNorm != refNorm && refNorm != "" {
+		dd.RepoChanged = &ValueChange{System: systemURL, Reference: referenceURL}
+	}
+
+	// Check local dotfiles repo for dirty state
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return dd
+	}
+	dotfilesPath := filepath.Join(home, ".dotfiles")
+	if _, err := os.Stat(filepath.Join(dotfilesPath, ".git")); err != nil {
+		return dd
+	}
+
+	// Uncommitted changes (staged + unstaged + untracked)
+	out, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		dd.Dirty = true
+	}
+
+	// Unpushed commits
+	out, err = exec.Command("git", "-C", dotfilesPath, "log", "--oneline", "@{upstream}..HEAD").Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		dd.Unpushed = true
+	}
 
 	return dd
 }

@@ -143,19 +143,10 @@ func TestDiffResult_HasChanges(t *testing.T) {
 		assert.True(t, r.HasChanges())
 	})
 
-	t.Run("has changed git config", func(t *testing.T) {
+	t.Run("has changed macOS prefs", func(t *testing.T) {
 		r := &DiffResult{
-			Git: &GitDiff{
-				UserEmail: &ValueChange{System: "old@x.com", Reference: "new@x.com"},
-			},
-		}
-		assert.True(t, r.HasChanges())
-	})
-
-	t.Run("has changed shell theme", func(t *testing.T) {
-		r := &DiffResult{
-			Shell: &ShellDiff{
-				Theme: &ValueChange{System: "robbyrussell", Reference: "agnoster"},
+			MacOS: &MacOSDiff{
+				Changed: []MacOSPrefChange{{Domain: "d", Key: "k", System: "v1", Reference: "v2"}},
 			},
 		}
 		assert.True(t, r.HasChanges())
@@ -168,21 +159,17 @@ func TestDiffResult_Totals(t *testing.T) {
 			Formulae: ListDiff{Missing: []string{"ripgrep"}, Extra: []string{"wget"}, Common: 42},
 			Casks:    ListDiff{Missing: []string{"slack"}, Common: 12},
 		},
-		Shell: &ShellDiff{
-			Theme:   &ValueChange{System: "robbyrussell", Reference: "agnoster"},
-			Plugins: ListDiff{Missing: []string{"docker-compose"}},
-		},
-		Git: &GitDiff{
-			UserEmail: &ValueChange{System: "old@x.com", Reference: "new@x.com"},
+		MacOS: &MacOSDiff{
+			Changed: []MacOSPrefChange{{Domain: "d", Key: "k", System: "v1", Reference: "v2"}},
 		},
 	}
 
-	// Missing: ripgrep + slack + docker-compose = 3
-	assert.Equal(t, 3, r.TotalMissing())
+	// Missing: ripgrep + slack = 2
+	assert.Equal(t, 2, r.TotalMissing())
 	// Extra: wget = 1
 	assert.Equal(t, 1, r.TotalExtra())
-	// Changed: theme + email = 2
-	assert.Equal(t, 2, r.TotalChanged())
+	// Changed: 1 macOS pref = 1
+	assert.Equal(t, 1, r.TotalChanged())
 	assert.True(t, r.HasChanges())
 }
 

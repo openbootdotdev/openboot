@@ -16,12 +16,6 @@ func TestCompareSnapshots_Identical(t *testing.T) {
 			Npm:      []string{"typescript"},
 			Taps:     []string{"homebrew/core"},
 		},
-		Shell: snapshot.ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-			Theme:   "robbyrussell",
-			Plugins: []string{"git", "docker"},
-		},
 		Git: snapshot.GitSnapshot{
 			UserName:  "Alice",
 			UserEmail: "alice@example.com",
@@ -61,65 +55,6 @@ func TestCompareSnapshots_PackageDifferences(t *testing.T) {
 	assert.Equal(t, []string{"slack"}, result.Packages.Casks.Missing)
 	assert.Equal(t, []string{"chrome"}, result.Packages.Casks.Extra)
 	assert.Equal(t, 1, result.Packages.Casks.Common)
-}
-
-func TestCompareSnapshots_ShellDifferences(t *testing.T) {
-	system := &snapshot.Snapshot{
-		Shell: snapshot.ShellSnapshot{
-			OhMyZsh: true,
-			Theme:   "robbyrussell",
-			Plugins: []string{"git", "docker"},
-		},
-	}
-	reference := &snapshot.Snapshot{
-		Shell: snapshot.ShellSnapshot{
-			OhMyZsh: true,
-			Theme:   "agnoster",
-			Plugins: []string{"git", "docker-compose"},
-		},
-	}
-
-	result := CompareSnapshots(system, reference, Source{})
-
-	assert.NotNil(t, result.Shell)
-	assert.NotNil(t, result.Shell.Theme)
-	assert.Equal(t, "robbyrussell", result.Shell.Theme.System)
-	assert.Equal(t, "agnoster", result.Shell.Theme.Reference)
-	assert.Nil(t, result.Shell.OhMyZsh, "OhMyZsh same on both sides")
-	assert.Equal(t, []string{"docker-compose"}, result.Shell.Plugins.Missing)
-	assert.Equal(t, []string{"docker"}, result.Shell.Plugins.Extra)
-}
-
-func TestCompareSnapshots_ShellOhMyZshDifference(t *testing.T) {
-	system := &snapshot.Snapshot{
-		Shell: snapshot.ShellSnapshot{OhMyZsh: true},
-	}
-	reference := &snapshot.Snapshot{
-		Shell: snapshot.ShellSnapshot{OhMyZsh: false},
-	}
-
-	result := CompareSnapshots(system, reference, Source{})
-
-	assert.NotNil(t, result.Shell.OhMyZsh)
-	assert.Equal(t, "true", result.Shell.OhMyZsh.System)
-	assert.Equal(t, "false", result.Shell.OhMyZsh.Reference)
-}
-
-func TestCompareSnapshots_GitDifferences(t *testing.T) {
-	system := &snapshot.Snapshot{
-		Git: snapshot.GitSnapshot{UserName: "Alice", UserEmail: "old@x.com"},
-	}
-	reference := &snapshot.Snapshot{
-		Git: snapshot.GitSnapshot{UserName: "Alice", UserEmail: "new@x.com"},
-	}
-
-	result := CompareSnapshots(system, reference, Source{})
-
-	assert.NotNil(t, result.Git)
-	assert.Nil(t, result.Git.UserName, "name is the same")
-	assert.NotNil(t, result.Git.UserEmail)
-	assert.Equal(t, "old@x.com", result.Git.UserEmail.System)
-	assert.Equal(t, "new@x.com", result.Git.UserEmail.Reference)
 }
 
 func TestCompareSnapshots_MacOSDifferences(t *testing.T) {
@@ -183,8 +118,7 @@ func TestCompareSnapshotToRemote(t *testing.T) {
 			Npm:      []string{"typescript"},
 			Taps:     []string{"homebrew/core"},
 		},
-		Shell: snapshot.ShellSnapshot{Theme: "robbyrussell"},
-		Git:   snapshot.GitSnapshot{UserName: "Alice"},
+		Git: snapshot.GitSnapshot{UserName: "Alice"},
 	}
 	remote := &config.RemoteConfig{
 		Packages: config.PackageEntryList{{Name: "git"}, {Name: "ripgrep"}},
@@ -202,8 +136,6 @@ func TestCompareSnapshotToRemote(t *testing.T) {
 	assert.Equal(t, []string{"slack"}, result.Packages.Casks.Missing)
 
 	// Non-package sections should be nil for remote configs
-	assert.Nil(t, result.Shell)
-	assert.Nil(t, result.Git)
 	assert.Nil(t, result.MacOS)
 	assert.Nil(t, result.DevTools)
 }
@@ -220,23 +152,6 @@ func TestCompareSnapshotToRemote_EmptyRemote(t *testing.T) {
 
 	assert.Equal(t, []string{"git"}, result.Packages.Formulae.Extra)
 	assert.Empty(t, result.Packages.Formulae.Missing)
-}
-
-func TestCompareSnapshots_GitBothFieldsChanged(t *testing.T) {
-	system := &snapshot.Snapshot{
-		Git: snapshot.GitSnapshot{UserName: "Alice", UserEmail: "alice@old.com"},
-	}
-	reference := &snapshot.Snapshot{
-		Git: snapshot.GitSnapshot{UserName: "Bob", UserEmail: "bob@new.com"},
-	}
-
-	result := CompareSnapshots(system, reference, Source{})
-
-	assert.NotNil(t, result.Git)
-	assert.NotNil(t, result.Git.UserName)
-	assert.Equal(t, "Alice", result.Git.UserName.System)
-	assert.Equal(t, "Bob", result.Git.UserName.Reference)
-	assert.NotNil(t, result.Git.UserEmail)
 }
 
 func TestCompareSnapshots_MacOSExtraPrefs(t *testing.T) {
@@ -259,16 +174,6 @@ func TestCompareSnapshots_MacOSExtraPrefs(t *testing.T) {
 	assert.Empty(t, result.MacOS.Missing)
 	assert.Len(t, result.MacOS.Extra, 1)
 	assert.Equal(t, "ShowHardDrivesOnDesktop", result.MacOS.Extra[0].Key)
-}
-
-func TestCompareSnapshots_GitIdentical(t *testing.T) {
-	snap := &snapshot.Snapshot{
-		Git: snapshot.GitSnapshot{UserName: "Alice", UserEmail: "alice@example.com"},
-	}
-
-	result := CompareSnapshots(snap, snap, Source{})
-
-	assert.Nil(t, result.Git, "git should be nil when config is identical")
 }
 
 func TestCompareSnapshots_EmptySnapshots(t *testing.T) {

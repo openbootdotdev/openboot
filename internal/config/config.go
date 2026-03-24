@@ -48,19 +48,12 @@ type Config struct {
 	RemoteConfig *RemoteConfig
 	PackagesOnly bool
 
-	SnapshotShell    *SnapshotShellConfig
 	SnapshotGit      *SnapshotGitConfig
 	SnapshotMacOS    []RemoteMacOSPref
 	SnapshotDotfiles string
 	DotfilesURL      string
 	PostInstall      string
 	AllowPostInstall bool
-}
-
-type SnapshotShellConfig struct {
-	OhMyZsh bool
-	Theme   string
-	Plugins []string
 }
 
 type SnapshotGitConfig struct {

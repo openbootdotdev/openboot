@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -43,11 +42,6 @@ func Capture() (*Snapshot, error) {
 		return nil, err
 	}
 
-	shellSnap, err := CaptureShell()
-	if err != nil {
-		return nil, err
-	}
-
 	gitSnap, err := CaptureGit()
 	if err != nil {
 		return nil, err
@@ -74,7 +68,6 @@ func Capture() (*Snapshot, error) {
 			Npm:      npmPkgs,
 		},
 		MacOSPrefs:    prefs,
-		Shell:         *shellSnap,
 		Git:           *gitSnap,
 		Dotfiles:      *dotfilesSnap,
 		DevTools:      devTools,
@@ -138,7 +131,6 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			}
 			return 0
 		}},
-		{"Shell Environment", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int { return 1 }},
 		{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
 		{"Dotfiles", func() (interface{}, error) { return CaptureDotfiles() }, func(v interface{}) int {
 			if s, ok := v.(*DotfilesSnapshot); ok && s.RepoURL != "" {
@@ -179,10 +171,9 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	taps, _ := results[2].([]string)
 	npmPkgs, _ := results[3].([]string)
 	prefs, _ := results[4].([]MacOSPref)
-	shellSnap, _ := results[5].(*ShellSnapshot)
-	gitSnap, _ := results[6].(*GitSnapshot)
-	dotfilesSnap, _ := results[7].(*DotfilesSnapshot)
-	devTools, _ := results[8].([]DevTool)
+	gitSnap, _ := results[5].(*GitSnapshot)
+	dotfilesSnap, _ := results[6].(*DotfilesSnapshot)
+	devTools, _ := results[7].([]DevTool)
 
 	if formulae == nil {
 		formulae = []string{}
@@ -198,9 +189,6 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	}
 	if prefs == nil {
 		prefs = []MacOSPref{}
-	}
-	if shellSnap == nil {
-		shellSnap = &ShellSnapshot{Plugins: []string{}}
 	}
 	if gitSnap == nil {
 		gitSnap = &GitSnapshot{}
@@ -223,7 +211,6 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			Npm:      npmPkgs,
 		},
 		MacOSPrefs:    prefs,
-		Shell:         *shellSnap,
 		Git:           *gitSnap,
 		Dotfiles:      *dotfilesSnap,
 		DevTools:      devTools,
@@ -326,47 +313,6 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 	}
 
 	return prefs, nil
-}
-
-func CaptureShell() (*ShellSnapshot, error) {
-	snap := &ShellSnapshot{
-		Default: os.Getenv("SHELL"),
-		Plugins: []string{},
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return snap, nil
-	}
-
-	omzDir := filepath.Join(home, ".oh-my-zsh")
-	if _, err := os.Stat(omzDir); err == nil {
-		snap.OhMyZsh = true
-	}
-
-	zshrc := filepath.Join(home, ".zshrc")
-	data, err := os.ReadFile(zshrc)
-	if err != nil {
-		return snap, nil
-	}
-	content := string(data)
-
-	pluginsRe := regexp.MustCompile(`plugins=\(([^)]*)\)`)
-	if m := pluginsRe.FindStringSubmatch(content); len(m) > 1 {
-		for _, p := range strings.Fields(m[1]) {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				snap.Plugins = append(snap.Plugins, p)
-			}
-		}
-	}
-
-	themeRe := regexp.MustCompile(`ZSH_THEME="([^"]*)"`)
-	if m := themeRe.FindStringSubmatch(content); len(m) > 1 {
-		snap.Theme = m[1]
-	}
-
-	return snap, nil
 }
 
 func CaptureGit() (*GitSnapshot, error) {

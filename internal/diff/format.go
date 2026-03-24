@@ -23,11 +23,8 @@ func FormatTerminal(result *DiffResult, packagesOnly bool) {
 	printListSection("Taps", result.Packages.Taps)
 
 	if !packagesOnly {
-		if result.Shell != nil {
-			printShellSection(result.Shell)
-		}
-		if result.Git != nil {
-			printGitSection(result.Git)
+		if result.Dotfiles != nil {
+			printDotfilesSection(result.Dotfiles)
 		}
 		if result.MacOS != nil {
 			printMacOSSection(result.MacOS)
@@ -45,8 +42,7 @@ func FormatJSON(result *DiffResult) ([]byte, error) {
 	out := jsonOutput{
 		Source:   result.Source,
 		Packages: result.Packages,
-		Shell:    result.Shell,
-		Git:      result.Git,
+		Dotfiles: result.Dotfiles,
 		MacOS:    result.MacOS,
 		DevTools: result.DevTools,
 		Summary: jsonSummary{
@@ -60,13 +56,12 @@ func FormatJSON(result *DiffResult) ([]byte, error) {
 }
 
 type jsonOutput struct {
-	Source   Source      `json:"source"`
-	Packages PackageDiff `json:"packages"`
-	Shell    *ShellDiff  `json:"shell,omitempty"`
-	Git      *GitDiff    `json:"git,omitempty"`
-	MacOS    *MacOSDiff  `json:"macos,omitempty"`
-	DevTools *DevToolDiff `json:"dev_tools,omitempty"`
-	Summary  jsonSummary `json:"summary"`
+	Source   Source        `json:"source"`
+	Packages PackageDiff   `json:"packages"`
+	Dotfiles *DotfilesDiff `json:"dotfiles,omitempty"`
+	MacOS    *MacOSDiff    `json:"macos,omitempty"`
+	DevTools *DevToolDiff  `json:"dev_tools,omitempty"`
+	Summary  jsonSummary   `json:"summary"`
 }
 
 type jsonSummary struct {
@@ -106,45 +101,22 @@ func printListSection(name string, ld ListDiff) {
 	fmt.Println()
 }
 
-func printShellSection(sd *ShellDiff) {
-	hasContent := sd.Theme != nil || sd.OhMyZsh != nil ||
-		len(sd.Plugins.Missing) > 0 || len(sd.Plugins.Extra) > 0
+func printDotfilesSection(dd *DotfilesDiff) {
+	hasContent := dd.RepoChanged != nil || dd.Dirty || dd.Unpushed
 	if !hasContent {
 		return
 	}
 
-	fmt.Printf("  Shell:\n")
-	if sd.OhMyZsh != nil {
-		fmt.Printf("    %s oh-my-zsh: %s %s %s\n",
-			ui.Yellow("~"), sd.OhMyZsh.System, ui.Yellow("\u2192"), sd.OhMyZsh.Reference)
+	fmt.Printf("  Dotfiles:\n")
+	if dd.RepoChanged != nil {
+		fmt.Printf("    %s repo: %s %s %s\n",
+			ui.Yellow("~"), dd.RepoChanged.System, ui.Yellow("\u2192"), dd.RepoChanged.Reference)
 	}
-	if sd.Theme != nil {
-		fmt.Printf("    %s theme: %s %s %s\n",
-			ui.Yellow("~"), sd.Theme.System, ui.Yellow("\u2192"), sd.Theme.Reference)
+	if dd.Dirty {
+		fmt.Printf("    %s uncommitted changes in ~/.dotfiles\n", ui.Yellow("!"))
 	}
-	for _, p := range sd.Plugins.Missing {
-		fmt.Printf("    %s plugin: %-20s %s\n", ui.Green("+"), p, ui.Green("(missing)"))
-	}
-	for _, p := range sd.Plugins.Extra {
-		fmt.Printf("    %s plugin: %-20s %s\n", ui.Red("-"), p, ui.Red("(extra)"))
-	}
-	fmt.Println()
-}
-
-func printGitSection(gd *GitDiff) {
-	hasContent := gd.UserName != nil || gd.UserEmail != nil
-	if !hasContent {
-		return
-	}
-
-	fmt.Printf("  Git:\n")
-	if gd.UserName != nil {
-		fmt.Printf("    %s user.name: %s %s %s\n",
-			ui.Yellow("~"), gd.UserName.System, ui.Yellow("\u2192"), gd.UserName.Reference)
-	}
-	if gd.UserEmail != nil {
-		fmt.Printf("    %s user.email: %s %s %s\n",
-			ui.Yellow("~"), gd.UserEmail.System, ui.Yellow("\u2192"), gd.UserEmail.Reference)
+	if dd.Unpushed {
+		fmt.Printf("    %s unpushed commits in ~/.dotfiles\n", ui.Yellow("!"))
 	}
 	fmt.Println()
 }

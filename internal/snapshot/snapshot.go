@@ -17,7 +17,6 @@ type Snapshot struct {
 	Hostname      string          `json:"hostname"`
 	Packages      PackageSnapshot `json:"packages"`
 	MacOSPrefs    []MacOSPref     `json:"macos_prefs"`
-	Shell         ShellSnapshot   `json:"shell"`
 	Git           GitSnapshot     `json:"git"`
 	Dotfiles      DotfilesSnapshot `json:"dotfiles"`
 	DevTools      []DevTool       `json:"dev_tools"`
@@ -175,13 +174,6 @@ type MacOSPref struct {
 	Type   string `json:"type"`
 	Value  string `json:"value"`
 	Desc   string `json:"desc"`
-}
-
-type ShellSnapshot struct {
-	Default string   `json:"default"`
-	OhMyZsh bool     `json:"oh_my_zsh"`
-	Plugins []string `json:"plugins"`
-	Theme   string   `json:"theme"`
 }
 
 type GitSnapshot struct {

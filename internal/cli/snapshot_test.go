@@ -37,16 +37,11 @@ func TestBuildImportConfig_EmptyDotfiles(t *testing.T) {
 	assert.Empty(t, cfg.DotfilesURL)
 }
 
-func TestBuildImportConfig_GitAndShellPopulated(t *testing.T) {
+func TestBuildImportConfig_GitPopulated(t *testing.T) {
 	snap := &snapshot.Snapshot{
 		Git: snapshot.GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
-		},
-		Shell: snapshot.ShellSnapshot{
-			OhMyZsh: true,
-			Theme:   "robbyrussell",
-			Plugins: []string{"git"},
 		},
 	}
 
@@ -54,8 +49,6 @@ func TestBuildImportConfig_GitAndShellPopulated(t *testing.T) {
 
 	require.NotNil(t, cfg.SnapshotGit)
 	assert.Equal(t, "Test User", cfg.SnapshotGit.UserName)
-	require.NotNil(t, cfg.SnapshotShell)
-	assert.True(t, cfg.SnapshotShell.OhMyZsh)
 }
 
 func TestBuildImportConfig_EmptySnapshot(t *testing.T) {
