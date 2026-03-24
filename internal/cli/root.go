@@ -40,6 +40,7 @@ shell configuration, and macOS preferences.`,
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		updater.AutoUpgrade(version)
+		config.RefreshPackagesFromRemote()
 
 		if cfg.Silent {
 			if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {

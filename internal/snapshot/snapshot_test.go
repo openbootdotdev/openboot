@@ -92,7 +92,9 @@ func TestPackageSnapshot_MarshalJSON_NoDescriptions(t *testing.T) {
 	assert.Equal(t, []string{"git", "curl"}, formulae)
 }
 
-func TestPackageSnapshot_MarshalJSON_WithDescriptions(t *testing.T) {
+func TestPackageSnapshot_MarshalJSON_AlwaysPlainStrings(t *testing.T) {
+	// MarshalJSON always outputs plain string arrays (canonical format).
+	// Descriptions are runtime-only and not serialised.
 	ps := PackageSnapshot{
 		Formulae:     []string{"git", "curl"},
 		Casks:        []string{"docker"},
@@ -109,53 +111,40 @@ func TestPackageSnapshot_MarshalJSON_WithDescriptions(t *testing.T) {
 	data, err := json.Marshal(ps)
 	require.NoError(t, err)
 
-	type entry struct {
-		Name string `json:"name"`
-		Desc string `json:"desc"`
-	}
 	var raw struct {
-		Formulae []entry  `json:"formulae"`
-		Casks    []entry  `json:"casks"`
+		Formulae []string `json:"formulae"`
+		Casks    []string `json:"casks"`
 		Taps     []string `json:"taps"`
-		Npm      []entry  `json:"npm"`
+		Npm      []string `json:"npm"`
 	}
 	require.NoError(t, json.Unmarshal(data, &raw))
 
-	assert.Equal(t, "git", raw.Formulae[0].Name)
-	assert.Equal(t, "Version control system", raw.Formulae[0].Desc)
-	assert.Equal(t, "docker", raw.Casks[0].Name)
-	assert.Equal(t, "Container platform", raw.Casks[0].Desc)
+	assert.Equal(t, []string{"git", "curl"}, raw.Formulae)
+	assert.Equal(t, []string{"docker"}, raw.Casks)
 	assert.Equal(t, []string{"homebrew/core"}, raw.Taps)
+	assert.Equal(t, []string{"typescript"}, raw.Npm)
 }
 
 func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
+	// Round-trip preserves package names but not descriptions
+	// (descriptions are runtime-only, not serialised).
 	tests := []struct {
 		name     string
 		original PackageSnapshot
 	}{
 		{
-			name: "all package types with descriptions",
+			name: "all package types",
 			original: PackageSnapshot{
-				Formulae:     []string{"git", "curl"},
-				Casks:        []string{"docker"},
-				Taps:         []string{"homebrew/core"},
-				Npm:          []string{"typescript"},
-				Descriptions: map[string]string{
-					"git":        "Version control system",
-					"curl":       "Transfer data with URLs",
-					"docker":     "Container platform",
-					"typescript": "Typed JavaScript",
-				},
+				Formulae: []string{"git", "curl"},
+				Casks:    []string{"docker"},
+				Taps:     []string{"homebrew/core"},
+				Npm:      []string{"typescript"},
 			},
 		},
 		{
-			name: "cask only with descriptions",
+			name: "cask only",
 			original: PackageSnapshot{
 				Casks: []string{"docker", "slack"},
-				Descriptions: map[string]string{
-					"docker": "Container platform",
-					"slack":  "Team communication",
-				},
 			},
 		},
 	}
@@ -172,7 +161,6 @@ func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
 			assert.Equal(t, tt.original.Casks, restored.Casks)
 			assert.Equal(t, tt.original.Taps, restored.Taps)
 			assert.Equal(t, tt.original.Npm, restored.Npm)
-			assert.Equal(t, tt.original.Descriptions, restored.Descriptions)
 		})
 	}
 }

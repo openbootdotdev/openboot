@@ -46,8 +46,8 @@ openboot/
 │   ├── brew/             # Homebrew ops, parallel install (4 workers), retry logic, uninstall
 │   ├── cleaner/          # Diff current system vs desired state, remove extra packages
 │   ├── cli/              # Cobra commands: root, snapshot, doctor, clean, diff, sync, update, version
-│   ├── config/           # Embedded YAML (packages + presets), remote config fetch
-│   │   └── data/         # packages.yaml (9 categories), presets.yaml (3 presets)
+│   ├── config/           # Package catalog, presets, remote config fetch
+│   │   └── data/         # packages.yaml (embedded fallback), presets.yaml (3 presets)
 │   ├── diff/             # Read-only system vs config/snapshot comparison (pure logic)
 │   ├── dotfiles/         # Clone + stow/symlink with .openboot.bak backup
 │   ├── installer/        # Main orchestrator: 7-step wizard + snapshot restore
@@ -93,7 +93,7 @@ cli (root)
 | Task | Location | Notes |
 |------|----------|-------|
 | Add CLI command | `internal/cli/` | Register in root.go init(), follow cobra pattern |
-| Add package category | `internal/config/data/packages.yaml` | Rebuild after changing embedded YAML |
+| Add package category | `openboot.dev/src/lib/package-metadata.ts` | Server is the source of truth; CLI fetches via `/api/packages` at startup and caches 24h in `~/.openboot/packages-cache.json`. Embedded `packages.yaml` is fallback only |
 | Change install flow | `internal/installer/installer.go` | 7 steps: homebrew → git → preset → packages → shell → macos → dotfiles |
 | Change clean/uninstall | `internal/cleaner/cleaner.go` | Diffs current vs desired, calls brew/npm Uninstall |
 | Add TUI component | `internal/ui/` | Use bubbletea Model pattern, lipgloss styling |

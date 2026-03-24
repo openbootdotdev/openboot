@@ -9,6 +9,8 @@ on:
     branches:
       - main
       - master
+  repository_dispatch:
+    types: [contract-updated]
   workflow_dispatch:
     inputs:
       run_destructive:
@@ -44,6 +46,33 @@ jobs:
       - name: Run destructive tests
         if: ${{ inputs.run_destructive == true }}
         run: make test-destructive
+
+      - name: Contract schema validation
+        run: |
+          git clone --depth 1 https://github.com/openbootdotdev/openboot-contract.git /tmp/contract
+          pip3 install jsonschema
+
+          python3 -c "
+          import json, jsonschema, sys
+
+          checks = [
+            ('/tmp/contract/schemas/remote-config.json', '/tmp/contract/fixtures/config-v1.json'),
+            ('/tmp/contract/schemas/snapshot.json', '/tmp/contract/fixtures/snapshot-v1.json'),
+          ]
+
+          failed = 0
+          for schema_path, fixture_path in checks:
+            schema = json.load(open(schema_path))
+            data = json.load(open(fixture_path))
+            try:
+              jsonschema.validate(data, schema)
+              print(f'  ✓ {fixture_path.split(\"/\")[-1]} matches {schema_path.split(\"/\")[-1]}')
+            except jsonschema.ValidationError as e:
+              print(f'  ✗ {fixture_path.split(\"/\")[-1]}: {e.message}')
+              failed += 1
+
+          sys.exit(1 if failed else 0)
+          "
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

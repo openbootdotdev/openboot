@@ -472,6 +472,68 @@ func TestUnmarshalRemoteConfigFlexible_TopLevelMacOSPrefsNotOverridden(t *testin
 	assert.Equal(t, "com.apple.dock", rc.MacOSPrefs[0].Domain, "top-level macos_prefs should take precedence")
 }
 
+func TestUnmarshalRemoteConfigFlexible_ObjectArrayWithDesc(t *testing.T) {
+	// New canonical format: server returns separate arrays with {name, desc} objects.
+	data := []byte(`{
+		"username": "testuser",
+		"slug": "myconfig",
+		"name": "My Setup",
+		"preset": "developer",
+		"packages": [{"name": "git", "desc": "Distributed version control"}, {"name": "curl", "desc": "Transfer data with URLs"}],
+		"casks": [{"name": "firefox", "desc": "Privacy-focused browser"}],
+		"taps": ["homebrew/cask-fonts"],
+		"npm": [{"name": "typescript", "desc": "Typed superset of JavaScript"}],
+		"dotfiles_repo": "https://github.com/testuser/dotfiles"
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", rc.Username)
+	assert.Equal(t, "myconfig", rc.Slug)
+	assert.Equal(t, PackageEntryList{{Name: "git", Desc: "Distributed version control"}, {Name: "curl", Desc: "Transfer data with URLs"}}, rc.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "firefox", Desc: "Privacy-focused browser"}}, rc.Casks)
+	assert.Equal(t, []string{"homebrew/cask-fonts"}, rc.Taps)
+	assert.Equal(t, PackageEntryList{{Name: "typescript", Desc: "Typed superset of JavaScript"}}, rc.Npm)
+}
+
+func TestFetchRemoteConfig_ObjectArrayFormat(t *testing.T) {
+	// Server now returns {name, desc} objects instead of flat strings.
+	mockConfig := map[string]interface{}{
+		"username":     "testuser",
+		"slug":         "myconfig",
+		"name":         "Test Config",
+		"preset":       "developer",
+		"packages":     []map[string]string{{"name": "git", "desc": "Version control"}, {"name": "curl", "desc": "Transfer data"}},
+		"casks":        []map[string]string{{"name": "firefox", "desc": "Browser"}},
+		"taps":         []string{"homebrew/cask-fonts"},
+		"npm":          []map[string]string{{"name": "typescript", "desc": "Typed JS"}},
+		"dotfiles_repo": "https://github.com/testuser/dotfiles",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(mockConfig)
+	}))
+	defer server.Close()
+
+	originalClient := remoteHTTPClient
+	remoteHTTPClient = server.Client()
+	defer func() { remoteHTTPClient = originalClient }()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	result, err := FetchRemoteConfig("testuser/myconfig", "")
+	require.NoError(t, err)
+	assert.Equal(t, "testuser", result.Username)
+	assert.Len(t, result.Packages, 2)
+	assert.Equal(t, "git", result.Packages[0].Name)
+	assert.Equal(t, "Version control", result.Packages[0].Desc)
+	assert.Len(t, result.Casks, 1)
+	assert.Equal(t, "Browser", result.Casks[0].Desc)
+	assert.Len(t, result.Npm, 1)
+	assert.Equal(t, "Typed JS", result.Npm[0].Desc)
+}
+
 func TestUnmarshalRemoteConfigFlexible_InvalidJSON(t *testing.T) {
 	data := []byte(`not json`)
 	_, err := UnmarshalRemoteConfigFlexible(data)
