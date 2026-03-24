@@ -41,12 +41,6 @@ func TestIntegration_SnapshotSaveLoad(t *testing.T) {
 				Desc:   "Show path bar in Finder",
 			},
 		},
-		Shell: snapshot.ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-			Plugins: []string{"git", "docker"},
-			Theme:   "robbyrussell",
-		},
 		Git: snapshot.GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
@@ -80,7 +74,6 @@ func TestIntegration_SnapshotSaveLoad(t *testing.T) {
 	assert.Equal(t, snap.Packages.Formulae, loaded.Packages.Formulae)
 	assert.Equal(t, snap.Packages.Casks, loaded.Packages.Casks)
 	assert.Equal(t, snap.Packages.Npm, loaded.Packages.Npm)
-	assert.Equal(t, snap.Shell.OhMyZsh, loaded.Shell.OhMyZsh)
 	assert.Equal(t, snap.Git.UserName, loaded.Git.UserName)
 	assert.Equal(t, len(snap.DevTools), len(loaded.DevTools))
 	assert.Equal(t, snap.MatchedPreset, loaded.MatchedPreset)
@@ -360,10 +353,6 @@ func TestIntegration_SnapshotUpload(t *testing.T) {
 			Casks:    []string{"docker"},
 			Npm:      []string{"typescript"},
 		},
-		Shell: snapshot.ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-		},
 		Git: snapshot.GitSnapshot{
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
@@ -452,10 +441,6 @@ func TestIntegration_SnapshotImport(t *testing.T) {
 			Formulae: []string{"git", "go", "rust"},
 			Casks:    []string{"vscode"},
 			Npm:      []string{"eslint"},
-		},
-		Shell: snapshot.ShellSnapshot{
-			Default: "/bin/bash",
-			OhMyZsh: false,
 		},
 		Git: snapshot.GitSnapshot{
 			UserName:  "Remote User",
@@ -584,12 +569,6 @@ func TestIntegration_SnapshotRoundTrip(t *testing.T) {
 			{Domain: "com.apple.finder", Key: "ShowPathbar", Value: "1", Desc: "Show path bar"},
 			{Domain: "com.apple.dock", Key: "autohide", Value: "1", Desc: "Auto-hide dock"},
 		},
-		Shell: snapshot.ShellSnapshot{
-			Default: "/bin/zsh",
-			OhMyZsh: true,
-			Plugins: []string{"git", "docker", "kubectl"},
-			Theme:   "robbyrussell",
-		},
 		Git: snapshot.GitSnapshot{
 			UserName:  "Test Developer",
 			UserEmail: "dev@example.com",
@@ -625,10 +604,6 @@ func TestIntegration_SnapshotRoundTrip(t *testing.T) {
 	assert.Equal(t, original.Packages.Taps, loaded.Packages.Taps)
 	assert.Equal(t, original.Packages.Npm, loaded.Packages.Npm)
 	assert.Equal(t, len(original.MacOSPrefs), len(loaded.MacOSPrefs))
-	assert.Equal(t, original.Shell.Default, loaded.Shell.Default)
-	assert.Equal(t, original.Shell.OhMyZsh, loaded.Shell.OhMyZsh)
-	assert.Equal(t, original.Shell.Plugins, loaded.Shell.Plugins)
-	assert.Equal(t, original.Shell.Theme, loaded.Shell.Theme)
 	assert.Equal(t, original.Git.UserName, loaded.Git.UserName)
 	assert.Equal(t, original.Git.UserEmail, loaded.Git.UserEmail)
 	assert.Equal(t, len(original.DevTools), len(loaded.DevTools))

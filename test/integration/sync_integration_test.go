@@ -77,9 +77,7 @@ func TestIntegration_Execute_DryRun_FullPlan(t *testing.T) {
 		InstallNpm:        []string{"turbo"},
 		InstallTaps:       []string{"homebrew/cask-fonts"},
 		UninstallFormulae: []string{"htop"},
-		UpdateDotfiles:    "https://github.com/user/dots",
-		UpdateTheme:       "agnoster",
-		InstallPlugins:    []string{"zsh-autosuggestions"},
+		UpdateDotfiles: "https://github.com/user/dots",
 		UpdateMacOSPrefs: []config.RemoteMacOSPref{
 			{Domain: "com.apple.dock", Key: "autohide", Value: "true"},
 		},
@@ -91,7 +89,7 @@ func TestIntegration_Execute_DryRun_FullPlan(t *testing.T) {
 	assert.Equal(t, 4, result.Installed)
 	// 1 formulae uninstalled
 	assert.Equal(t, 1, result.Uninstalled)
-	// dotfiles(1) + shell(1) + macos(1) = 3 updated
-	assert.Equal(t, 3, result.Updated)
+	// dotfiles(1) + macos(1) = 2 updated
+	assert.Equal(t, 2, result.Updated)
 	assert.Empty(t, result.Errors)
 }
