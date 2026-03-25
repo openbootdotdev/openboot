@@ -1,9 +1,8 @@
-//go:build e2e
+//go:build e2e && vm
 
 package e2e
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 
@@ -13,43 +12,48 @@ import (
 
 func TestE2E_Update_DryRun(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping update test in short mode")
+		t.Skip("skipping VM test in short mode")
 	}
 
-	binary := testutil.BuildTestBinary(t)
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
-	cmd := exec.Command(binary, "update", "--dry-run")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
-
-	assert.NoError(t, err, "update --dry-run should succeed, output: %s", outStr)
+	output, err := vmRunDevBinary(t, vm, bin, "update --dry-run")
+	assert.NoError(t, err, "update --dry-run should succeed, output: %s", output)
 	assert.True(t,
-		strings.Contains(outStr, "DRY-RUN") || strings.Contains(outStr, "up to date") || strings.Contains(outStr, "outdated") || strings.Contains(outStr, "Would run"),
-		"output should show dry-run info or package status, got: %s", outStr)
+		strings.Contains(output, "DRY-RUN") || strings.Contains(output, "up to date") || strings.Contains(output, "outdated") || strings.Contains(output, "Would run"),
+		"output should show dry-run info or package status, got: %s", output)
 }
 
 func TestE2E_Update_HelpFlag(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	cmd := exec.Command(binary, "update", "--help")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
+	output, err := vmRunDevBinary(t, vm, bin, "update --help")
 	assert.NoError(t, err, "update --help should succeed")
-	assert.Contains(t, outStr, "update")
-	assert.Contains(t, outStr, "--dry-run")
-	assert.Contains(t, outStr, "--self")
+	assert.Contains(t, output, "update")
+	assert.Contains(t, output, "--dry-run")
+	assert.Contains(t, output, "--self")
 }
 
 func TestE2E_Update_Self_DevVersion(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
+
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
 	// Dev builds (version=dev) should handle --self gracefully
-	cmd := exec.Command(binary, "update", "--self")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
-
+	output, err := vmRunDevBinary(t, vm, bin, "update --self")
 	// May succeed or fail depending on install method detection —
 	// just verify it doesn't panic
-	t.Logf("update --self output: %s (err: %v)", outStr, err)
+	t.Logf("update --self output: %s (err: %v)", output, err)
 }
