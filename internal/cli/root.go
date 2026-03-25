@@ -40,8 +40,17 @@ shell configuration, and macOS preferences.`,
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		config.SetClientVersion(version)
-		updater.AutoUpgrade(version)
-		config.RefreshPackagesFromRemote()
+
+		// Skip network operations for lightweight commands that don't
+		// need the package catalog or auto-update check.
+		lightweightCmds := map[string]bool{
+			"version": true,
+			"help":    true,
+		}
+		if !lightweightCmds[cmd.Name()] {
+			updater.AutoUpgrade(version)
+			config.RefreshPackagesFromRemote()
+		}
 
 		if cfg.Silent {
 			if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
