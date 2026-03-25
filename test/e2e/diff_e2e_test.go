@@ -1,12 +1,10 @@
-//go:build e2e
+//go:build e2e && vm
 
 package e2e
 
 import (
 	"encoding/json"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -16,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// writeTestSnapshot creates a minimal snapshot JSON file in tmpDir and returns its path.
-func writeTestSnapshot(t *testing.T, tmpDir string, formulae, casks, npm []string) string {
+// writeTestSnapshotJSON returns a minimal snapshot JSON string.
+func writeTestSnapshotJSON(t *testing.T, formulae, casks, npm []string) string {
 	t.Helper()
 
 	snap := map[string]interface{}{
@@ -54,48 +52,54 @@ func writeTestSnapshot(t *testing.T, tmpDir string, formulae, casks, npm []strin
 
 	data, err := json.MarshalIndent(snap, "", "  ")
 	require.NoError(t, err)
+	return string(data)
+}
 
-	path := filepath.Join(tmpDir, "test-snapshot.json")
-	err = os.WriteFile(path, data, 0644)
-	require.NoError(t, err)
-
-	return path
+// vmWriteTestSnapshot writes a snapshot JSON to the VM at the given remote path.
+func vmWriteTestSnapshot(t *testing.T, vm *testutil.TartVM, remotePath string, formulae, casks, npm []string) {
+	t.Helper()
+	content := writeTestSnapshotJSON(t, formulae, casks, npm)
+	// Use printf to avoid issues with special characters and heredoc in SSH
+	escaped := strings.ReplaceAll(content, "'", "'\\''")
+	_, err := vm.Run(fmt.Sprintf("printf '%%s' '%s' > %s", escaped, remotePath))
+	require.NoError(t, err, "should write snapshot to VM at %s", remotePath)
 }
 
 func TestE2E_Diff_FromFile(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	tmpDir := t.TempDir()
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	// Create a snapshot with some known packages
-	snapshotPath := writeTestSnapshot(t, tmpDir, []string{"git", "curl"}, []string{}, []string{})
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
-	cmd := exec.Command(binary, "diff", "--from", snapshotPath)
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
+	snapshotPath := "/tmp/diff-test-snapshot.json"
+	vmWriteTestSnapshot(t, vm, snapshotPath, []string{"git", "curl"}, []string{}, []string{})
 
-	// diff should succeed (exit 0) — it's a read-only comparison
-	assert.NoError(t, err, "diff --from should succeed, output: %s", outStr)
+	output, err := vmRunDevBinary(t, vm, bin, "diff --from "+snapshotPath)
+	assert.NoError(t, err, "diff --from should succeed, output: %s", output)
 }
 
 func TestE2E_Diff_FromFile_JSON(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	tmpDir := t.TempDir()
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	snapshotPath := writeTestSnapshot(t, tmpDir, []string{"git"}, []string{}, []string{})
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
-	cmd := exec.Command(binary, "diff", "--from", snapshotPath, "--json")
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	snapshotPath := "/tmp/diff-json-snapshot.json"
+	vmWriteTestSnapshot(t, vm, snapshotPath, []string{"git"}, []string{}, []string{})
 
-	err := cmd.Run()
-	require.NoError(t, err, "diff --from --json should succeed, stderr: %s", stderr.String())
+	output, err := vmRunDevBinary(t, vm, bin, "diff --from "+snapshotPath+" --json")
+	require.NoError(t, err, "diff --from --json should succeed, output: %s", output)
 
 	// stdout should be valid JSON
-	jsonOutput := stdout.String()
 	var result map[string]interface{}
-	err = json.Unmarshal([]byte(jsonOutput), &result)
-	assert.NoError(t, err, "diff --json output should be valid JSON, got: %s", jsonOutput)
+	err = json.Unmarshal([]byte(output), &result)
+	assert.NoError(t, err, "diff --json output should be valid JSON, got: %s", output)
 
 	// Should have expected top-level keys
 	assert.Contains(t, result, "source", "JSON should contain 'source' field")
@@ -103,90 +107,100 @@ func TestE2E_Diff_FromFile_JSON(t *testing.T) {
 }
 
 func TestE2E_Diff_FromFile_PackagesOnly(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	tmpDir := t.TempDir()
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	snapshotPath := writeTestSnapshot(t, tmpDir, []string{"git"}, []string{}, []string{})
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
-	cmd := exec.Command(binary, "diff", "--from", snapshotPath, "--packages-only")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
+	snapshotPath := "/tmp/diff-pkgonly-snapshot.json"
+	vmWriteTestSnapshot(t, vm, snapshotPath, []string{"git"}, []string{}, []string{})
 
-	assert.NoError(t, err, "diff --packages-only should succeed, output: %s", outStr)
+	output, err := vmRunDevBinary(t, vm, bin, "diff --from "+snapshotPath+" --packages-only")
+	assert.NoError(t, err, "diff --packages-only should succeed, output: %s", output)
 }
 
 func TestE2E_Diff_MissingFile(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	cmd := exec.Command(binary, "diff", "--from", "/tmp/nonexistent-snapshot-12345.json")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
+	output, err := vmRunDevBinary(t, vm, bin, "diff --from /tmp/nonexistent-snapshot-12345.json")
 	assert.Error(t, err, "diff with missing file should fail")
 	assert.True(t,
-		strings.Contains(outStr, "not found") || strings.Contains(outStr, "no such file") || strings.Contains(outStr, "snapshot"),
-		"error should mention file issue, got: %s", outStr)
+		strings.Contains(output, "not found") || strings.Contains(output, "no such file") || strings.Contains(output, "snapshot"),
+		"error should mention file issue, got: %s", output)
 }
 
 func TestE2E_Diff_InvalidJSON(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	tmpDir := t.TempDir()
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	// Write invalid JSON
-	badFile := filepath.Join(tmpDir, "bad-snapshot.json")
-	err := os.WriteFile(badFile, []byte("not valid json {{{"), 0644)
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
+
+	// Write invalid JSON to the VM
+	badFile := "/tmp/bad-snapshot.json"
+	_, err := vm.Run(fmt.Sprintf("echo 'not valid json {{{' > %s", badFile))
 	require.NoError(t, err)
 
-	cmd := exec.Command(binary, "diff", "--from", badFile)
-	output, cmdErr := cmd.CombinedOutput()
-	outStr := string(output)
-
+	output, cmdErr := vmRunDevBinary(t, vm, bin, "diff --from "+badFile)
 	assert.Error(t, cmdErr, "diff with invalid JSON should fail")
 	assert.True(t,
-		strings.Contains(outStr, "unmarshal") || strings.Contains(outStr, "parse") || strings.Contains(outStr, "invalid") || strings.Contains(outStr, "snapshot"),
-		"error should mention parse issue, got: %s", outStr)
+		strings.Contains(output, "unmarshal") || strings.Contains(output, "parse") || strings.Contains(output, "invalid") || strings.Contains(output, "snapshot"),
+		"error should mention parse issue, got: %s", output)
 }
 
 func TestE2E_Diff_NoLocalSnapshot(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	// Run diff without any flags — it will try to load local snapshot
-	// which may or may not exist on the test machine.
-	// If it doesn't exist, it should fail with a helpful message.
-	cmd := exec.Command(binary, "diff")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
+	// Run diff without any flags — it will try to load local snapshot which won't exist in fresh VM.
+	output, err := vmRunDevBinary(t, vm, bin, "diff")
 	if err != nil {
 		// Expected if no local snapshot: should mention how to create one
 		assert.True(t,
-			strings.Contains(outStr, "snapshot") || strings.Contains(outStr, "--from") || strings.Contains(outStr, "--user"),
-			"error should guide user to use --from or --user, got: %s", outStr)
+			strings.Contains(output, "snapshot") || strings.Contains(output, "--from") || strings.Contains(output, "--user"),
+			"error should guide user to use --from or --user, got: %s", output)
 	}
-	// If it succeeds, the user has a local snapshot — that's fine too
+	// If it succeeds, the VM has a local snapshot — that's fine too
 }
 
 func TestE2E_Diff_FromFile_JSONStructure(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	tmpDir := t.TempDir()
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	// Create snapshot with packages that definitely won't all be on the system
-	snapshotPath := writeTestSnapshot(t, tmpDir,
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
+
+	// Create snapshot with packages that definitely won't be on the system
+	snapshotPath := "/tmp/diff-structure-snapshot.json"
+	vmWriteTestSnapshot(t, vm, snapshotPath,
 		[]string{"this-package-surely-not-installed-xyz"},
 		[]string{"this-cask-surely-not-installed-xyz"},
 		[]string{"this-npm-surely-not-installed-xyz"},
 	)
 
-	cmd := exec.Command(binary, "diff", "--from", snapshotPath, "--json")
-	var stdout, stderr strings.Builder
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	require.NoError(t, err, "diff --json should succeed, stderr: %s", stderr.String())
+	output, err := vmRunDevBinary(t, vm, bin, "diff --from "+snapshotPath+" --json")
+	require.NoError(t, err, "diff --json should succeed, output: %s", output)
 
 	var result map[string]interface{}
-	err = json.Unmarshal([]byte(stdout.String()), &result)
+	err = json.Unmarshal([]byte(output), &result)
 	require.NoError(t, err, "output should be valid JSON")
 
 	// Verify packages section has expected structure
@@ -208,16 +222,19 @@ func TestE2E_Diff_FromFile_JSONStructure(t *testing.T) {
 }
 
 func TestE2E_Diff_HelpFlag(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
+	if testing.Short() {
+		t.Skip("skipping VM test in short mode")
+	}
 
-	cmd := exec.Command(binary, "diff", "--help")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
+	vm := testutil.NewTartVM(t)
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
+	output, err := vmRunDevBinary(t, vm, bin, "diff --help")
 	assert.NoError(t, err, "diff --help should succeed")
-	assert.Contains(t, outStr, "diff")
-	assert.Contains(t, outStr, "--from")
-	assert.Contains(t, outStr, "--user")
-	assert.Contains(t, outStr, "--json")
-	assert.Contains(t, outStr, "--packages-only")
+	assert.Contains(t, output, "diff")
+	assert.Contains(t, output, "--from")
+	assert.Contains(t, output, "--user")
+	assert.Contains(t, output, "--json")
+	assert.Contains(t, output, "--packages-only")
 }
