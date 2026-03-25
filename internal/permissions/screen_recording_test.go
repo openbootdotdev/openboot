@@ -11,7 +11,6 @@ func TestHasScreenRecordingPermission_Returns(t *testing.T) {
 	assert.IsType(t, true, result)
 }
 
-func TestOpenScreenRecordingSettings_NoError(t *testing.T) {
-	err := OpenScreenRecordingSettings()
-	assert.IsType(t, (*error)(nil), &err)
-}
+// TestOpenScreenRecordingSettings is intentionally omitted: the function's only
+// effect is opening System Settings UI on macOS, which cannot be meaningfully
+// unit-tested without side-effecting the developer's machine.
