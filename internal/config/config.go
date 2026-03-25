@@ -62,30 +62,38 @@ var presetsYAML embed.FS
 //go:embed data/screen-recording-packages.yaml
 var screenRecordingYAML embed.FS
 
+// Config holds all configuration for a single openboot run.
+//
+// TODO(future): split into InstallOptions (input, read-only) and
+// InstallState (runtime, mutable) once the call-sites are ready.
 type Config struct {
-	Version      string
-	Preset       string
-	Silent       bool
-	DryRun       bool
-	Update       bool
-	Shell        string
-	Macos        string
-	Dotfiles     string
-	GitName      string
-	GitEmail     string
-	SelectedPkgs map[string]bool
-	OnlinePkgs   []Package
-	SnapshotTaps []string
-	User         string
-	RemoteConfig *RemoteConfig
-	PackagesOnly bool
+	// --- Input (set by flags/env before run) ---
 
-	SnapshotGit      *SnapshotGitConfig
-	SnapshotMacOS    []RemoteMacOSPref
-	SnapshotDotfiles string
-	DotfilesURL      string
-	PostInstall      string
-	AllowPostInstall bool
+	Version          string // injected via -ldflags at build time
+	Preset           string // -p / OPENBOOT_PRESET
+	User             string // -u / OPENBOOT_USER
+	DryRun           bool   // --dry-run
+	Silent           bool   // -s / CI mode
+	PackagesOnly     bool   // --packages-only
+	Update           bool   // --update
+	Shell            string // --shell (install|skip)
+	Macos            string // --macos (configure|skip)
+	Dotfiles         string // --dotfiles (clone|link|skip)
+	GitName          string // OPENBOOT_GIT_NAME (silent mode)
+	GitEmail         string // OPENBOOT_GIT_EMAIL (silent mode)
+	PostInstall      string // --post-install
+	AllowPostInstall bool   // --allow-post-install
+	DotfilesURL      string // from remote config
+
+	// --- Runtime state (populated during install) ---
+
+	SelectedPkgs     map[string]bool    // set by UI package selector
+	OnlinePkgs       []Package          // fetched from packages API
+	SnapshotTaps     []string           // from snapshot capture
+	RemoteConfig     *RemoteConfig      // fetched from openboot.dev at startup
+	SnapshotGit      *SnapshotGitConfig // from snapshot capture
+	SnapshotMacOS    []RemoteMacOSPref  // from snapshot capture
+	SnapshotDotfiles string             // from snapshot capture
 }
 
 type SnapshotGitConfig struct {
