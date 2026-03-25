@@ -42,10 +42,10 @@ test-all:
 # VM-based E2E tests (Tart VMs) — three levels
 # =============================================================================
 
-# L1: Quick validation (~5min) — run after code changes
-#     Uses -short flag: skips tests that install real packages
+# L1: Quick validation (~2min) — run after code changes
+#     Runs TestVM_Infra only: boots a VM and checks SSH/arch/tools, no package installs
 test-vm-quick: build
-	go test -v -timeout 10m -tags="e2e,vm" -short ./test/e2e/...
+	go test -v -timeout 5m -tags="e2e,vm" -run "TestVM_Infra" ./test/e2e/...
 
 # L2: Release validation (~20min) — run before tagging a release
 #     Core user journeys: dry-run safety, install + verify, diff/clean cycle,
@@ -62,7 +62,6 @@ test-vm-full: build
 
 # Aliases
 test-vm: test-vm-release
-test-vm-short: test-vm-quick
 
 # Single VM test by name (e.g. make test-vm-run TEST=TestVM_Journey_DryRun)
 test-vm-run: build

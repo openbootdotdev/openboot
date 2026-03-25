@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	ociImage       = "ghcr.io/cirruslabs/macos-sequoia-base:latest"
+	ociImage       = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
 	vmUser         = "admin"
 	vmPassword     = "admin"
 	vmPrefix       = "openboot-e2e-"
