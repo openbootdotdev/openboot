@@ -41,7 +41,9 @@ func TestCategorizeSelectedPackages_EmptySelection(t *testing.T) {
 	cfg := &config.Config{
 		SelectedPkgs: map[string]bool{},
 	}
-	result := categorizeSelectedPackages(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	result := categorizeSelectedPackages(opts, st)
 	assert.Empty(t, result.cli)
 	assert.Empty(t, result.cask)
 	assert.Empty(t, result.npm)
@@ -60,7 +62,9 @@ func TestCategorizeSelectedPackages_RemoteConfig(t *testing.T) {
 			"curl":               true,
 		},
 	}
-	result := categorizeSelectedPackages(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	result := categorizeSelectedPackages(opts, st)
 
 	assert.Contains(t, result.cask, "visual-studio-code")
 	assert.Contains(t, result.npm, "typescript")
@@ -79,7 +83,9 @@ func TestCategorizeSelectedPackages_RemoteConfig_NoCasks(t *testing.T) {
 			"curl": true,
 		},
 	}
-	result := categorizeSelectedPackages(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	result := categorizeSelectedPackages(opts, st)
 
 	assert.Equal(t, 2, len(result.cli))
 	assert.Empty(t, result.cask)
@@ -95,7 +101,9 @@ func TestCategorizeSelectedPackages_WithOnlinePkgs(t *testing.T) {
 			{Name: "my-npm-pkg", IsCask: false, IsNpm: true},
 		},
 	}
-	result := categorizeSelectedPackages(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	result := categorizeSelectedPackages(opts, st)
 
 	assert.Contains(t, result.cli, "my-formula")
 	assert.Contains(t, result.cask, "my-cask")
@@ -115,7 +123,9 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	cfg := &config.Config{
 		DryRun: true,
 	}
-	err := checkDependencies(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := checkDependencies(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -131,10 +141,12 @@ func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
 		},
 	}
 
-	err := runInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runInstall(opts, st)
 	require.NoError(t, err)
-	assert.True(t, cfg.SelectedPkgs["git"])
-	assert.True(t, cfg.SelectedPkgs["curl"])
+	assert.True(t, st.SelectedPkgs["git"])
+	assert.True(t, st.SelectedPkgs["curl"])
 }
 
 func TestNewInstallState(t *testing.T) {
@@ -256,7 +268,9 @@ func TestStepGitConfig_DryRunNoTTY(t *testing.T) {
 		GitName:  "Test",
 		GitEmail: "test@example.com",
 	}
-	err := stepGitConfig(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepGitConfig(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -266,8 +280,10 @@ func TestStepGitConfig_SilentMode_MissingFields(t *testing.T) {
 		GitName:  "",
 		GitEmail: "",
 	}
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
 
-	err := stepGitConfig(cfg)
+	err := stepGitConfig(opts, st)
 	if err != nil {
 		assert.Contains(t, err.Error(), "required in silent mode")
 	}
@@ -277,7 +293,9 @@ func TestStepPresetSelection_PresetAlreadySet(t *testing.T) {
 	cfg := &config.Config{
 		Preset: "minimal",
 	}
-	err := stepPresetSelection(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPresetSelection(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -285,7 +303,9 @@ func TestStepPresetSelection_ScratchPreset(t *testing.T) {
 	cfg := &config.Config{
 		Preset: "scratch",
 	}
-	err := stepPresetSelection(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPresetSelection(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -293,7 +313,9 @@ func TestStepPresetSelection_InvalidPreset(t *testing.T) {
 	cfg := &config.Config{
 		Preset: "nonexistent_preset",
 	}
-	err := stepPresetSelection(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPresetSelection(opts, st)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid preset")
 }
@@ -303,9 +325,11 @@ func TestStepPresetSelection_SilentDefaultsToMinimal(t *testing.T) {
 		Silent: true,
 		Preset: "",
 	}
-	err := stepPresetSelection(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPresetSelection(opts, st)
 	assert.NoError(t, err)
-	assert.Equal(t, "minimal", cfg.Preset)
+	assert.Equal(t, "minimal", opts.Preset)
 }
 
 func TestStepPackageCustomization_Silent(t *testing.T) {
@@ -313,10 +337,12 @@ func TestStepPackageCustomization_Silent(t *testing.T) {
 		Silent: true,
 		Preset: "minimal",
 	}
-	err := stepPackageCustomization(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPackageCustomization(opts, st)
 	assert.NoError(t, err)
-	assert.NotNil(t, cfg.SelectedPkgs)
-	assert.Greater(t, len(cfg.SelectedPkgs), 0)
+	assert.NotNil(t, st.SelectedPkgs)
+	assert.Greater(t, len(st.SelectedPkgs), 0)
 }
 
 func TestStepPackageCustomization_DryRunNoTTY(t *testing.T) {
@@ -324,16 +350,20 @@ func TestStepPackageCustomization_DryRunNoTTY(t *testing.T) {
 		DryRun: true,
 		Preset: "developer",
 	}
-	err := stepPackageCustomization(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPackageCustomization(opts, st)
 	assert.NoError(t, err)
-	assert.NotNil(t, cfg.SelectedPkgs)
+	assert.NotNil(t, st.SelectedPkgs)
 }
 
 func TestStepShell_Skip(t *testing.T) {
 	cfg := &config.Config{
 		Shell: "skip",
 	}
-	err := stepShell(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepShell(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -341,7 +371,9 @@ func TestStepDotfiles_Skip(t *testing.T) {
 	cfg := &config.Config{
 		Dotfiles: "skip",
 	}
-	err := stepDotfiles(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepDotfiles(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -349,7 +381,9 @@ func TestStepMacOS_Skip(t *testing.T) {
 	cfg := &config.Config{
 		Macos: "skip",
 	}
-	err := stepMacOS(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepMacOS(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -359,7 +393,9 @@ func TestStepMacOS_ConfigureFlag_DryRun(t *testing.T) {
 		Macos:  "configure",
 		DryRun: true,
 	}
-	err := stepMacOS(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepMacOS(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -369,7 +405,9 @@ func TestStepMacOS_Silent_DryRun(t *testing.T) {
 		Silent: true,
 		DryRun: true,
 	}
-	err := stepMacOS(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepMacOS(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -405,7 +443,9 @@ func TestRunInteractiveInstall_HardFailOnBrew(t *testing.T) {
 		SelectedPkgs: map[string]bool{},
 	}
 
-	err := runInteractiveInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runInteractiveInstall(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -414,12 +454,12 @@ func TestRunFromSnapshot_SoftFailuresReturnError(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		DryRun:        true,
-		Silent:        true,
-		Preset:        "minimal",
-		Shell:         "skip",
-		Macos:         "skip",
-		Dotfiles:      "skip",
+		DryRun:       true,
+		Silent:       true,
+		Preset:       "minimal",
+		Shell:        "skip",
+		Macos:        "skip",
+		Dotfiles:     "skip",
 		SelectedPkgs: map[string]bool{},
 		SnapshotGit:  nil,
 	}
@@ -444,7 +484,9 @@ func TestRunCustomInstall_RunsShellDotfilesMacOS(t *testing.T) {
 		},
 	}
 
-	err := runCustomInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runCustomInstall(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -465,9 +507,11 @@ func TestRunCustomInstall_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
 		},
 	}
 
-	err := runCustomInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runCustomInstall(opts, st)
 	assert.NoError(t, err)
-	assert.Equal(t, "https://github.com/testuser/dotfiles", cfg.DotfilesURL)
+	assert.Equal(t, "https://github.com/testuser/dotfiles", opts.DotfilesURL)
 }
 
 func TestRunCustomInstall_DotfilesFallsBackToDefault(t *testing.T) {
@@ -486,7 +530,9 @@ func TestRunCustomInstall_DotfilesFallsBackToDefault(t *testing.T) {
 		Dotfiles: "link",
 	}
 
-	err := runCustomInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runCustomInstall(opts, st)
 	assert.NoError(t, err, "should succeed using default dotfiles template")
 }
 
@@ -501,7 +547,9 @@ func TestStepDotfiles_UsesDotfilesURLFromConfig(t *testing.T) {
 		DotfilesURL: "https://github.com/testuser/dotfiles",
 	}
 
-	err := stepDotfiles(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepDotfiles(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -520,7 +568,9 @@ func TestStepDotfiles_EnvVarTakesPriorityOverConfigURL(t *testing.T) {
 		DotfilesURL: "https://github.com/from-config/dotfiles",
 	}
 
-	err := stepDotfiles(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepDotfiles(opts, st)
 
 	w.Close()
 	os.Stdout = origStdout
@@ -539,13 +589,17 @@ func TestStepPostInstall_SkipFlag(t *testing.T) {
 			PostInstall: []string{"echo hello"},
 		},
 	}
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 	assert.NoError(t, err)
 }
 
 func TestStepPostInstall_NilRemoteConfig(t *testing.T) {
 	cfg := &config.Config{}
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -555,7 +609,9 @@ func TestStepPostInstall_EmptyCommands(t *testing.T) {
 			PostInstall: []string{},
 		},
 	}
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -574,7 +630,9 @@ func TestStepPostInstall_DryRun(t *testing.T) {
 		},
 	}
 
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 
 	w.Close()
 	os.Stdout = origStdout
@@ -600,7 +658,9 @@ func TestStepPostInstall_RunsCommandsInSilentMode(t *testing.T) {
 		},
 	}
 
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 	assert.NoError(t, err)
 
 	_, statErr := os.Stat(markerFile)
@@ -619,7 +679,9 @@ func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
 		},
 	}
 
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "post-install script")
 }
@@ -639,9 +701,12 @@ func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
 		},
 	}
 
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+
 	// With single-script execution, zsh runs all lines without set -e,
 	// so the second command runs and the script exits 0 (touch succeeds).
-	err := stepPostInstall(cfg)
+	err := stepPostInstall(opts, st)
 	assert.NoError(t, err)
 
 	_, statErr := os.Stat(markerFile)
@@ -664,7 +729,9 @@ func TestStepPostInstall_SharedContext(t *testing.T) {
 		},
 	}
 
-	err := stepPostInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := stepPostInstall(opts, st)
 	assert.NoError(t, err)
 
 	content, readErr := os.ReadFile(markerFile)
@@ -762,6 +829,8 @@ func TestRunCustomInstall_WithPostInstallScript(t *testing.T) {
 		},
 	}
 
-	err := runCustomInstall(cfg)
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runCustomInstall(opts, st)
 	assert.NoError(t, err)
 }

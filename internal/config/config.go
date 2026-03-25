@@ -63,9 +63,8 @@ var presetsYAML embed.FS
 var screenRecordingYAML embed.FS
 
 // Config holds all configuration for a single openboot run.
-//
-// TODO(future): split into InstallOptions (input, read-only) and
-// InstallState (runtime, mutable) once the call-sites are ready.
+// See InstallOptions and InstallState for the split representation used
+// internally by the installer package.
 type Config struct {
 	// --- Input (set by flags/env before run) ---
 
@@ -94,6 +93,84 @@ type Config struct {
 	SnapshotGit      *SnapshotGitConfig // from snapshot capture
 	SnapshotMacOS    []RemoteMacOSPref  // from snapshot capture
 	SnapshotDotfiles string             // from snapshot capture
+}
+
+// InstallOptions holds user-supplied inputs set from CLI flags and environment
+// variables. All fields are read-only after Run() is called.
+type InstallOptions struct {
+	Version          string
+	Preset           string
+	User             string
+	DryRun           bool
+	Silent           bool
+	PackagesOnly     bool
+	Update           bool
+	Shell            string
+	Macos            string
+	Dotfiles         string
+	GitName          string
+	GitEmail         string
+	PostInstall      string
+	AllowPostInstall bool
+	DotfilesURL      string
+}
+
+// InstallState holds runtime values populated during installation.
+// Fields are written by installer steps and read by subsequent steps.
+type InstallState struct {
+	SelectedPkgs     map[string]bool
+	OnlinePkgs       []Package
+	SnapshotTaps     []string
+	RemoteConfig     *RemoteConfig
+	SnapshotGit      *SnapshotGitConfig
+	SnapshotMacOS    []RemoteMacOSPref
+	SnapshotDotfiles string
+}
+
+// ToInstallOptions extracts the read-only input fields from Config.
+func (c *Config) ToInstallOptions() *InstallOptions {
+	return &InstallOptions{
+		Version:          c.Version,
+		Preset:           c.Preset,
+		User:             c.User,
+		DryRun:           c.DryRun,
+		Silent:           c.Silent,
+		PackagesOnly:     c.PackagesOnly,
+		Update:           c.Update,
+		Shell:            c.Shell,
+		Macos:            c.Macos,
+		Dotfiles:         c.Dotfiles,
+		GitName:          c.GitName,
+		GitEmail:         c.GitEmail,
+		PostInstall:      c.PostInstall,
+		AllowPostInstall: c.AllowPostInstall,
+		DotfilesURL:      c.DotfilesURL,
+	}
+}
+
+// ToInstallState extracts the mutable runtime fields from Config.
+func (c *Config) ToInstallState() *InstallState {
+	return &InstallState{
+		SelectedPkgs:     c.SelectedPkgs,
+		OnlinePkgs:       c.OnlinePkgs,
+		SnapshotTaps:     c.SnapshotTaps,
+		RemoteConfig:     c.RemoteConfig,
+		SnapshotGit:      c.SnapshotGit,
+		SnapshotMacOS:    c.SnapshotMacOS,
+		SnapshotDotfiles: c.SnapshotDotfiles,
+	}
+}
+
+// ApplyState writes runtime state back into the Config (for callers that still
+// use *Config as the shared context, e.g. CLI sync/diff commands).
+func (c *Config) ApplyState(s *InstallState) {
+	c.SelectedPkgs = s.SelectedPkgs
+	c.OnlinePkgs = s.OnlinePkgs
+	c.SnapshotTaps = s.SnapshotTaps
+	c.RemoteConfig = s.RemoteConfig
+	c.SnapshotGit = s.SnapshotGit
+	c.SnapshotMacOS = s.SnapshotMacOS
+	c.SnapshotDotfiles = s.SnapshotDotfiles
 }
 
 type SnapshotGitConfig struct {

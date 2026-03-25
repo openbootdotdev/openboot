@@ -11,12 +11,12 @@ import (
 )
 
 // hasDotfiles reports whether dotfiles will be applied in this install.
-// Checks remote config, env var, cfg flag, and local ~/.dotfiles existence.
-func hasDotfiles(cfg *config.Config) bool {
-	if cfg.Dotfiles == "skip" {
+// Checks remote config, env var, opts flag, and local ~/.dotfiles existence.
+func hasDotfiles(opts *config.InstallOptions, st *config.InstallState) bool {
+	if opts.Dotfiles == "skip" {
 		return false
 	}
-	if cfg.DotfilesURL != "" {
+	if opts.DotfilesURL != "" {
 		return true
 	}
 	if dotfiles.GetDotfilesURL() != "" {
@@ -25,8 +25,8 @@ func hasDotfiles(cfg *config.Config) bool {
 	return false
 }
 
-func stepShell(cfg *config.Config) error {
-	if cfg.Shell == "skip" {
+func stepShell(opts *config.InstallOptions, st *config.InstallState) error {
+	if opts.Shell == "skip" {
 		return nil
 	}
 
@@ -36,38 +36,38 @@ func stepShell(cfg *config.Config) error {
 	// Install Oh-My-Zsh if not present — dotfiles .zshrc may depend on it
 	if shell.IsOhMyZshInstalled() {
 		ui.Success("Oh-My-Zsh already installed")
-	} else if cfg.Shell == "" {
-		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			cfg.Shell = "install"
+	} else if opts.Shell == "" {
+		if opts.Silent || (opts.DryRun && !system.HasTTY()) {
+			opts.Shell = "install"
 		} else {
 			install, err := ui.Confirm("Install Oh-My-Zsh?", true)
 			if err != nil {
 				return err
 			}
 			if install {
-				cfg.Shell = "install"
+				opts.Shell = "install"
 			} else {
 				ui.Muted("Skipping Oh-My-Zsh")
 			}
 		}
 	}
 
-	if cfg.Shell == "install" {
+	if opts.Shell == "install" {
 		if shell.IsOhMyZshInstalled() {
 			ui.Muted("Oh-My-Zsh already installed")
 		} else {
-			if err := shell.InstallOhMyZsh(cfg.DryRun); err != nil {
+			if err := shell.InstallOhMyZsh(opts.DryRun); err != nil {
 				return fmt.Errorf("install oh-my-zsh: %w", err)
 			}
-			if !cfg.DryRun {
+			if !opts.DryRun {
 				ui.Success("Oh-My-Zsh installed")
 			}
 		}
 	}
 
 	// Only modify .zshrc if user has no dotfiles — dotfiles manage .zshrc themselves.
-	if !hasDotfiles(cfg) {
-		if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
+	if !hasDotfiles(opts, st) {
+		if err := shell.EnsureBrewShellenv(opts.DryRun); err != nil {
 			return fmt.Errorf("ensure brew shellenv: %w", err)
 		}
 	}
@@ -76,8 +76,8 @@ func stepShell(cfg *config.Config) error {
 	return nil
 }
 
-func stepDotfiles(cfg *config.Config) error {
-	if cfg.Dotfiles == "skip" {
+func stepDotfiles(opts *config.InstallOptions, st *config.InstallState) error {
+	if opts.Dotfiles == "skip" {
 		return nil
 	}
 
@@ -86,15 +86,15 @@ func stepDotfiles(cfg *config.Config) error {
 
 	var dotfilesURL string
 
-	if cfg.Dotfiles == "" {
+	if opts.Dotfiles == "" {
 		// Resolve from env var first, then remote config.
 		dotfilesURL = dotfiles.GetDotfilesURL()
 		if dotfilesURL == "" {
-			dotfilesURL = cfg.DotfilesURL
+			dotfilesURL = opts.DotfilesURL
 		}
 
 		// Only prompt interactively if no URL is already configured.
-		if dotfilesURL == "" && !cfg.Silent && !(cfg.DryRun && !system.HasTTY()) {
+		if dotfilesURL == "" && !opts.Silent && !(opts.DryRun && !system.HasTTY()) {
 			setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
 			if err != nil {
 				return err
@@ -114,7 +114,7 @@ func stepDotfiles(cfg *config.Config) error {
 	} else {
 		dotfilesURL = dotfiles.GetDotfilesURL()
 		if dotfilesURL == "" {
-			dotfilesURL = cfg.DotfilesURL
+			dotfilesURL = opts.DotfilesURL
 		}
 	}
 
@@ -124,17 +124,17 @@ func stepDotfiles(cfg *config.Config) error {
 		ui.Info(fmt.Sprintf("Using OpenBoot default dotfiles (%s)", dotfilesURL))
 	}
 
-	if err := dotfiles.Clone(dotfilesURL, cfg.DryRun); err != nil {
+	if err := dotfiles.Clone(dotfilesURL, opts.DryRun); err != nil {
 		return err
 	}
 
-	if cfg.Dotfiles == "link" || cfg.Dotfiles == "" {
-		if err := dotfiles.Link(cfg.DryRun); err != nil {
+	if opts.Dotfiles == "link" || opts.Dotfiles == "" {
+		if err := dotfiles.Link(opts.DryRun); err != nil {
 			return err
 		}
 	}
 
-	if !cfg.DryRun {
+	if !opts.DryRun {
 		ui.Success("Dotfiles configured")
 	}
 	fmt.Println()

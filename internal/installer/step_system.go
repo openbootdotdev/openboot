@@ -13,8 +13,8 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-func stepMacOS(cfg *config.Config) error {
-	if cfg.Macos == "skip" {
+func stepMacOS(opts *config.InstallOptions, st *config.InstallState) error {
+	if opts.Macos == "skip" {
 		return nil
 	}
 
@@ -22,16 +22,16 @@ func stepMacOS(cfg *config.Config) error {
 	fmt.Println()
 
 	// --macos configure flag or non-interactive mode: apply all defaults directly.
-	if cfg.Macos == "configure" || cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-		if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
+	if opts.Macos == "configure" || opts.Silent || (opts.DryRun && !system.HasTTY()) {
+		if err := macos.CreateScreenshotsDir(opts.DryRun); err != nil {
 			ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
 		}
-		if err := macos.Configure(macos.DefaultPreferences, cfg.DryRun); err != nil {
+		if err := macos.Configure(macos.DefaultPreferences, opts.DryRun); err != nil {
 			ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
 		}
-		if !cfg.DryRun {
+		if !opts.DryRun {
 			ui.Success("macOS preferences configured")
-			macos.RestartAffectedApps(cfg.DryRun)
+			macos.RestartAffectedApps(opts.DryRun)
 		}
 		fmt.Println()
 		return nil
@@ -52,35 +52,35 @@ func stepMacOS(cfg *config.Config) error {
 		return nil
 	}
 
-	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
+	if err := macos.CreateScreenshotsDir(opts.DryRun); err != nil {
 		ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
 	}
 
-	if err := macos.Configure(selected, cfg.DryRun); err != nil {
+	if err := macos.Configure(selected, opts.DryRun); err != nil {
 		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
 	}
 
-	if !cfg.DryRun {
+	if !opts.DryRun {
 		ui.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(selected)))
-		macos.RestartAffectedApps(cfg.DryRun)
+		macos.RestartAffectedApps(opts.DryRun)
 	}
 
 	fmt.Println()
 	return nil
 }
 
-func stepRestoreMacOS(cfg *config.Config) error {
+func stepRestoreMacOS(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Restore: macOS Preferences")
 	fmt.Println()
 
-	if len(cfg.SnapshotMacOS) == 0 {
+	if len(st.SnapshotMacOS) == 0 {
 		ui.Muted("No macOS preferences in snapshot, skipping")
 		fmt.Println()
 		return nil
 	}
 
-	prefs := make([]macos.Preference, 0, len(cfg.SnapshotMacOS))
-	for _, p := range cfg.SnapshotMacOS {
+	prefs := make([]macos.Preference, 0, len(st.SnapshotMacOS))
+	for _, p := range st.SnapshotMacOS {
 		prefType := p.Type
 		if prefType == "" {
 			prefType = macos.InferPreferenceType(p.Value)
@@ -94,42 +94,42 @@ func stepRestoreMacOS(cfg *config.Config) error {
 		})
 	}
 
-	if cfg.DryRun {
+	if opts.DryRun {
 		ui.Info(fmt.Sprintf("[DRY-RUN] Would restore %d macOS preferences from snapshot", len(prefs)))
 		fmt.Println()
 		return nil
 	}
 
-	if err := macos.Configure(prefs, cfg.DryRun); err != nil {
+	if err := macos.Configure(prefs, opts.DryRun); err != nil {
 		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
 	}
 
-	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
+	if err := macos.CreateScreenshotsDir(opts.DryRun); err != nil {
 		ui.Warn(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
 	}
 
-	macos.RestartAffectedApps(cfg.DryRun)
+	macos.RestartAffectedApps(opts.DryRun)
 	ui.Success(fmt.Sprintf("macOS preferences restored (%d settings)", len(prefs)))
 	fmt.Println()
 	return nil
 }
 
-func stepPostInstall(cfg *config.Config) error {
-	if cfg.PostInstall == "skip" {
+func stepPostInstall(opts *config.InstallOptions, st *config.InstallState) error {
+	if opts.PostInstall == "skip" {
 		return nil
 	}
 
-	if cfg.RemoteConfig == nil || len(cfg.RemoteConfig.PostInstall) == 0 {
+	if st.RemoteConfig == nil || len(st.RemoteConfig.PostInstall) == 0 {
 		return nil
 	}
 
 	ui.Header("Step 8: Post-Install Script")
 	fmt.Println()
 
-	commands := cfg.RemoteConfig.PostInstall
+	commands := st.RemoteConfig.PostInstall
 
-	if !cfg.DryRun && (cfg.Silent || !system.HasTTY()) {
-		if !cfg.AllowPostInstall {
+	if !opts.DryRun && (opts.Silent || !system.HasTTY()) {
+		if !opts.AllowPostInstall {
 			ui.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")
 			fmt.Println()
 			return nil
@@ -144,7 +144,7 @@ func stepPostInstall(cfg *config.Config) error {
 	ui.PrintScriptPreview(script)
 	fmt.Println()
 
-	if !cfg.DryRun && !cfg.Silent && system.HasTTY() {
+	if !opts.DryRun && !opts.Silent && system.HasTTY() {
 		run, err := ui.Confirm("Run post-install script?", true)
 		if err != nil {
 			return err
@@ -157,7 +157,7 @@ func stepPostInstall(cfg *config.Config) error {
 	}
 
 	var home string
-	if !cfg.DryRun {
+	if !opts.DryRun {
 		var err error
 		home, err = system.HomeDir()
 		if err != nil {
@@ -166,7 +166,7 @@ func stepPostInstall(cfg *config.Config) error {
 	}
 
 	var errs []error
-	if cfg.DryRun {
+	if opts.DryRun {
 		fmt.Println("[DRY-RUN] Would run the script above")
 	} else {
 		cmd := exec.Command("/bin/zsh", "-c", script)
@@ -178,7 +178,7 @@ func stepPostInstall(cfg *config.Config) error {
 		}
 	}
 
-	if len(errs) == 0 && !cfg.DryRun {
+	if len(errs) == 0 && !opts.DryRun {
 		ui.Success("Post-install script complete")
 	}
 	fmt.Println()

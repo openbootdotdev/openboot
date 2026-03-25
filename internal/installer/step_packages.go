@@ -18,19 +18,19 @@ type categorizedPackages struct {
 	npm  []string
 }
 
-func categorizeSelectedPackages(cfg *config.Config) categorizedPackages {
+func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallState) categorizedPackages {
 	var result categorizedPackages
 
-	if cfg.RemoteConfig != nil {
+	if st.RemoteConfig != nil {
 		caskSet := make(map[string]bool)
-		for _, c := range cfg.RemoteConfig.Casks {
+		for _, c := range st.RemoteConfig.Casks {
 			caskSet[c.Name] = true
 		}
 		npmSet := make(map[string]bool)
-		for _, n := range cfg.RemoteConfig.Npm {
+		for _, n := range st.RemoteConfig.Npm {
 			npmSet[n.Name] = true
 		}
-		for pkg := range cfg.SelectedPkgs {
+		for pkg := range st.SelectedPkgs {
 			if npmSet[pkg] || config.IsNpmPackage(pkg) {
 				result.npm = append(result.npm, pkg)
 			} else if caskSet[pkg] || config.IsCaskPackage(pkg) {
@@ -45,7 +45,7 @@ func categorizeSelectedPackages(cfg *config.Config) categorizedPackages {
 	seen := make(map[string]bool)
 	for _, cat := range config.Categories {
 		for _, pkg := range cat.Packages {
-			if cfg.SelectedPkgs[pkg.Name] {
+			if st.SelectedPkgs[pkg.Name] {
 				seen[pkg.Name] = true
 				if pkg.IsNpm {
 					result.npm = append(result.npm, pkg.Name)
@@ -57,7 +57,7 @@ func categorizeSelectedPackages(cfg *config.Config) categorizedPackages {
 			}
 		}
 	}
-	for _, pkg := range cfg.OnlinePkgs {
+	for _, pkg := range st.OnlinePkgs {
 		if seen[pkg.Name] {
 			continue
 		}
@@ -72,16 +72,16 @@ func categorizeSelectedPackages(cfg *config.Config) categorizedPackages {
 	return result
 }
 
-func stepPresetSelection(cfg *config.Config) error {
+func stepPresetSelection(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Step 2: Preset Selection")
 	fmt.Println()
 
-	if cfg.Preset == "" {
-		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			cfg.Preset = "minimal"
+	if opts.Preset == "" {
+		if opts.Silent || (opts.DryRun && !system.HasTTY()) {
+			opts.Preset = "minimal"
 		} else {
 			var err error
-			cfg.Preset, err = ui.SelectPreset()
+			opts.Preset, err = ui.SelectPreset()
 			if err != nil {
 				return err
 			}
@@ -89,16 +89,16 @@ func stepPresetSelection(cfg *config.Config) error {
 	}
 
 	// Handle "scratch" as special case - use minimal but show full catalog
-	if cfg.Preset == "scratch" {
+	if opts.Preset == "scratch" {
 		ui.Success("Selected: scratch (choose from full catalog)")
 		ui.Muted("You'll be able to search and select individual packages")
 		fmt.Println()
 		return nil
 	}
 
-	preset, ok := config.GetPreset(cfg.Preset)
+	preset, ok := config.GetPreset(opts.Preset)
 	if !ok {
-		return fmt.Errorf("invalid preset: %s", cfg.Preset)
+		return fmt.Errorf("invalid preset: %s", opts.Preset)
 	}
 
 	ui.Success(fmt.Sprintf("Selected preset: %s", preset.Name))
@@ -112,23 +112,23 @@ func stepPresetSelection(cfg *config.Config) error {
 	return nil
 }
 
-func stepPackageCustomization(cfg *config.Config) error {
+func stepPackageCustomization(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Step 3: Package Selection")
 	fmt.Println()
 
-	if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-		cfg.SelectedPkgs = config.GetPackagesForPreset(cfg.Preset)
-		total := len(cfg.SelectedPkgs)
+	if opts.Silent || (opts.DryRun && !system.HasTTY()) {
+		st.SelectedPkgs = config.GetPackagesForPreset(opts.Preset)
+		total := len(st.SelectedPkgs)
 		ui.Info(fmt.Sprintf("Using preset packages: %d selected", total))
 		fmt.Println()
 		return nil
 	}
 
-	ui.Info("Customize your packages (based on preset: " + cfg.Preset + ")")
+	ui.Info("Customize your packages (based on preset: " + opts.Preset + ")")
 	ui.Muted("Use Tab to switch categories, Space to toggle, Enter to confirm")
 	fmt.Println()
 
-	selected, onlinePkgs, confirmed, err := ui.RunSelector(cfg.Preset)
+	selected, onlinePkgs, confirmed, err := ui.RunSelector(opts.Preset)
 	if err != nil {
 		return err
 	}
@@ -138,12 +138,12 @@ func stepPackageCustomization(cfg *config.Config) error {
 		return ErrUserCancelled
 	}
 
-	cfg.SelectedPkgs = selected
-	cfg.OnlinePkgs = onlinePkgs
+	st.SelectedPkgs = selected
+	st.OnlinePkgs = onlinePkgs
 
-	if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
-		for _, pkg := range cfg.RemoteConfig.Packages {
-			cfg.SelectedPkgs[pkg.Name] = true
+	if st.RemoteConfig != nil && len(st.RemoteConfig.Packages) > 0 {
+		for _, pkg := range st.RemoteConfig.Packages {
+			st.SelectedPkgs[pkg.Name] = true
 		}
 	}
 
@@ -158,11 +158,11 @@ func stepPackageCustomization(cfg *config.Config) error {
 	return nil
 }
 
-func stepInstallPackages(cfg *config.Config) error {
+func stepInstallPackages(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Step 4: Installation")
 	fmt.Println()
 
-	pkgs := categorizeSelectedPackages(cfg)
+	pkgs := categorizeSelectedPackages(opts, st)
 	cliPkgs := pkgs.cli
 	caskPkgs := pkgs.cask
 
@@ -180,7 +180,7 @@ func stepInstallPackages(cfg *config.Config) error {
 	var newCli []string
 	var newCask []string
 
-	if !cfg.DryRun {
+	if !opts.DryRun {
 		actualFormulae, actualCasks, checkErr := brew.GetInstalledPackages()
 		if checkErr != nil {
 			ui.Warn(fmt.Sprintf("Failed to check installed packages: %v", checkErr))
@@ -222,12 +222,12 @@ func stepInstallPackages(cfg *config.Config) error {
 	ui.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
 	fmt.Println()
 
-	installedCli, installedCask, brewErr := brew.InstallWithProgress(cliPkgs, caskPkgs, cfg.DryRun)
+	installedCli, installedCask, brewErr := brew.InstallWithProgress(cliPkgs, caskPkgs, opts.DryRun)
 	if brewErr != nil {
 		ui.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
 	}
 
-	if !cfg.DryRun {
+	if !opts.DryRun {
 		for _, pkg := range installedCli {
 			if err := state.markFormula(pkg); err != nil {
 				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
@@ -244,13 +244,13 @@ func stepInstallPackages(cfg *config.Config) error {
 	return nil
 }
 
-func stepInstallNpm(cfg *config.Config) error {
+func stepInstallNpm(opts *config.InstallOptions, st *config.InstallState) error {
 	var npmPkgs []string
 
-	if cfg.RemoteConfig != nil {
-		npmPkgs = cfg.RemoteConfig.Npm.Names()
+	if st.RemoteConfig != nil {
+		npmPkgs = st.RemoteConfig.Npm.Names()
 	} else {
-		pkgs := categorizeSelectedPackages(cfg)
+		pkgs := categorizeSelectedPackages(opts, st)
 		npmPkgs = pkgs.npm
 	}
 
@@ -264,7 +264,7 @@ func stepInstallNpm(cfg *config.Config) error {
 	}
 
 	var newNpm []string
-	if !cfg.DryRun {
+	if !opts.DryRun {
 		actualNpm, npmCheckErr := npm.GetInstalledPackages()
 		if npmCheckErr != nil {
 			ui.Warn(fmt.Sprintf("Failed to check installed npm packages: %v", npmCheckErr))
@@ -302,9 +302,9 @@ func stepInstallNpm(cfg *config.Config) error {
 	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(npmPkgs)))
 	fmt.Println()
 
-	err := npm.Install(npmPkgs, cfg.DryRun)
+	err := npm.Install(npmPkgs, opts.DryRun)
 
-	if !cfg.DryRun && err == nil {
+	if !opts.DryRun && err == nil {
 		for _, pkg := range npmPkgs {
 			if err := state.markNpm(pkg); err != nil {
 				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
@@ -315,10 +315,10 @@ func stepInstallNpm(cfg *config.Config) error {
 	return err
 }
 
-func stepInstallNpmWithRetry(cfg *config.Config) error {
+func stepInstallNpmWithRetry(opts *config.InstallOptions, st *config.InstallState) error {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err := stepInstallNpm(cfg)
+		err := stepInstallNpm(opts, st)
 		if err == nil {
 			return nil
 		}
@@ -328,7 +328,7 @@ func stepInstallNpmWithRetry(cfg *config.Config) error {
 			return fmt.Errorf("npm installation failed after %d attempts: %w", maxAttempts, err)
 		}
 
-		if cfg.Silent || !system.HasTTY() {
+		if opts.Silent || !system.HasTTY() {
 			ui.Warn(fmt.Sprintf("npm installation failed (attempt %d/%d), retrying...", attempt, maxAttempts))
 			time.Sleep(time.Duration(attempt) * 2 * time.Second)
 			continue

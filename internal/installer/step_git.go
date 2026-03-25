@@ -8,7 +8,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-func stepGitConfig(cfg *config.Config) error {
+func stepGitConfig(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Step 1: Git Configuration")
 	fmt.Println()
 
@@ -23,18 +23,18 @@ func stepGitConfig(cfg *config.Config) error {
 
 	var name, email string
 
-	if cfg.DryRun && !system.HasTTY() {
-		name = cfg.GitName
-		email = cfg.GitEmail
+	if opts.DryRun && !system.HasTTY() {
+		name = opts.GitName
+		email = opts.GitEmail
 		if name == "" {
 			name = "Your Name"
 		}
 		if email == "" {
 			email = "you@example.com"
 		}
-	} else if cfg.Silent {
-		name = cfg.GitName
-		email = cfg.GitEmail
+	} else if opts.Silent {
+		name = opts.GitName
+		email = opts.GitEmail
 		if name == "" || email == "" {
 			return fmt.Errorf("OPENBOOT_GIT_NAME and OPENBOOT_GIT_EMAIL required in silent mode")
 		}
@@ -50,7 +50,7 @@ func stepGitConfig(cfg *config.Config) error {
 		return fmt.Errorf("git name and email are required")
 	}
 
-	if cfg.DryRun {
+	if opts.DryRun {
 		fmt.Printf("[DRY-RUN] Would configure git: %s <%s>\n", name, email)
 	} else {
 		if err := system.ConfigureGit(name, email); err != nil {
@@ -63,11 +63,11 @@ func stepGitConfig(cfg *config.Config) error {
 	return nil
 }
 
-func stepRestoreGit(cfg *config.Config) error {
+func stepRestoreGit(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Restore: Git Configuration")
 	fmt.Println()
 
-	git := cfg.SnapshotGit
+	git := st.SnapshotGit
 	if git.UserName == "" && git.UserEmail == "" {
 		ui.Muted("No git config in snapshot, skipping")
 		fmt.Println()
@@ -82,7 +82,7 @@ func stepRestoreGit(cfg *config.Config) error {
 		return nil
 	}
 
-	if cfg.DryRun {
+	if opts.DryRun {
 		if existingName == "" && git.UserName != "" {
 			fmt.Printf("[DRY-RUN] Would set git user.name = %s\n", git.UserName)
 		}

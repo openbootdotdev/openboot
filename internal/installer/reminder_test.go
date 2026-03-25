@@ -92,7 +92,7 @@ func TestFindMatchingPackages(t *testing.T) {
 				SelectedPkgs: tt.selectedPkgs,
 				OnlinePkgs:   tt.onlinePkgs,
 			}
-			result := findMatchingPackages(cfg, tt.triggerPkgs)
+			result := findMatchingPackages(cfg.ToInstallOptions(), cfg.ToInstallState(), tt.triggerPkgs)
 			assert.Len(t, result, tt.wantCount)
 			for _, want := range tt.wantContains {
 				assert.Contains(t, result, want)
