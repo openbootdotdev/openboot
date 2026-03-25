@@ -3,18 +3,11 @@ package installer
 import (
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/config"
-	"github.com/openbootdotdev/openboot/internal/dotfiles"
-	"github.com/openbootdotdev/openboot/internal/macos"
-	"github.com/openbootdotdev/openboot/internal/npm"
 	"github.com/openbootdotdev/openboot/internal/permissions"
-	"github.com/openbootdotdev/openboot/internal/shell"
 	"github.com/openbootdotdev/openboot/internal/state"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -258,646 +251,6 @@ func runInteractiveInstall(cfg *config.Config) error {
 	return nil
 }
 
-func stepGitConfig(cfg *config.Config) error {
-	ui.Header("Step 1: Git Configuration")
-	fmt.Println()
-
-	// Smart detection: skip if already configured
-	existingName, existingEmail := system.GetExistingGitConfig()
-
-	if existingName != "" && existingEmail != "" {
-		ui.Success(fmt.Sprintf("✓ Already configured: %s <%s>", existingName, existingEmail))
-		fmt.Println()
-		return nil
-	}
-
-	var name, email string
-
-	if cfg.DryRun && !system.HasTTY() {
-		name = cfg.GitName
-		email = cfg.GitEmail
-		if name == "" {
-			name = "Your Name"
-		}
-		if email == "" {
-			email = "you@example.com"
-		}
-	} else if cfg.Silent {
-		name = cfg.GitName
-		email = cfg.GitEmail
-		if name == "" || email == "" {
-			return fmt.Errorf("OPENBOOT_GIT_NAME and OPENBOOT_GIT_EMAIL required in silent mode")
-		}
-	} else {
-		var err error
-		name, email, err = ui.InputGitConfig()
-		if err != nil {
-			return err
-		}
-	}
-
-	if name == "" || email == "" {
-		return fmt.Errorf("git name and email are required")
-	}
-
-	if cfg.DryRun {
-		fmt.Printf("[DRY-RUN] Would configure git: %s <%s>\n", name, email)
-	} else {
-		if err := system.ConfigureGit(name, email); err != nil {
-			return err
-		}
-		ui.Success(fmt.Sprintf("Git configured: %s <%s>", name, email))
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func stepPresetSelection(cfg *config.Config) error {
-	ui.Header("Step 2: Preset Selection")
-	fmt.Println()
-
-	if cfg.Preset == "" {
-		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			cfg.Preset = "minimal"
-		} else {
-			var err error
-			cfg.Preset, err = ui.SelectPreset()
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// Handle "scratch" as special case - use minimal but show full catalog
-	if cfg.Preset == "scratch" {
-		ui.Success("Selected: scratch (choose from full catalog)")
-		ui.Muted("You'll be able to search and select individual packages")
-		fmt.Println()
-		return nil
-	}
-
-	preset, ok := config.GetPreset(cfg.Preset)
-	if !ok {
-		return fmt.Errorf("invalid preset: %s", cfg.Preset)
-	}
-
-	ui.Success(fmt.Sprintf("Selected preset: %s", preset.Name))
-	ui.Info(fmt.Sprintf("CLI packages: %d", len(preset.CLI)))
-	ui.Info(fmt.Sprintf("GUI applications: %d", len(preset.Cask)))
-	if len(preset.Npm) > 0 {
-		ui.Info(fmt.Sprintf("npm packages: %d", len(preset.Npm)))
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func stepPackageCustomization(cfg *config.Config) error {
-	ui.Header("Step 3: Package Selection")
-	fmt.Println()
-
-	if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-		cfg.SelectedPkgs = config.GetPackagesForPreset(cfg.Preset)
-		total := len(cfg.SelectedPkgs)
-		ui.Info(fmt.Sprintf("Using preset packages: %d selected", total))
-		fmt.Println()
-		return nil
-	}
-
-	ui.Info("Customize your packages (based on preset: " + cfg.Preset + ")")
-	ui.Muted("Use Tab to switch categories, Space to toggle, Enter to confirm")
-	fmt.Println()
-
-	selected, onlinePkgs, confirmed, err := ui.RunSelector(cfg.Preset)
-	if err != nil {
-		return err
-	}
-
-	if !confirmed {
-		ui.Muted("Installation cancelled.")
-		return ErrUserCancelled
-	}
-
-	cfg.SelectedPkgs = selected
-	cfg.OnlinePkgs = onlinePkgs
-
-	if cfg.RemoteConfig != nil && len(cfg.RemoteConfig.Packages) > 0 {
-		for _, pkg := range cfg.RemoteConfig.Packages {
-			cfg.SelectedPkgs[pkg.Name] = true
-		}
-	}
-
-	count := 0
-	for _, v := range selected {
-		if v {
-			count++
-		}
-	}
-	ui.Success(fmt.Sprintf("Selected %d packages", count))
-	fmt.Println()
-	return nil
-}
-
-func stepInstallPackages(cfg *config.Config) error {
-	ui.Header("Step 4: Installation")
-	fmt.Println()
-
-	pkgs := categorizeSelectedPackages(cfg)
-	cliPkgs := pkgs.cli
-	caskPkgs := pkgs.cask
-
-	total := len(cliPkgs) + len(caskPkgs)
-	if total == 0 {
-		ui.Muted("No packages selected")
-		return nil
-	}
-
-	state, stateErr := loadState()
-	if stateErr != nil {
-		ui.Warn(fmt.Sprintf("Failed to load install state: %v", stateErr))
-	}
-
-	var newCli []string
-	var newCask []string
-
-	if !cfg.DryRun {
-		actualFormulae, actualCasks, checkErr := brew.GetInstalledPackages()
-		if checkErr != nil {
-			ui.Warn(fmt.Sprintf("Failed to check installed packages: %v", checkErr))
-		} else {
-			removed := state.reconcileBrewWithSystem(actualFormulae, actualCasks)
-			if removed > 0 {
-				if err := state.save(); err != nil {
-					ui.Warn(fmt.Sprintf("Failed to update install state: %v", err))
-				}
-			}
-		}
-
-		for _, pkg := range cliPkgs {
-			if !state.isFormulaInstalled(pkg) {
-				newCli = append(newCli, pkg)
-			}
-		}
-		for _, pkg := range caskPkgs {
-			if !state.isCaskInstalled(pkg) {
-				newCask = append(newCask, pkg)
-			}
-		}
-
-		stateSkipped := (len(cliPkgs) - len(newCli)) + (len(caskPkgs) - len(newCask))
-		if stateSkipped > 0 {
-			ui.Muted(fmt.Sprintf("Skipping %d packages from previous install", stateSkipped))
-		}
-
-		cliPkgs = newCli
-		caskPkgs = newCask
-	}
-
-	if len(cliPkgs)+len(caskPkgs) == 0 {
-		ui.Success("All packages already installed!")
-		fmt.Println()
-		return nil
-	}
-
-	ui.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
-	fmt.Println()
-
-	installedCli, installedCask, brewErr := brew.InstallWithProgress(cliPkgs, caskPkgs, cfg.DryRun)
-	if brewErr != nil {
-		ui.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
-	}
-
-	if !cfg.DryRun {
-		for _, pkg := range installedCli {
-			if err := state.markFormula(pkg); err != nil {
-				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
-			}
-		}
-		for _, pkg := range installedCask {
-			if err := state.markCask(pkg); err != nil {
-				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
-			}
-		}
-		ui.Success("Package installation complete")
-	}
-	fmt.Println()
-	return nil
-}
-
-func stepInstallNpm(cfg *config.Config) error {
-	var npmPkgs []string
-
-	if cfg.RemoteConfig != nil {
-		npmPkgs = cfg.RemoteConfig.Npm.Names()
-	} else {
-		pkgs := categorizeSelectedPackages(cfg)
-		npmPkgs = pkgs.npm
-	}
-
-	if len(npmPkgs) == 0 {
-		return nil
-	}
-
-	state, stateErr := loadState()
-	if stateErr != nil {
-		ui.Warn(fmt.Sprintf("Failed to load install state: %v", stateErr))
-	}
-
-	var newNpm []string
-	if !cfg.DryRun {
-		actualNpm, npmCheckErr := npm.GetInstalledPackages()
-		if npmCheckErr != nil {
-			ui.Warn(fmt.Sprintf("Failed to check installed npm packages: %v", npmCheckErr))
-		} else {
-			removed := state.reconcileNpmWithSystem(actualNpm)
-			if removed > 0 {
-				if err := state.save(); err != nil {
-					ui.Warn(fmt.Sprintf("Failed to update install state: %v", err))
-				}
-			}
-		}
-
-		for _, pkg := range npmPkgs {
-			if !state.isNpmInstalled(pkg) {
-				newNpm = append(newNpm, pkg)
-			}
-		}
-
-		stateSkipped := len(npmPkgs) - len(newNpm)
-		if stateSkipped > 0 {
-			ui.Muted(fmt.Sprintf("Skipping %d npm packages from previous install", stateSkipped))
-		}
-
-		npmPkgs = newNpm
-	}
-
-	if len(npmPkgs) == 0 {
-		ui.Success("All npm packages already installed!")
-		return nil
-	}
-
-	fmt.Println()
-	ui.Header("NPM Global Packages")
-	fmt.Println()
-	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(npmPkgs)))
-	fmt.Println()
-
-	err := npm.Install(npmPkgs, cfg.DryRun)
-
-	if !cfg.DryRun && err == nil {
-		for _, pkg := range npmPkgs {
-			if err := state.markNpm(pkg); err != nil {
-				ui.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
-			}
-		}
-	}
-
-	return err
-}
-
-func stepInstallNpmWithRetry(cfg *config.Config) error {
-	maxAttempts := 3
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err := stepInstallNpm(cfg)
-		if err == nil {
-			return nil
-		}
-
-		if attempt == maxAttempts {
-			ui.Error(fmt.Sprintf("npm package installation failed after %d attempts: %v", maxAttempts, err))
-			return fmt.Errorf("npm installation failed after %d attempts: %w", maxAttempts, err)
-		}
-
-		if cfg.Silent || !system.HasTTY() {
-			ui.Warn(fmt.Sprintf("npm installation failed (attempt %d/%d), retrying...", attempt, maxAttempts))
-			time.Sleep(time.Duration(attempt) * 2 * time.Second)
-			continue
-		}
-
-		fmt.Println()
-		fmt.Printf("  Retry npm installation? [Y/n] ")
-		var response string
-		fmt.Scanln(&response)
-		response = strings.ToLower(strings.TrimSpace(response))
-
-		if response == "n" || response == "no" {
-			ui.Muted("Skipping npm package retry")
-			return err
-		}
-	}
-	return nil
-}
-
-func stepDotfiles(cfg *config.Config) error {
-	if cfg.Dotfiles == "skip" {
-		return nil
-	}
-
-	ui.Header("Step 6: Dotfiles")
-	fmt.Println()
-
-	var dotfilesURL string
-
-	if cfg.Dotfiles == "" {
-		// Resolve from env var first, then remote config.
-		dotfilesURL = dotfiles.GetDotfilesURL()
-		if dotfilesURL == "" {
-			dotfilesURL = cfg.DotfilesURL
-		}
-
-		// Only prompt interactively if no URL is already configured.
-		if dotfilesURL == "" && !cfg.Silent && !(cfg.DryRun && !system.HasTTY()) {
-			setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
-			if err != nil {
-				return err
-			}
-			if setup {
-				dotfilesURL, err = ui.Input("Dotfiles repository URL (https:// only)", "https://github.com/username/dotfiles")
-				if err != nil {
-					return err
-				}
-				if dotfilesURL != "" {
-					if vErr := config.ValidateDotfilesURL(dotfilesURL); vErr != nil {
-						return fmt.Errorf("invalid dotfiles URL: %w", vErr)
-					}
-				}
-			}
-		}
-	} else {
-		dotfilesURL = dotfiles.GetDotfilesURL()
-		if dotfilesURL == "" {
-			dotfilesURL = cfg.DotfilesURL
-		}
-	}
-
-	// Fall back to the OpenBoot default dotfiles template.
-	if dotfilesURL == "" {
-		dotfilesURL = dotfiles.DefaultDotfilesURL
-		ui.Info(fmt.Sprintf("Using OpenBoot default dotfiles (%s)", dotfilesURL))
-	}
-
-	if err := dotfiles.Clone(dotfilesURL, cfg.DryRun); err != nil {
-		return err
-	}
-
-	if cfg.Dotfiles == "link" || cfg.Dotfiles == "" {
-		if err := dotfiles.Link(cfg.DryRun); err != nil {
-			return err
-		}
-	}
-
-	if !cfg.DryRun {
-		ui.Success("Dotfiles configured")
-	}
-	fmt.Println()
-	return nil
-}
-
-// hasDotfiles reports whether dotfiles will be applied in this install.
-// Checks remote config, env var, cfg flag, and local ~/.dotfiles existence.
-func hasDotfiles(cfg *config.Config) bool {
-	if cfg.Dotfiles == "skip" {
-		return false
-	}
-	if cfg.DotfilesURL != "" {
-		return true
-	}
-	if dotfiles.GetDotfilesURL() != "" {
-		return true
-	}
-	return false
-}
-
-func stepShell(cfg *config.Config) error {
-	if cfg.Shell == "skip" {
-		return nil
-	}
-
-	ui.Header("Shell Configuration")
-	fmt.Println()
-
-	// Install Oh-My-Zsh if not present — dotfiles .zshrc may depend on it
-	if shell.IsOhMyZshInstalled() {
-		ui.Success("Oh-My-Zsh already installed")
-	} else if cfg.Shell == "" {
-		if cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-			cfg.Shell = "install"
-		} else {
-			install, err := ui.Confirm("Install Oh-My-Zsh?", true)
-			if err != nil {
-				return err
-			}
-			if install {
-				cfg.Shell = "install"
-			} else {
-				ui.Muted("Skipping Oh-My-Zsh")
-			}
-		}
-	}
-
-	if cfg.Shell == "install" {
-		if shell.IsOhMyZshInstalled() {
-			ui.Muted("Oh-My-Zsh already installed")
-		} else {
-			if err := shell.InstallOhMyZsh(cfg.DryRun); err != nil {
-				return fmt.Errorf("install oh-my-zsh: %w", err)
-			}
-			if !cfg.DryRun {
-				ui.Success("Oh-My-Zsh installed")
-			}
-		}
-	}
-
-	// Only modify .zshrc if user has no dotfiles — dotfiles manage .zshrc themselves.
-	if !hasDotfiles(cfg) {
-		if err := shell.EnsureBrewShellenv(cfg.DryRun); err != nil {
-			return fmt.Errorf("ensure brew shellenv: %w", err)
-		}
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func stepMacOS(cfg *config.Config) error {
-	if cfg.Macos == "skip" {
-		return nil
-	}
-
-	ui.Header("Step 7: macOS Preferences")
-	fmt.Println()
-
-	// --macos configure flag or non-interactive mode: apply all defaults directly.
-	if cfg.Macos == "configure" || cfg.Silent || (cfg.DryRun && !system.HasTTY()) {
-		if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
-			ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
-		}
-		if err := macos.Configure(macos.DefaultPreferences, cfg.DryRun); err != nil {
-			ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
-		}
-		if !cfg.DryRun {
-			ui.Success("macOS preferences configured")
-			macos.RestartAffectedApps(cfg.DryRun)
-		}
-		fmt.Println()
-		return nil
-	}
-
-	ui.Info("Choose which macOS preferences to apply")
-	ui.Muted("Use Tab to switch categories, Space to toggle, Enter to confirm")
-	fmt.Println()
-
-	selected, confirmed, err := ui.RunMacOSSelector()
-	if err != nil {
-		return fmt.Errorf("macOS selector: %w", err)
-	}
-
-	if !confirmed || len(selected) == 0 {
-		ui.Muted("Skipping macOS preferences")
-		fmt.Println()
-		return nil
-	}
-
-	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
-		ui.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
-	}
-
-	if err := macos.Configure(selected, cfg.DryRun); err != nil {
-		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
-	}
-
-	if !cfg.DryRun {
-		ui.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(selected)))
-		macos.RestartAffectedApps(cfg.DryRun)
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func stepPostInstall(cfg *config.Config) error {
-	if cfg.PostInstall == "skip" {
-		return nil
-	}
-
-	if cfg.RemoteConfig == nil || len(cfg.RemoteConfig.PostInstall) == 0 {
-		return nil
-	}
-
-	ui.Header("Step 8: Post-Install Script")
-	fmt.Println()
-
-	commands := cfg.RemoteConfig.PostInstall
-
-	if !cfg.DryRun && (cfg.Silent || !system.HasTTY()) {
-		if !cfg.AllowPostInstall {
-			ui.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")
-			fmt.Println()
-			return nil
-		}
-	}
-
-	// Show script preview for all modes that proceed (interactive, dry-run, silent+allowed)
-	script := strings.Join(commands, "\n")
-	lineCount := len(commands)
-	ui.Info(fmt.Sprintf("Post-install script (%d lines):", lineCount))
-	fmt.Println()
-	ui.PrintScriptPreview(script)
-	fmt.Println()
-
-	if !cfg.DryRun && !cfg.Silent && system.HasTTY() {
-		run, err := ui.Confirm("Run post-install script?", true)
-		if err != nil {
-			return err
-		}
-		if !run {
-			ui.Muted("Skipping post-install script")
-			fmt.Println()
-			return nil
-		}
-	}
-
-	var home string
-	if !cfg.DryRun {
-		var err error
-		home, err = system.HomeDir()
-		if err != nil {
-			return fmt.Errorf("home dir: %w", err)
-		}
-	}
-
-	var errs []error
-	if cfg.DryRun {
-		fmt.Println("[DRY-RUN] Would run the script above")
-	} else {
-		cmd := exec.Command("/bin/zsh", "-c", script)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Dir = home
-		if err := cmd.Run(); err != nil {
-			errs = append(errs, fmt.Errorf("post-install script: %w", err))
-		}
-	}
-
-	if len(errs) == 0 && !cfg.DryRun {
-		ui.Success("Post-install script complete")
-	}
-	fmt.Println()
-	return errors.Join(errs...)
-}
-
-func showCompletion(cfg *config.Config) {
-	var cliCount, caskCount, npmCount int
-	for _, cat := range config.Categories {
-		for _, pkg := range cat.Packages {
-			if cfg.SelectedPkgs[pkg.Name] {
-				if pkg.IsNpm {
-					npmCount++
-				} else if pkg.IsCask {
-					caskCount++
-				} else {
-					cliCount++
-				}
-			}
-		}
-	}
-	for _, pkg := range cfg.OnlinePkgs {
-		if pkg.IsNpm {
-			npmCount++
-		} else if pkg.IsCask {
-			caskCount++
-		} else {
-			cliCount++
-		}
-	}
-
-	fmt.Println()
-	ui.Header("Installation Complete!")
-	fmt.Println()
-
-	ui.Success("OpenBoot has successfully configured your Mac.")
-	fmt.Println()
-
-	ui.Info("What was installed:")
-	if !cfg.PackagesOnly {
-		ui.Info("  - Git configured with your identity")
-	}
-	ui.Info(fmt.Sprintf("  - %d CLI packages", cliCount))
-	ui.Info(fmt.Sprintf("  - %d GUI applications", caskCount))
-	if npmCount > 0 {
-		ui.Info(fmt.Sprintf("  - %d npm global packages", npmCount))
-	}
-	fmt.Println()
-
-	showScreenRecordingReminder(cfg)
-
-	ui.Info("Next steps:")
-	ui.Info("  - Restart your terminal to apply changes")
-	ui.Info("  - Run 'brew doctor' to verify Homebrew health")
-	fmt.Println()
-}
-
 func RunFromSnapshot(cfg *config.Config) error {
 	fmt.Println()
 	ui.Header("OpenBoot — Restore from Snapshot")
@@ -961,107 +314,6 @@ func RunFromSnapshot(cfg *config.Config) error {
 	return nil
 }
 
-func stepRestoreGit(cfg *config.Config) error {
-	ui.Header("Restore: Git Configuration")
-	fmt.Println()
-
-	git := cfg.SnapshotGit
-	if git.UserName == "" && git.UserEmail == "" {
-		ui.Muted("No git config in snapshot, skipping")
-		fmt.Println()
-		return nil
-	}
-
-	existingName, existingEmail := system.GetExistingGitConfig()
-
-	if existingName != "" && existingEmail != "" {
-		ui.Success(fmt.Sprintf("✓ Already configured: %s <%s>", existingName, existingEmail))
-		fmt.Println()
-		return nil
-	}
-
-	if cfg.DryRun {
-		if existingName == "" && git.UserName != "" {
-			fmt.Printf("[DRY-RUN] Would set git user.name = %s\n", git.UserName)
-		}
-		if existingEmail == "" && git.UserEmail != "" {
-			fmt.Printf("[DRY-RUN] Would set git user.email = %s\n", git.UserEmail)
-		}
-		fmt.Println()
-		return nil
-	}
-
-	nameToSet := existingName
-	emailToSet := existingEmail
-	if existingName == "" && git.UserName != "" {
-		nameToSet = git.UserName
-	}
-	if existingEmail == "" && git.UserEmail != "" {
-		emailToSet = git.UserEmail
-	}
-
-	if nameToSet == "" || emailToSet == "" {
-		ui.Warn("Incomplete git config in snapshot, skipping (need both name and email)")
-		fmt.Println()
-		return nil
-	}
-
-	if nameToSet != existingName || emailToSet != existingEmail {
-		if err := system.ConfigureGit(nameToSet, emailToSet); err != nil {
-			return fmt.Errorf("restore git config: %w", err)
-		}
-	}
-
-	ui.Success(fmt.Sprintf("Git restored: %s <%s>", nameToSet, emailToSet))
-	fmt.Println()
-	return nil
-}
-
-func stepRestoreMacOS(cfg *config.Config) error {
-	ui.Header("Restore: macOS Preferences")
-	fmt.Println()
-
-	if len(cfg.SnapshotMacOS) == 0 {
-		ui.Muted("No macOS preferences in snapshot, skipping")
-		fmt.Println()
-		return nil
-	}
-
-	prefs := make([]macos.Preference, 0, len(cfg.SnapshotMacOS))
-	for _, p := range cfg.SnapshotMacOS {
-		prefType := p.Type
-		if prefType == "" {
-			prefType = macos.InferPreferenceType(p.Value)
-		}
-		prefs = append(prefs, macos.Preference{
-			Domain: p.Domain,
-			Key:    p.Key,
-			Type:   prefType,
-			Value:  p.Value,
-			Desc:   p.Desc,
-		})
-	}
-
-	if cfg.DryRun {
-		ui.Info(fmt.Sprintf("[DRY-RUN] Would restore %d macOS preferences from snapshot", len(prefs)))
-		fmt.Println()
-		return nil
-	}
-
-	if err := macos.Configure(prefs, cfg.DryRun); err != nil {
-		ui.Warn(fmt.Sprintf("Some macOS preferences could not be set: %v", err))
-	}
-
-	if err := macos.CreateScreenshotsDir(cfg.DryRun); err != nil {
-		ui.Warn(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
-	}
-
-	macos.RestartAffectedApps(cfg.DryRun)
-	ui.Success(fmt.Sprintf("macOS preferences restored (%d settings)", len(prefs)))
-	fmt.Println()
-	return nil
-}
-
 func runUpdate(cfg *config.Config) error {
 	ui.Header("OpenBoot Update")
 	fmt.Println()
@@ -1077,6 +329,57 @@ func runUpdate(cfg *config.Config) error {
 	fmt.Println()
 	ui.Header("Update Complete!")
 	return nil
+}
+
+func showCompletion(cfg *config.Config) {
+	var cliCount, caskCount, npmCount int
+	for _, cat := range config.Categories {
+		for _, pkg := range cat.Packages {
+			if cfg.SelectedPkgs[pkg.Name] {
+				if pkg.IsNpm {
+					npmCount++
+				} else if pkg.IsCask {
+					caskCount++
+				} else {
+					cliCount++
+				}
+			}
+		}
+	}
+	for _, pkg := range cfg.OnlinePkgs {
+		if pkg.IsNpm {
+			npmCount++
+		} else if pkg.IsCask {
+			caskCount++
+		} else {
+			cliCount++
+		}
+	}
+
+	fmt.Println()
+	ui.Header("Installation Complete!")
+	fmt.Println()
+
+	ui.Success("OpenBoot has successfully configured your Mac.")
+	fmt.Println()
+
+	ui.Info("What was installed:")
+	if !cfg.PackagesOnly {
+		ui.Info("  - Git configured with your identity")
+	}
+	ui.Info(fmt.Sprintf("  - %d CLI packages", cliCount))
+	ui.Info(fmt.Sprintf("  - %d GUI applications", caskCount))
+	if npmCount > 0 {
+		ui.Info(fmt.Sprintf("  - %d npm global packages", npmCount))
+	}
+	fmt.Println()
+
+	showScreenRecordingReminder(cfg)
+
+	ui.Info("Next steps:")
+	ui.Info("  - Restart your terminal to apply changes")
+	ui.Info("  - Run 'brew doctor' to verify Homebrew health")
+	fmt.Println()
 }
 
 func printPackageList(label string, pkgs config.PackageEntryList) {
@@ -1113,66 +416,6 @@ func estimateInstallMinutes(formulaeCount, caskCount, npmCount int) int {
 		minutes = 1
 	}
 	return minutes
-}
-
-type categorizedPackages struct {
-	cli  []string
-	cask []string
-	npm  []string
-}
-
-func categorizeSelectedPackages(cfg *config.Config) categorizedPackages {
-	var result categorizedPackages
-
-	if cfg.RemoteConfig != nil {
-		caskSet := make(map[string]bool)
-		for _, c := range cfg.RemoteConfig.Casks {
-			caskSet[c.Name] = true
-		}
-		npmSet := make(map[string]bool)
-		for _, n := range cfg.RemoteConfig.Npm {
-			npmSet[n.Name] = true
-		}
-		for pkg := range cfg.SelectedPkgs {
-			if npmSet[pkg] || config.IsNpmPackage(pkg) {
-				result.npm = append(result.npm, pkg)
-			} else if caskSet[pkg] || config.IsCaskPackage(pkg) {
-				result.cask = append(result.cask, pkg)
-			} else {
-				result.cli = append(result.cli, pkg)
-			}
-		}
-		return result
-	}
-
-	seen := make(map[string]bool)
-	for _, cat := range config.Categories {
-		for _, pkg := range cat.Packages {
-			if cfg.SelectedPkgs[pkg.Name] {
-				seen[pkg.Name] = true
-				if pkg.IsNpm {
-					result.npm = append(result.npm, pkg.Name)
-				} else if pkg.IsCask {
-					result.cask = append(result.cask, pkg.Name)
-				} else {
-					result.cli = append(result.cli, pkg.Name)
-				}
-			}
-		}
-	}
-	for _, pkg := range cfg.OnlinePkgs {
-		if seen[pkg.Name] {
-			continue
-		}
-		if pkg.IsNpm {
-			result.npm = append(result.npm, pkg.Name)
-		} else if pkg.IsCask {
-			result.cask = append(result.cask, pkg.Name)
-		} else {
-			result.cli = append(result.cli, pkg.Name)
-		}
-	}
-	return result
 }
 
 func findMatchingPackages(cfg *config.Config, triggerPkgs []string) []string {
