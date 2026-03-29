@@ -125,7 +125,7 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
+	err := checkDependencies(opts, st)
 	assert.NoError(t, err)
 }
 
@@ -178,6 +178,7 @@ func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, st.SelectedPkgs["git"])
 	assert.True(t, st.SelectedPkgs["curl"])
+	assert.True(t, st.SelectedPkgs["firefox"], "GUI app (cask) should be in SelectedPkgs")
 }
 
 func TestNewInstallState(t *testing.T) {
