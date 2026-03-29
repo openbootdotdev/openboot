@@ -146,6 +146,11 @@ func stepPackageCustomization(opts *config.InstallOptions, st *config.InstallSta
 			st.SelectedPkgs[pkg.Name] = true
 		}
 	}
+	if st.RemoteConfig != nil && len(st.RemoteConfig.Casks) > 0 {
+		for _, cask := range st.RemoteConfig.Casks {
+			st.SelectedPkgs[cask.Name] = true
+		}
+	}
 
 	count := 0
 	for _, v := range selected {

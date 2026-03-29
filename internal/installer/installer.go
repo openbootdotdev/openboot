@@ -142,6 +142,9 @@ func runCustomInstall(opts *config.InstallOptions, st *config.InstallState) erro
 	for _, pkg := range st.RemoteConfig.Packages {
 		st.SelectedPkgs[pkg.Name] = true
 	}
+	for _, cask := range st.RemoteConfig.Casks {
+		st.SelectedPkgs[cask.Name] = true
+	}
 
 	if err := stepInstallPackages(opts, st); err != nil {
 		return err
