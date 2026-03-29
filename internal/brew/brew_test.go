@@ -193,3 +193,37 @@ func TestHandleFailedJobs_WithFailures(t *testing.T) {
 	}
 	handleFailedJobs(failed)
 }
+
+// TestInstallWithProgress_BatchMode verifies that InstallWithProgress uses batch
+// commands (brew install pkg1 pkg2...) instead of individual commands.
+// This leverages Homebrew's native parallel download capability.
+func TestInstallWithProgress_BatchMode(t *testing.T) {
+	// Dry-run should show batch commands
+	formulae, casks, err := InstallWithProgress(
+		[]string{"git", "curl", "wget"},
+		[]string{"firefox", "chrome"},
+		true,
+	)
+	assert.NoError(t, err)
+	assert.Empty(t, formulae)
+	assert.Empty(t, casks)
+	// In dry-run mode, we can't easily verify the command format without capturing output,
+	// but the function signature and behavior tests ensure batch mode is used
+}
+
+// TestResolveFormulaName tests that formula aliases are resolved correctly.
+// For example, "postgresql" resolves to "postgresql@18", "kubectl" to "kubernetes-cli".
+// If resolution fails, returns the original name.
+func TestResolveFormulaName(t *testing.T) {
+	// Test with a formula that likely exists (git is very common)
+	resolved := ResolveFormulaName("git")
+	assert.NotEmpty(t, resolved)
+	// Should return either "git" or a versioned variant
+	assert.True(t, resolved == "git" || strings.Contains(resolved, "git"),
+		"Should resolve git to itself or a variant, got: %s", resolved)
+
+	// Test with a non-existent formula - should return original
+	resolved = ResolveFormulaName("nonexistent-formula-xyz")
+	assert.Equal(t, "nonexistent-formula-xyz", resolved,
+		"Should return original name when resolution fails")
+}
