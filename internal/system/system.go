@@ -70,11 +70,19 @@ func InstallHomebrew() error {
 }
 
 func GetGitConfig(key string) string {
+	// Try global first (most common)
 	output, err := RunCommandSilent("git", "config", "--global", key)
-	if err != nil {
-		return ""
+	if err == nil && output != "" {
+		return output
 	}
-	return output
+	
+	// Fall back to any available config (local, system, etc.)
+	output, err = RunCommandSilent("git", "config", key)
+	if err == nil {
+		return output
+	}
+	
+	return ""
 }
 
 func GetExistingGitConfig() (name, email string) {
