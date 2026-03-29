@@ -99,17 +99,17 @@ func checkDependencies(opts *config.InstallOptions, st *config.InstallState) err
 func runCustomInstall(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Info(fmt.Sprintf("Custom config: @%s/%s", st.RemoteConfig.Username, st.RemoteConfig.Slug))
 
-	if len(st.RemoteConfig.Taps) > 0 {
-		ui.Info(fmt.Sprintf("Adding %d taps, installing %d packages...", len(st.RemoteConfig.Taps), len(st.RemoteConfig.Packages)))
-	} else {
-		ui.Info(fmt.Sprintf("Installing %d packages...", len(st.RemoteConfig.Packages)))
-	}
-	fmt.Println()
-
 	formulaeCount := len(st.RemoteConfig.Packages)
 	caskCount := len(st.RemoteConfig.Casks)
 	npmCount := len(st.RemoteConfig.Npm)
 	totalPackages := formulaeCount + caskCount + npmCount
+
+	if len(st.RemoteConfig.Taps) > 0 {
+		ui.Info(fmt.Sprintf("Adding %d taps, installing %d packages...", len(st.RemoteConfig.Taps), totalPackages))
+	} else {
+		ui.Info(fmt.Sprintf("Installing %d packages...", totalPackages))
+	}
+	fmt.Println()
 
 	minutes := estimateInstallMinutes(formulaeCount, caskCount, npmCount)
 	ui.Info(fmt.Sprintf("Estimated install time: ~%d min for %d packages", minutes, totalPackages))

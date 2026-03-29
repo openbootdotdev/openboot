@@ -125,7 +125,7 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := runCustomInstall(opts, st)
+	err := checkDependencies(opts, st)
 	assert.NoError(t, err)
 }
 

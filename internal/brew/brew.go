@@ -260,30 +260,48 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 
 	if len(newCli) > 0 {
 		ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(newCli)))
-		
+
 		args := append([]string{"install"}, newCli...)
 		cmd := brewInstallCmd(args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		
-		// Track as completed - we rely on brew's exit code for errors
-		for _, pkg := range newCli {
-			progress.IncrementWithStatus(err == nil)
-			if err == nil {
-				installedFormulae = append(installedFormulae, pkg)
-			} else {
-				allFailed = append(allFailed, failedJob{
-					installJob: installJob{name: pkg, isCask: false},
-					errMsg:     "install failed",
-				})
+		cmdErr := cmd.Run()
+
+		// Re-check installed packages to determine actual success
+		postFormulae, _, postErr := GetInstalledPackages()
+		if postErr != nil {
+			// Fallback: use command error to determine status
+			for _, pkg := range newCli {
+				progress.IncrementWithStatus(cmdErr == nil)
+				if cmdErr == nil {
+					installedFormulae = append(installedFormulae, pkg)
+				} else {
+					allFailed = append(allFailed, failedJob{
+						installJob: installJob{name: pkg, isCask: false},
+						errMsg:     "install failed",
+					})
+				}
+			}
+		} else {
+			// Check each package individually
+			for _, pkg := range newCli {
+				isInstalled := postFormulae[pkg]
+				progress.IncrementWithStatus(isInstalled)
+				if isInstalled {
+					installedFormulae = append(installedFormulae, pkg)
+				} else {
+					allFailed = append(allFailed, failedJob{
+						installJob: installJob{name: pkg, isCask: false},
+						errMsg:     "install failed",
+					})
+				}
 			}
 		}
 	}
 
 	if len(newCask) > 0 {
 		ui.Info(fmt.Sprintf("Installing %d GUI apps...", len(newCask)))
-		
+
 		args := append([]string{"install", "--cask"}, newCask...)
 		cmd := brewInstallCmd(args...)
 		cmd.Stdout = os.Stdout
@@ -293,20 +311,39 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		if opened {
 			cmd.Stdin = tty
 		}
-		err := cmd.Run()
+		cmdErr := cmd.Run()
 		if opened {
 			tty.Close()
 		}
-		
-		for _, pkg := range newCask {
-			progress.IncrementWithStatus(err == nil)
-			if err == nil {
-				installedCasks = append(installedCasks, pkg)
-			} else {
-				allFailed = append(allFailed, failedJob{
-					installJob: installJob{name: pkg, isCask: true},
-					errMsg:     "install failed",
-				})
+
+		// Re-check installed casks to determine actual success
+		_, postCasks, postErr := GetInstalledPackages()
+		if postErr != nil {
+			// Fallback: use command error to determine status
+			for _, pkg := range newCask {
+				progress.IncrementWithStatus(cmdErr == nil)
+				if cmdErr == nil {
+					installedCasks = append(installedCasks, pkg)
+				} else {
+					allFailed = append(allFailed, failedJob{
+						installJob: installJob{name: pkg, isCask: true},
+						errMsg:     "install failed",
+					})
+				}
+			}
+		} else {
+			// Check each cask individually
+			for _, pkg := range newCask {
+				isInstalled := postCasks[pkg]
+				progress.IncrementWithStatus(isInstalled)
+				if isInstalled {
+					installedCasks = append(installedCasks, pkg)
+				} else {
+					allFailed = append(allFailed, failedJob{
+						installJob: installJob{name: pkg, isCask: true},
+						errMsg:     "install failed",
+					})
+				}
 			}
 		}
 	}
