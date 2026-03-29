@@ -125,8 +125,39 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-	err := checkDependencies(opts, st)
+	err := runCustomInstall(opts, st)
 	assert.NoError(t, err)
+}
+
+// TestRunCustomInstall_IncludesCasksInSelectedPkgs verifies that GUI apps (casks)
+// from remote config are added to SelectedPkgs so they get installed.
+// Regression test for: https://github.com/openbootdotdev/openboot/issues/17
+func TestRunCustomInstall_IncludesCasksInSelectedPkgs(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	cfg := &config.Config{
+		DryRun: true,
+		Shell:  "skip",
+		Macos:  "skip",
+		RemoteConfig: &config.RemoteConfig{
+			Username: "testuser",
+			Slug:     "testconfig",
+			Packages: config.PackageEntryList{{Name: "git"}, {Name: "curl"}},
+			Casks:    config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "firefox"}},
+		},
+	}
+
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	err := runCustomInstall(opts, st)
+	assert.NoError(t, err)
+
+	// Verify both packages and casks are in SelectedPkgs
+	assert.Contains(t, st.SelectedPkgs, "git", "CLI package should be in SelectedPkgs")
+	assert.Contains(t, st.SelectedPkgs, "curl", "CLI package should be in SelectedPkgs")
+	assert.Contains(t, st.SelectedPkgs, "visual-studio-code", "GUI app (cask) should be in SelectedPkgs")
+	assert.Contains(t, st.SelectedPkgs, "firefox", "GUI app (cask) should be in SelectedPkgs")
 }
 
 func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
