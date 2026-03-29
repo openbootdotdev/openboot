@@ -310,13 +310,30 @@ func TestGetGitConfig_FallsBackToAnyScope(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	// Create a temporary git config file
-	gitConfigDir := tmpDir + "/.config/git"
-	os.MkdirAll(gitConfigDir, 0755)
-	
-	// Test that GetGitConfig returns empty when nothing is set
-	value := GetGitConfig("user.testkey")
-	// If git is not installed or no config exists, should return empty
-	// The function tries --global first, then falls back to any scope
-	assert.IsType(t, "", value)
+	// Create a git repo in tmpDir
+	cmd := exec.Command("git", "init")
+	cmd.Dir = tmpDir
+	if err := cmd.Run(); err != nil {
+		t.Skip("git not installed, skipping")
+	}
+
+	// Set a local config value (not global)
+	cmd = exec.Command("git", "config", "user.localtest", "local-value")
+	cmd.Dir = tmpDir
+	require.NoError(t, cmd.Run())
+
+	// Change to the tmpDir so git can find the local config
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd)
+
+	// Set XDG_CONFIG_HOME to avoid reading global git config
+	oldXdg := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir+"/nonexistent")
+	defer os.Setenv("XDG_CONFIG_HOME", oldXdg)
+
+	// The global config should be empty since we changed HOME
+	// but the local config should be found via fallback
+	value := GetGitConfig("user.localtest")
+	assert.Equal(t, "local-value", value, "GetGitConfig should fall back to local config when global is not set")
 }
