@@ -224,18 +224,22 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 
 	var newCli []string
 	for _, p := range cliPkgs {
-		if !alreadyFormulae[p] {
+		// Resolve the formula name to handle aliases before checking if installed
+		resolvedName := ResolveFormulaName(p)
+		if !alreadyFormulae[resolvedName] {
 			newCli = append(newCli, p)
 		} else {
-			installedFormulae = append(installedFormulae, p)
+			installedFormulae = append(installedFormulae, resolvedName)
 		}
 	}
 	var newCask []string
 	for _, p := range caskPkgs {
-		if !alreadyCasks[p] {
+		// Resolve the cask name to handle any aliases
+		resolvedName := ResolveFormulaName(p)
+		if !alreadyCasks[resolvedName] {
 			newCask = append(newCask, p)
 		} else {
-			installedCasks = append(installedCasks, p)
+			installedCasks = append(installedCasks, resolvedName)
 		}
 	}
 
@@ -267,8 +271,10 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 			failedSet[f.name] = true
 		}
 		for _, p := range newCli {
+			// Resolve the formula name to handle aliases like postgresql → postgresql@18
+			resolvedName := ResolveFormulaName(p)
 			if !failedSet[p] {
-				installedFormulae = append(installedFormulae, p)
+				installedFormulae = append(installedFormulae, resolvedName)
 			}
 		}
 		allFailed = append(allFailed, failed...)
@@ -283,13 +289,15 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 			elapsed := time.Since(start)
 			progress.IncrementWithStatus(errMsg == "")
 			duration := ui.FormatDuration(elapsed)
+			// Resolve the cask name to handle any aliases
+			resolvedName := ResolveFormulaName(pkg)
 			if errMsg == "" {
 				progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
-				installedCasks = append(installedCasks, pkg)
+				installedCasks = append(installedCasks, resolvedName)
 			} else {
 				progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
 				allFailed = append(allFailed, failedJob{
-					installJob: installJob{name: pkg, isCask: true},
+					installJob: installJob{name: resolvedName, isCask: true},
 					errMsg:     errMsg,
 				})
 			}
@@ -596,6 +604,29 @@ func parseBrewError(output string) string {
 		}
 		return "unknown error"
 	}
+}
+
+// ResolveFormulaName resolves a formula alias to its canonical name.
+// This handles cases like "postgresql" → "postgresql@18" or "kubectl" → "kubernetes-cli".
+// Returns the original name if resolution fails.
+func ResolveFormulaName(name string) string {
+	cmd := exec.Command("brew", "info", "--json", name)
+	output, err := cmd.Output()
+	if err != nil {
+		return name
+	}
+
+	var result []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		return name
+	}
+
+	if len(result) > 0 && result[0].Name != "" {
+		return result[0].Name
+	}
+	return name
 }
 
 func Uninstall(packages []string, dryRun bool) error {
