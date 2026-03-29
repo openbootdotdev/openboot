@@ -16,8 +16,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-const maxWorkers = 1
-
 type OutdatedPackage struct {
 	Name    string
 	Current string
@@ -208,11 +206,11 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 
 	if dryRun {
 		ui.Info("Would install packages:")
-		for _, p := range cliPkgs {
-			fmt.Printf("    brew install %s\n", p)
+		if len(cliPkgs) > 0 {
+			fmt.Printf("    brew install %s\n", strings.Join(cliPkgs, " "))
 		}
-		for _, p := range caskPkgs {
-			fmt.Printf("    brew install --cask %s\n", p)
+		if len(caskPkgs) > 0 {
+			fmt.Printf("    brew install --cask %s\n", strings.Join(caskPkgs, " "))
 		}
 		return nil, nil, nil
 	}
@@ -261,36 +259,53 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
-		failed := runParallelInstallWithProgress(newCli, progress)
-		failedSet := make(map[string]bool, len(failed))
-		for _, f := range failed {
-			failedSet[f.name] = true
-		}
-		for _, p := range newCli {
-			if !failedSet[p] {
-				installedFormulae = append(installedFormulae, p)
+		ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(newCli)))
+		
+		args := append([]string{"install"}, newCli...)
+		cmd := brewInstallCmd(args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		
+		// Track as completed - we rely on brew's exit code for errors
+		for _, pkg := range newCli {
+			progress.IncrementWithStatus(err == nil)
+			if err == nil {
+				installedFormulae = append(installedFormulae, pkg)
+			} else {
+				allFailed = append(allFailed, failedJob{
+					installJob: installJob{name: pkg, isCask: false},
+					errMsg:     "install failed",
+				})
 			}
 		}
-		allFailed = append(allFailed, failed...)
 	}
 
 	if len(newCask) > 0 {
+		ui.Info(fmt.Sprintf("Installing %d GUI apps...", len(newCask)))
+		
+		args := append([]string{"install", "--cask"}, newCask...)
+		cmd := brewInstallCmd(args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		// Open TTY for password prompts
+		tty, opened := system.OpenTTY()
+		if opened {
+			cmd.Stdin = tty
+		}
+		err := cmd.Run()
+		if opened {
+			tty.Close()
+		}
+		
 		for _, pkg := range newCask {
-			progress.SetCurrent(pkg)
-			progress.PrintLine("  Installing %s...", pkg)
-			start := time.Now()
-			errMsg := installCaskWithProgress(pkg, progress)
-			elapsed := time.Since(start)
-			progress.IncrementWithStatus(errMsg == "")
-			duration := ui.FormatDuration(elapsed)
-			if errMsg == "" {
-				progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
+			progress.IncrementWithStatus(err == nil)
+			if err == nil {
 				installedCasks = append(installedCasks, pkg)
 			} else {
-				progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
 				allFailed = append(allFailed, failedJob{
 					installJob: installJob{name: pkg, isCask: true},
-					errMsg:     errMsg,
+					errMsg:     "install failed",
 				})
 			}
 		}
@@ -364,71 +379,6 @@ func handleFailedJobs(failed []failedJob) {
 type failedJob struct {
 	installJob
 	errMsg string
-}
-
-func runParallelInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []failedJob {
-	if len(pkgs) == 0 {
-		return nil
-	}
-
-	jobs := make([]installJob, 0, len(pkgs))
-	for _, pkg := range pkgs {
-		jobs = append(jobs, installJob{name: pkg, isCask: false})
-	}
-
-	jobChan := make(chan installJob, len(jobs))
-	results := make(chan installResult, len(jobs))
-
-	var wg sync.WaitGroup
-	workers := maxWorkers
-	if len(jobs) < workers {
-		workers = len(jobs)
-	}
-
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for job := range jobChan {
-				progress.SetCurrent(job.name)
-				start := time.Now()
-				errMsg := installFormulaWithError(job.name)
-				elapsed := time.Since(start)
-				progress.IncrementWithStatus(errMsg == "")
-				duration := ui.FormatDuration(elapsed)
-				if errMsg == "" {
-					progress.PrintLine("  %s %s", ui.Green("✔ "+job.name), ui.Cyan("("+duration+")"))
-				} else {
-					progress.PrintLine("  %s %s", ui.Red("✗ "+job.name+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
-				}
-				results <- installResult{name: job.name, failed: errMsg != "", isCask: job.isCask, errMsg: errMsg}
-			}
-		}()
-	}
-
-	go func() {
-		for _, job := range jobs {
-			jobChan <- job
-		}
-		close(jobChan)
-	}()
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var failed []failedJob
-	for result := range results {
-		if result.failed {
-			failed = append(failed, failedJob{
-				installJob: installJob{name: result.name, isCask: result.isCask},
-				errMsg:     result.errMsg,
-			})
-		}
-	}
-
-	return failed
 }
 
 func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
@@ -856,4 +806,27 @@ func PreInstallChecks(packageCount int) error {
 	}
 
 	return nil
+}
+
+// ResolveFormulaName resolves a formula alias to its canonical name.
+// This handles cases like "postgresql" → "postgresql@18" or "kubectl" → "kubernetes-cli".
+// Returns the original name if resolution fails.
+func ResolveFormulaName(name string) string {
+	cmd := exec.Command("brew", "info", "--json", name)
+	output, err := cmd.Output()
+	if err != nil {
+		return name
+	}
+
+	var result []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		return name
+	}
+
+	if len(result) > 0 && result[0].Name != "" {
+		return result[0].Name
+	}
+	return name
 }
