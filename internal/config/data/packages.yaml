@@ -64,7 +64,7 @@ categories:
         desc: Fast Python package manager
       - name: deno
         desc: Secure JS/TS runtime
-      - name: bun
+      - name: oven-sh/bun/bun
         desc: Fast JS runtime & bundler
       - name: pnpm
         desc: Fast npm alternative
