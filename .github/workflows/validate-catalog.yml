@@ -13,6 +13,7 @@ jobs:
 
       - name: Check packages exist in Homebrew
         run: |
+          pip3 install pyyaml -q
           python3 - << 'EOF'
           import subprocess, sys, yaml
 
