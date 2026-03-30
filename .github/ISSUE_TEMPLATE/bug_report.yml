@@ -1,0 +1,55 @@
+name: Bug Report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: input
+    id: openboot_version
+    attributes:
+      label: OpenBoot version
+      description: Run `openboot version`
+      placeholder: "0.51.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos_version
+    attributes:
+      label: macOS version
+      description: Run `sw_vers -productVersion`
+      placeholder: "15.3.2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `openboot install ...`
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Full terminal output
+      description: Paste the complete output — don't trim it.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false

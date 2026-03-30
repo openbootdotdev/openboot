@@ -1,0 +1,24 @@
+catalog:
+  - internal/config/data/packages.yaml
+
+brew:
+  - internal/brew/**
+
+installer:
+  - internal/installer/**
+
+ci:
+  - .github/workflows/**
+
+docs:
+  - "*.md"
+  - docs/**
+
+tests:
+  - "**/*_test.go"
+
+snapshot:
+  - internal/snapshot/**
+
+ui:
+  - internal/ui/**
