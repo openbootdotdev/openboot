@@ -1,0 +1,66 @@
+name: Validate Package Catalog
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday 9am UTC
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check packages exist in Homebrew
+        run: |
+          python3 - << 'EOF'
+          import subprocess, sys, yaml
+
+          with open("internal/config/data/packages.yaml") as f:
+              data = yaml.safe_load(f)
+
+          formulae, casks, taps_needed = [], [], set()
+
+          for category in data.get("categories", []):
+              for pkg in category.get("packages", []):
+                  name = pkg["name"]
+                  if pkg.get("npm"):
+                      continue  # npm packages not validated here
+                  if pkg.get("cask"):
+                      casks.append(name)
+                  else:
+                      formulae.append(name)
+                      # tap-qualified: owner/repo/formula
+                      parts = name.split("/")
+                      if len(parts) == 3:
+                          taps_needed.add(f"{parts[0]}/{parts[1]}")
+
+          # Add required taps
+          for tap in taps_needed:
+              subprocess.run(["brew", "tap", tap], capture_output=True)
+
+          failed = []
+
+          print(f"Checking {len(formulae)} formulae and {len(casks)} casks...\n")
+
+          for name in formulae:
+              result = subprocess.run(["brew", "info", name], capture_output=True)
+              if result.returncode != 0:
+                  print(f"  MISSING formula: {name}")
+                  failed.append(name)
+
+          for name in casks:
+              result = subprocess.run(["brew", "info", "--cask", name], capture_output=True)
+              if result.returncode != 0:
+                  print(f"  MISSING cask: {name}")
+                  failed.append(name)
+
+          if failed:
+              print(f"\n{len(failed)} package(s) not found in Homebrew:")
+              for name in failed:
+                  print(f"  - {name}")
+              print("\nUpdate packages.yaml to fix or remove these entries.")
+              sys.exit(1)
+          else:
+              print(f"All packages validated OK.")
+          EOF
