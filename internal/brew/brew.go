@@ -222,10 +222,13 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return nil, nil, fmt.Errorf("list installed packages: %w", checkErr)
 	}
 
+	// Batch-resolve formula aliases in a single brew info call.
+	// Casks don't have an alias system, so we skip resolution for them.
+	aliasMap := ResolveFormulaNames(cliPkgs)
+
 	var newCli []string
 	for _, p := range cliPkgs {
-		// Resolve the formula name to handle aliases before checking if installed
-		resolvedName := ResolveFormulaName(p)
+		resolvedName := aliasMap[p]
 		if !alreadyFormulae[resolvedName] {
 			newCli = append(newCli, p)
 		} else {
@@ -234,12 +237,10 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	}
 	var newCask []string
 	for _, p := range caskPkgs {
-		// Resolve the cask name to handle any aliases
-		resolvedName := ResolveFormulaName(p)
-		if !alreadyCasks[resolvedName] {
+		if !alreadyCasks[p] {
 			newCask = append(newCask, p)
 		} else {
-			installedCasks = append(installedCasks, resolvedName)
+			installedCasks = append(installedCasks, p)
 		}
 	}
 
@@ -271,10 +272,8 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 			failedSet[f.name] = true
 		}
 		for _, p := range newCli {
-			// Resolve the formula name to handle aliases like postgresql → postgresql@18
-			resolvedName := ResolveFormulaName(p)
 			if !failedSet[p] {
-				installedFormulae = append(installedFormulae, resolvedName)
+				installedFormulae = append(installedFormulae, aliasMap[p])
 			}
 		}
 		allFailed = append(allFailed, failed...)
@@ -289,15 +288,13 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 			elapsed := time.Since(start)
 			progress.IncrementWithStatus(errMsg == "")
 			duration := ui.FormatDuration(elapsed)
-			// Resolve the cask name to handle any aliases
-			resolvedName := ResolveFormulaName(pkg)
 			if errMsg == "" {
 				progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
-				installedCasks = append(installedCasks, resolvedName)
+				installedCasks = append(installedCasks, pkg)
 			} else {
 				progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
 				allFailed = append(allFailed, failedJob{
-					installJob: installJob{name: resolvedName, isCask: true},
+					installJob: installJob{name: pkg, isCask: true},
 					errMsg:     errMsg,
 				})
 			}
@@ -321,28 +318,31 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 				if f.isCask {
 					installedCasks = append(installedCasks, f.name)
 				} else {
-					installedFormulae = append(installedFormulae, f.name)
+					installedFormulae = append(installedFormulae, aliasMap[f.name])
 				}
 			} else {
 				fmt.Printf("  ✗ %s (still failed)\n", f.name)
 			}
 		}
 
-		type pkgKey struct {
-			name   string
-			isCask bool
-		}
-		succeeded := make(map[pkgKey]bool)
+		succeededFormulae := make(map[string]bool, len(installedFormulae))
 		for _, p := range installedFormulae {
-			succeeded[pkgKey{p, false}] = true
+			succeededFormulae[p] = true
 		}
+		succeededCasks := make(map[string]bool, len(installedCasks))
 		for _, p := range installedCasks {
-			succeeded[pkgKey{p, true}] = true
+			succeededCasks[p] = true
 		}
 		var stillFailed []failedJob
 		for _, f := range allFailed {
-			if !succeeded[pkgKey{f.name, f.isCask}] {
-				stillFailed = append(stillFailed, f)
+			if f.isCask {
+				if !succeededCasks[f.name] {
+					stillFailed = append(stillFailed, f)
+				}
+			} else {
+				if !succeededFormulae[aliasMap[f.name]] {
+					stillFailed = append(stillFailed, f)
+				}
 			}
 		}
 		allFailed = stillFailed
@@ -606,27 +606,51 @@ func parseBrewError(output string) string {
 	}
 }
 
-// ResolveFormulaName resolves a formula alias to its canonical name.
-// This handles cases like "postgresql" → "postgresql@18" or "kubectl" → "kubernetes-cli".
-// Returns the original name if resolution fails.
-func ResolveFormulaName(name string) string {
-	cmd := exec.Command("brew", "info", "--json", name)
+// ResolveFormulaNames resolves formula aliases to their canonical names in a
+// single batched `brew info --json` call. It returns a map from each input name
+// to its canonical name. On any error it falls back to an identity mapping.
+func ResolveFormulaNames(names []string) map[string]string {
+	if len(names) == 0 {
+		return make(map[string]string)
+	}
+
+	args := append([]string{"info", "--json"}, names...)
+	cmd := exec.Command("brew", args...)
 	output, err := cmd.Output()
 	if err != nil {
-		return name
+		return identityMap(names)
 	}
 
-	var result []struct {
+	return parseFormulaAliases(names, output)
+}
+
+// parseFormulaAliases builds an alias map from the JSON response of
+// `brew info --json`. The JSON array is positionally aligned with names.
+func parseFormulaAliases(names []string, jsonData []byte) map[string]string {
+	var entries []struct {
 		Name string `json:"name"`
 	}
-	if err := json.Unmarshal(output, &result); err != nil {
-		return name
+	if err := json.Unmarshal(jsonData, &entries); err != nil {
+		return identityMap(names)
 	}
 
-	if len(result) > 0 && result[0].Name != "" {
-		return result[0].Name
+	resolved := make(map[string]string, len(names))
+	for i, n := range names {
+		if i < len(entries) && entries[i].Name != "" {
+			resolved[n] = entries[i].Name
+		} else {
+			resolved[n] = n
+		}
 	}
-	return name
+	return resolved
+}
+
+func identityMap(names []string) map[string]string {
+	m := make(map[string]string, len(names))
+	for _, n := range names {
+		m[n] = n
+	}
+	return m
 }
 
 func Uninstall(packages []string, dryRun bool) error {
