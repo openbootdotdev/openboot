@@ -1,10 +1,12 @@
 package brew
 
 import (
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseBrewError(t *testing.T) {
@@ -198,17 +200,71 @@ func TestHandleFailedJobs_WithFailures(t *testing.T) {
 // commands (brew install pkg1 pkg2...) instead of individual commands.
 // This leverages Homebrew's native parallel download capability.
 func TestInstallWithProgress_BatchMode(t *testing.T) {
-	// Dry-run should show batch commands
-	formulae, casks, err := InstallWithProgress(
+	// Capture stdout to verify batch command format
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	formulae, casks, runErr := InstallWithProgress(
 		[]string{"git", "curl", "wget"},
 		[]string{"firefox", "chrome"},
 		true,
 	)
-	assert.NoError(t, err)
-	assert.Empty(t, formulae)
-	assert.Empty(t, casks)
-	// In dry-run mode, we can't easily verify the command format without capturing output,
-	// but the function signature and behavior tests ensure batch mode is used
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf strings.Builder
+	_, copyErr := buf.ReadFrom(r)
+	require.NoError(t, copyErr)
+	output := buf.String()
+
+	assert.NoError(t, runErr)
+	assert.Empty(t, formulae, "dry-run should not report installed formulae")
+	assert.Empty(t, casks, "dry-run should not report installed casks")
+
+	// Verify batch command format: all CLI packages in a single brew install
+	assert.Contains(t, output, "brew install git curl wget",
+		"dry-run should show a single batch brew install command for all CLI packages")
+	// Verify batch cask command format
+	assert.Contains(t, output, "brew install --cask firefox chrome",
+		"dry-run should show a single batch brew install --cask command for all cask packages")
+}
+
+func TestExtractPackageError(t *testing.T) {
+	tests := []struct {
+		name     string
+		output   string
+		pkg      string
+		expected string
+	}{
+		{
+			name:     "package-specific error line",
+			output:   "==> Installing foo\nError: foo: no bottle available!\n==> Installing bar",
+			pkg:      "foo",
+			expected: "Error: foo: no bottle available!",
+		},
+		{
+			name:     "no package-specific line falls back to parser",
+			output:   "Error: No internet connection available",
+			pkg:      "baz",
+			expected: "no internet connection",
+		},
+		{
+			name:     "no useful output gives batch message",
+			output:   "some random output\nnothing useful here",
+			pkg:      "qux",
+			expected: "not installed after batch attempt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractPackageError(tt.output, tt.pkg)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 // TestResolveFormulaName tests that formula aliases are resolved correctly.

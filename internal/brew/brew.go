@@ -259,13 +259,12 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
-		ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(newCli)))
+		progress.PrintLine("  Installing %d CLI packages via brew install...", len(newCli))
 
 		args := append([]string{"install"}, newCli...)
 		cmd := brewInstallCmd(args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmdErr := cmd.Run()
+		cmdOutput, cmdErr := cmd.CombinedOutput()
+		cmdOutputStr := string(cmdOutput)
 
 		// Re-check installed packages to determine actual success
 		postFormulae, _, postErr := GetInstalledPackages()
@@ -278,7 +277,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 				} else {
 					allFailed = append(allFailed, failedJob{
 						installJob: installJob{name: pkg, isCask: false},
-						errMsg:     "install failed",
+						errMsg:     parseBrewError(cmdOutputStr),
 					})
 				}
 			}
@@ -292,7 +291,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 				} else {
 					allFailed = append(allFailed, failedJob{
 						installJob: installJob{name: pkg, isCask: false},
-						errMsg:     "install failed",
+						errMsg:     extractPackageError(cmdOutputStr, pkg),
 					})
 				}
 			}
@@ -300,18 +299,17 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	}
 
 	if len(newCask) > 0 {
-		ui.Info(fmt.Sprintf("Installing %d GUI apps...", len(newCask)))
+		progress.PrintLine("  Installing %d GUI apps via brew install --cask...", len(newCask))
 
 		args := append([]string{"install", "--cask"}, newCask...)
 		cmd := brewInstallCmd(args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		// Open TTY for password prompts
 		tty, opened := system.OpenTTY()
 		if opened {
 			cmd.Stdin = tty
 		}
-		cmdErr := cmd.Run()
+		cmdOutput, cmdErr := cmd.CombinedOutput()
+		cmdOutputStr := string(cmdOutput)
 		if opened {
 			tty.Close()
 		}
@@ -327,7 +325,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 				} else {
 					allFailed = append(allFailed, failedJob{
 						installJob: installJob{name: pkg, isCask: true},
-						errMsg:     "install failed",
+						errMsg:     parseBrewError(cmdOutputStr),
 					})
 				}
 			}
@@ -341,7 +339,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 				} else {
 					allFailed = append(allFailed, failedJob{
 						installJob: installJob{name: pkg, isCask: true},
-						errMsg:     "install failed",
+						errMsg:     extractPackageError(cmdOutputStr, pkg),
 					})
 				}
 			}
@@ -416,36 +414,6 @@ func handleFailedJobs(failed []failedJob) {
 type failedJob struct {
 	installJob
 	errMsg string
-}
-
-func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
-	progress.PauseForInteractive()
-
-	cmd := brewInstallCmd("install", "--cask", pkg)
-	tty, opened := system.OpenTTY()
-	if opened {
-		defer tty.Close()
-	}
-	cmd.Stdin = tty
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-
-	progress.ResumeAfterInteractive()
-
-	if err != nil {
-		return "install failed"
-	}
-	return ""
-}
-
-func printBrewOutput(output string, progress *ui.StickyProgress) {
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			progress.PrintLine("    %s", line)
-		}
-	}
 }
 
 func brewInstallCmd(args ...string) *exec.Cmd {
@@ -583,6 +551,31 @@ func parseBrewError(output string) string {
 		}
 		return "unknown error"
 	}
+}
+
+// extractPackageError tries to find an error message specific to pkg in the
+// combined brew output. Falls back to parseBrewError on the full output.
+func extractPackageError(output, pkg string) string {
+	// Scan for lines mentioning the package name near an error indicator.
+	lowerPkg := strings.ToLower(pkg)
+	for _, line := range strings.Split(output, "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, lowerPkg) && strings.Contains(lower, "error") {
+			line = strings.TrimSpace(line)
+			if len(line) > 80 {
+				return line[:77] + "..."
+			}
+			return line
+		}
+	}
+
+	// No package-specific line found; fall back to the general parser but
+	// indicate the package was not installed after the batch attempt.
+	parsed := parseBrewError(output)
+	if parsed == "unknown error" {
+		return "not installed after batch attempt"
+	}
+	return parsed
 }
 
 func Uninstall(packages []string, dryRun bool) error {
