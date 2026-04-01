@@ -1,6 +1,7 @@
 package brew
 
 import (
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -215,10 +216,9 @@ func TestInstallWithProgress_BatchMode(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	var buf strings.Builder
-	_, copyErr := buf.ReadFrom(r)
+	outputBytes, copyErr := io.ReadAll(r)
 	require.NoError(t, copyErr)
-	output := buf.String()
+	output := string(outputBytes)
 
 	assert.NoError(t, runErr)
 	assert.Empty(t, formulae, "dry-run should not report installed formulae")
