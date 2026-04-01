@@ -18,6 +18,12 @@ import (
 
 const maxWorkers = 1
 
+// Test seams for install behavior. Production uses the real implementations.
+var (
+	checkNetworkFunc = CheckNetwork
+	sleepFunc        = time.Sleep
+)
+
 type OutdatedPackage struct {
 	Name    string
 	Current string
@@ -222,12 +228,17 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return nil, nil, fmt.Errorf("list installed packages: %w", checkErr)
 	}
 
+	// Batch-resolve formula aliases in a single brew info call.
+	// Casks don't have an alias system, so we skip resolution for them.
+	aliasMap := ResolveFormulaNames(cliPkgs)
+
 	var newCli []string
 	for _, p := range cliPkgs {
-		if !alreadyFormulae[p] {
+		resolvedName := aliasMap[p]
+		if !alreadyFormulae[resolvedName] {
 			newCli = append(newCli, p)
 		} else {
-			installedFormulae = append(installedFormulae, p)
+			installedFormulae = append(installedFormulae, resolvedName)
 		}
 	}
 	var newCask []string
@@ -268,7 +279,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		}
 		for _, p := range newCli {
 			if !failedSet[p] {
-				installedFormulae = append(installedFormulae, p)
+				installedFormulae = append(installedFormulae, aliasMap[p])
 			}
 		}
 		allFailed = append(allFailed, failed...)
@@ -313,28 +324,31 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 				if f.isCask {
 					installedCasks = append(installedCasks, f.name)
 				} else {
-					installedFormulae = append(installedFormulae, f.name)
+					installedFormulae = append(installedFormulae, aliasMap[f.name])
 				}
 			} else {
 				fmt.Printf("  ✗ %s (still failed)\n", f.name)
 			}
 		}
 
-		type pkgKey struct {
-			name   string
-			isCask bool
-		}
-		succeeded := make(map[pkgKey]bool)
+		succeededFormulae := make(map[string]bool, len(installedFormulae))
 		for _, p := range installedFormulae {
-			succeeded[pkgKey{p, false}] = true
+			succeededFormulae[p] = true
 		}
+		succeededCasks := make(map[string]bool, len(installedCasks))
 		for _, p := range installedCasks {
-			succeeded[pkgKey{p, true}] = true
+			succeededCasks[p] = true
 		}
 		var stillFailed []failedJob
 		for _, f := range allFailed {
-			if !succeeded[pkgKey{f.name, f.isCask}] {
-				stillFailed = append(stillFailed, f)
+			if f.isCask {
+				if !succeededCasks[f.name] {
+					stillFailed = append(stillFailed, f)
+				}
+			} else {
+				if !succeededFormulae[aliasMap[f.name]] {
+					stillFailed = append(stillFailed, f)
+				}
 			}
 		}
 		allFailed = stillFailed
@@ -503,7 +517,7 @@ func installFormulaWithError(pkg string) string {
 		errMsg := parseBrewError(outputStr)
 		if attempt < maxAttempts && isRetryableError(errMsg) {
 			delay := time.Duration(attempt) * 2 * time.Second
-			time.Sleep(delay)
+			sleepFunc(delay)
 			continue
 		}
 
@@ -553,7 +567,7 @@ func installSmartCaskWithError(pkg string) string {
 
 		if attempt < maxAttempts && isRetryableError(errMsg) {
 			delay := time.Duration(attempt) * 2 * time.Second
-			time.Sleep(delay)
+			sleepFunc(delay)
 			continue
 		}
 
@@ -596,6 +610,53 @@ func parseBrewError(output string) string {
 		}
 		return "unknown error"
 	}
+}
+
+// ResolveFormulaNames resolves formula aliases to their canonical names in a
+// single batched `brew info --json` call. It returns a map from each input name
+// to its canonical name. On any error it falls back to an identity mapping.
+func ResolveFormulaNames(names []string) map[string]string {
+	if len(names) == 0 {
+		return make(map[string]string)
+	}
+
+	args := append([]string{"info", "--json"}, names...)
+	cmd := exec.Command("brew", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return identityMap(names)
+	}
+
+	return parseFormulaAliases(names, output)
+}
+
+// parseFormulaAliases builds an alias map from the JSON response of
+// `brew info --json`. The JSON array is positionally aligned with names.
+func parseFormulaAliases(names []string, jsonData []byte) map[string]string {
+	var entries []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(jsonData, &entries); err != nil {
+		return identityMap(names)
+	}
+
+	resolved := make(map[string]string, len(names))
+	for i, n := range names {
+		if i < len(entries) && entries[i].Name != "" {
+			resolved[n] = entries[i].Name
+		} else {
+			resolved[n] = n
+		}
+	}
+	return resolved
+}
+
+func identityMap(names []string) map[string]string {
+	m := make(map[string]string, len(names))
+	for _, n := range names {
+		m[n] = n
+	}
+	return m
 }
 
 func Uninstall(packages []string, dryRun bool) error {
@@ -828,7 +889,7 @@ func DoctorDiagnose() ([]string, error) {
 
 func PreInstallChecks(packageCount int) error {
 	ui.Info("Checking network connectivity...")
-	if err := CheckNetwork(); err != nil {
+	if err := checkNetworkFunc(); err != nil {
 		return fmt.Errorf("network check failed: %v\nPlease check your internet connection and try again", err)
 	}
 
