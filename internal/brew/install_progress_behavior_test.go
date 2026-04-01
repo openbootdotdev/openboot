@@ -172,8 +172,8 @@ exit 0
 	require.NoError(t, err)
 	assert.Equal(t, []string{"foo-canonical"}, formulae)
 	assert.Empty(t, casks)
-	assert.Contains(t, output, "retry succeeded")
 	assert.NotContains(t, output, "packages failed to install")
+	assert.Contains(t, output, "✔ foo")
 
 	logContent, err := os.ReadFile(logPath)
 	require.NoError(t, err)
