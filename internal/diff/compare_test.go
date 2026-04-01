@@ -1,14 +1,29 @@
 package diff
 
 import (
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+// isolateHome sets HOME to a temp directory with a clean .dotfiles git repo,
+// so tests that call diffDotfiles() don't depend on the developer's local state.
+func isolateHome(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	dotfiles := filepath.Join(tmpDir, ".dotfiles")
+	cmd := exec.Command("git", "init", dotfiles)
+	require.NoError(t, cmd.Run())
+}
+
 func TestCompareSnapshots_Identical(t *testing.T) {
+	isolateHome(t)
 	snap := &snapshot.Snapshot{
 		Packages: snapshot.PackageSnapshot{
 			Formulae: []string{"git", "curl"},
@@ -33,6 +48,7 @@ func TestCompareSnapshots_Identical(t *testing.T) {
 }
 
 func TestCompareSnapshots_PackageDifferences(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{
 		Packages: snapshot.PackageSnapshot{
 			Formulae: []string{"git", "wget"},
@@ -58,6 +74,7 @@ func TestCompareSnapshots_PackageDifferences(t *testing.T) {
 }
 
 func TestCompareSnapshots_MacOSDifferences(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{
 		MacOSPrefs: []snapshot.MacOSPref{
 			{Domain: "NSGlobalDomain", Key: "AppleShowAllExtensions", Value: "true"},
@@ -83,6 +100,7 @@ func TestCompareSnapshots_MacOSDifferences(t *testing.T) {
 }
 
 func TestCompareSnapshots_DevToolDifferences(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{
 		DevTools: []snapshot.DevTool{
 			{Name: "go", Version: "1.22"},
@@ -111,6 +129,7 @@ func TestCompareSnapshots_DevToolDifferences(t *testing.T) {
 }
 
 func TestCompareSnapshotToRemote(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{
 		Packages: snapshot.PackageSnapshot{
 			Formulae: []string{"git", "wget"},
@@ -141,6 +160,7 @@ func TestCompareSnapshotToRemote(t *testing.T) {
 }
 
 func TestCompareSnapshotToRemote_EmptyRemote(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{
 		Packages: snapshot.PackageSnapshot{
 			Formulae: []string{"git"},
@@ -155,6 +175,7 @@ func TestCompareSnapshotToRemote_EmptyRemote(t *testing.T) {
 }
 
 func TestCompareSnapshots_MacOSExtraPrefs(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{
 		MacOSPrefs: []snapshot.MacOSPref{
 			{Domain: "com.apple.dock", Key: "autohide", Value: "true"},
@@ -177,6 +198,7 @@ func TestCompareSnapshots_MacOSExtraPrefs(t *testing.T) {
 }
 
 func TestCompareSnapshots_EmptySnapshots(t *testing.T) {
+	isolateHome(t)
 	system := &snapshot.Snapshot{}
 	reference := &snapshot.Snapshot{}
 
