@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
+	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -143,10 +144,10 @@ func checkGit() []checkResult {
 		status: "ok",
 	})
 
-	name, _ := exec.Command("git", "config", "--global", "user.name").Output()
-	email, _ := exec.Command("git", "config", "--global", "user.email").Output()
+	name := system.GetGitConfig("user.name")
+	email := system.GetGitConfig("user.email")
 
-	if len(strings.TrimSpace(string(name))) == 0 || len(strings.TrimSpace(string(email))) == 0 {
+	if name == "" || email == "" {
 		results = append(results, checkResult{
 			name:    "Git identity",
 			status:  "warn",

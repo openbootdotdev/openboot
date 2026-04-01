@@ -75,8 +75,8 @@ func GetGitConfig(key string) string {
 	if err == nil && output != "" {
 		return output
 	}
-	// Fall back to any available config (local, system, etc.)
-	output, err = RunCommandSilent("git", "config", key)
+	// Fall back to system config only (skip local to avoid repo-specific values)
+	output, err = RunCommandSilent("git", "config", "--system", key)
 	if err == nil {
 		return output
 	}

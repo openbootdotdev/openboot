@@ -303,37 +303,27 @@ func TestRunCommandSilent_MultilineOutput(t *testing.T) {
 	assert.Contains(t, output, "line3")
 }
 
-// TestGetGitConfig_FallsBackToAnyScope verifies that GetGitConfig checks all git config scopes,
-// not just --global. This handles cases where user.name/user.email are set in local or system config.
+// TestGetGitConfig_FallsBackToSystemScope verifies that GetGitConfig falls back
+// to --system scope (not local) when --global has no value. This ensures that
+// running openboot inside a repo with local git config does not skip the global
+// git config wizard.
 // Regression test for: git config detection issue
-func TestGetGitConfig_FallsBackToAnyScope(t *testing.T) {
+func TestGetGitConfig_FallsBackToSystemScope(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", tmpDir+"/nonexistent")
 
-	// Create a git repo in tmpDir
-	cmd := exec.Command("git", "init")
-	cmd.Dir = tmpDir
+	// Create a git repo with a local config value
+	cmd := exec.Command("git", "init", tmpDir)
 	if err := cmd.Run(); err != nil {
 		t.Skip("git not installed, skipping")
 	}
 
-	// Set a local config value (not global)
-	cmd = exec.Command("git", "config", "user.localtest", "local-value")
-	cmd.Dir = tmpDir
+	cmd = exec.Command("git", "-C", tmpDir, "config", "user.localonly", "local-value")
 	require.NoError(t, cmd.Run())
 
-	// Change to the tmpDir so git can find the local config
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
-
-	// Set XDG_CONFIG_HOME to avoid reading global git config
-	oldXdg := os.Getenv("XDG_CONFIG_HOME")
-	os.Setenv("XDG_CONFIG_HOME", tmpDir+"/nonexistent")
-	defer os.Setenv("XDG_CONFIG_HOME", oldXdg)
-
-	// The global config should be empty since we changed HOME
-	// but the local config should be found via fallback
-	value := GetGitConfig("user.localtest")
-	assert.Equal(t, "local-value", value, "GetGitConfig should fall back to local config when global is not set")
+	// GetGitConfig should NOT find the local-only value because the fallback
+	// is --system, not bare git config.
+	value := GetGitConfig("user.localonly")
+	assert.Equal(t, "", value, "GetGitConfig should not fall back to local config; only global and system are checked")
 }
