@@ -171,12 +171,6 @@ func diffDotfiles(systemURL, referenceURL string) *DotfilesDiff {
 		dd.RepoChanged = &ValueChange{System: systemURL, Reference: referenceURL}
 	}
 
-	// Only check local dotfiles repo state if dotfiles are actually configured
-	// If both URLs are empty, there's no dotfiles setup to check
-	if sysNorm == "" && refNorm == "" {
-		return dd
-	}
-
 	// Check local dotfiles repo for dirty state
 	home, err := os.UserHomeDir()
 	if err != nil {

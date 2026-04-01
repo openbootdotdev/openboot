@@ -302,21 +302,3 @@ func TestRunCommandSilent_MultilineOutput(t *testing.T) {
 	assert.Contains(t, output, "line2")
 	assert.Contains(t, output, "line3")
 }
-
-// TestGetGitConfig_FallsBackToAnyScope verifies that GetGitConfig checks all git config scopes,
-// not just --global. This handles cases where user.name/user.email are set in local or system config.
-// Regression test for: git config detection issue
-func TestGetGitConfig_FallsBackToAnyScope(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	// Create a temporary git config file
-	gitConfigDir := tmpDir + "/.config/git"
-	os.MkdirAll(gitConfigDir, 0755)
-	
-	// Test that GetGitConfig returns empty when nothing is set
-	value := GetGitConfig("user.testkey")
-	// If git is not installed or no config exists, should return empty
-	// The function tries --global first, then falls back to any scope
-	assert.IsType(t, "", value)
-}
