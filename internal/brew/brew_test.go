@@ -178,6 +178,133 @@ func TestInstallWithProgress_DryRunReturnsNoInstalledPackages(t *testing.T) {
 	assert.Empty(t, casks, "dry-run should not report casks as installed")
 }
 
+func TestInstallWithProgress_ClassifiesFromPostInstallLookup(t *testing.T) {
+	oldGetInstalledPackages := getInstalledPackagesFn
+	oldPreInstallChecks := preInstallChecksFn
+	oldRunBrewInstallBatch := runBrewInstallBatchFn
+	oldInstallFormulaWithError := installFormulaWithErrorFn
+	oldInstallSmartCaskWithError := installSmartCaskWithErrorFn
+
+	t.Cleanup(func() {
+		getInstalledPackagesFn = oldGetInstalledPackages
+		preInstallChecksFn = oldPreInstallChecks
+		runBrewInstallBatchFn = oldRunBrewInstallBatch
+		installFormulaWithErrorFn = oldInstallFormulaWithError
+		installSmartCaskWithErrorFn = oldInstallSmartCaskWithError
+	})
+
+	calls := 0
+	var retryCalls []string
+	getInstalledPackagesFn = func() (map[string]bool, map[string]bool, error) {
+		calls++
+		switch calls {
+		case 1:
+			return map[string]bool{}, map[string]bool{}, nil
+		case 2:
+			return map[string]bool{"git": true}, map[string]bool{}, nil
+		default:
+			return nil, nil, assert.AnError
+		}
+	}
+	preInstallChecksFn = func(int) error { return nil }
+	runBrewInstallBatchFn = func(args ...string) (string, error) {
+		assert.Equal(t, []string{"install", "git", "curl"}, args)
+		return "", nil
+	}
+	installFormulaWithErrorFn = func(pkg string) string {
+		retryCalls = append(retryCalls, pkg)
+		return ""
+	}
+	installSmartCaskWithErrorFn = func(pkg string) string {
+		t.Fatalf("unexpected cask retry for %s", pkg)
+		return ""
+	}
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	formulae, casks, runErr := InstallWithProgress([]string{"git", "curl"}, nil, false)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	outputBytes, copyErr := io.ReadAll(r)
+	require.NoError(t, copyErr)
+	_ = outputBytes
+
+	assert.NoError(t, runErr)
+	assert.ElementsMatch(t, []string{"git", "curl"}, formulae)
+	assert.Empty(t, casks)
+	assert.Equal(t, []string{"curl"}, retryCalls)
+	assert.Equal(t, 2, calls)
+}
+
+func TestInstallWithProgress_FallsBackWhenPostInstallLookupFails(t *testing.T) {
+	oldGetInstalledPackages := getInstalledPackagesFn
+	oldPreInstallChecks := preInstallChecksFn
+	oldRunBrewInstallBatch := runBrewInstallBatchFn
+	oldInstallFormulaWithError := installFormulaWithErrorFn
+	oldInstallSmartCaskWithError := installSmartCaskWithErrorFn
+
+	t.Cleanup(func() {
+		getInstalledPackagesFn = oldGetInstalledPackages
+		preInstallChecksFn = oldPreInstallChecks
+		runBrewInstallBatchFn = oldRunBrewInstallBatch
+		installFormulaWithErrorFn = oldInstallFormulaWithError
+		installSmartCaskWithErrorFn = oldInstallSmartCaskWithError
+	})
+
+	calls := 0
+	installFormulaRetries := 0
+	getInstalledPackagesFn = func() (map[string]bool, map[string]bool, error) {
+		calls++
+		switch calls {
+		case 1:
+			return map[string]bool{}, map[string]bool{}, nil
+		case 2:
+			return nil, nil, assert.AnError
+		default:
+			return nil, nil, assert.AnError
+		}
+	}
+	preInstallChecksFn = func(int) error { return nil }
+	runBrewInstallBatchFn = func(args ...string) (string, error) {
+		assert.Equal(t, []string{"install", "git", "curl"}, args)
+		return "", nil
+	}
+	installFormulaWithErrorFn = func(pkg string) string {
+		installFormulaRetries++
+		t.Fatalf("unexpected retry for %s", pkg)
+		return ""
+	}
+	installSmartCaskWithErrorFn = func(pkg string) string {
+		t.Fatalf("unexpected cask retry for %s", pkg)
+		return ""
+	}
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	formulae, casks, runErr := InstallWithProgress([]string{"git", "curl"}, nil, false)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	outputBytes, copyErr := io.ReadAll(r)
+	require.NoError(t, copyErr)
+	_ = outputBytes
+
+	assert.NoError(t, runErr)
+	assert.ElementsMatch(t, []string{"git", "curl"}, formulae)
+	assert.Empty(t, casks)
+	assert.Equal(t, 0, installFormulaRetries)
+	assert.Equal(t, 2, calls)
+}
+
 func TestUpdate_DryRun(t *testing.T) {
 	err := Update(true)
 	assert.NoError(t, err)

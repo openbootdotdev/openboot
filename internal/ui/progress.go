@@ -208,7 +208,6 @@ func (sp *StickyProgress) ResumeAfterInteractive() {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	sp.active = true
-	sp.render()
 }
 
 func (sp *StickyProgress) Finish() {

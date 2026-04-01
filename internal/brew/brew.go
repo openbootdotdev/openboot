@@ -198,6 +198,31 @@ type installResult struct {
 	errMsg string
 }
 
+var (
+	getInstalledPackagesFn = GetInstalledPackages
+	preInstallChecksFn     = PreInstallChecks
+
+	runBrewInstallBatchFn = func(args ...string) (string, error) {
+		cmd := brewInstallCmd(args...)
+		output, err := cmd.CombinedOutput()
+		return string(output), err
+	}
+
+	runBrewInstallBatchWithTTYFn = func(args ...string) (string, error) {
+		cmd := brewInstallCmd(args...)
+		tty, opened := system.OpenTTY()
+		if opened {
+			cmd.Stdin = tty
+			defer tty.Close()
+		}
+		output, err := cmd.CombinedOutput()
+		return string(output), err
+	}
+
+	installFormulaWithErrorFn    = installFormulaWithError
+	installSmartCaskWithErrorFn  = installSmartCaskWithError
+)
+
 func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedFormulae []string, installedCasks []string, err error) {
 	total := len(cliPkgs) + len(caskPkgs)
 	if total == 0 {
@@ -215,7 +240,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return nil, nil, nil
 	}
 
-	alreadyFormulae, alreadyCasks, checkErr := GetInstalledPackages()
+	alreadyFormulae, alreadyCasks, checkErr := getInstalledPackagesFn()
 	if checkErr != nil {
 		return nil, nil, fmt.Errorf("list installed packages: %w", checkErr)
 	}
@@ -248,7 +273,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return installedFormulae, installedCasks, nil
 	}
 
-	if preErr := PreInstallChecks(len(newCli) + len(newCask)); preErr != nil {
+	if preErr := preInstallChecksFn(len(newCli) + len(newCask)); preErr != nil {
 		return installedFormulae, installedCasks, preErr
 	}
 
@@ -260,14 +285,14 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 
 	if len(newCli) > 0 {
 		progress.PrintLine("  Installing %d CLI packages via brew install...", len(newCli))
+		progress.PauseForInteractive()
 
 		args := append([]string{"install"}, newCli...)
-		cmd := brewInstallCmd(args...)
-		cmdOutput, cmdErr := cmd.CombinedOutput()
-		cmdOutputStr := string(cmdOutput)
+		cmdOutputStr, cmdErr := runBrewInstallBatchFn(args...)
+		progress.ResumeAfterInteractive()
 
 		// Re-check installed packages to determine actual success
-		postFormulae, _, postErr := GetInstalledPackages()
+		postFormulae, _, postErr := getInstalledPackagesFn()
 		if postErr != nil {
 			// Fallback: use command error to determine status
 			for _, pkg := range newCli {
@@ -300,22 +325,14 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 
 	if len(newCask) > 0 {
 		progress.PrintLine("  Installing %d GUI apps via brew install --cask...", len(newCask))
+		progress.PauseForInteractive()
 
 		args := append([]string{"install", "--cask"}, newCask...)
-		cmd := brewInstallCmd(args...)
-		// Open TTY for password prompts
-		tty, opened := system.OpenTTY()
-		if opened {
-			cmd.Stdin = tty
-		}
-		cmdOutput, cmdErr := cmd.CombinedOutput()
-		cmdOutputStr := string(cmdOutput)
-		if opened {
-			tty.Close()
-		}
+		cmdOutputStr, cmdErr := runBrewInstallBatchWithTTYFn(args...)
+		progress.ResumeAfterInteractive()
 
 		// Re-check installed casks to determine actual success
-		_, postCasks, postErr := GetInstalledPackages()
+		_, postCasks, postErr := getInstalledPackagesFn()
 		if postErr != nil {
 			// Fallback: use command error to determine status
 			for _, pkg := range newCask {
@@ -354,9 +371,9 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		for _, f := range allFailed {
 			var errMsg string
 			if f.isCask {
-				errMsg = installSmartCaskWithError(f.name)
+				errMsg = installSmartCaskWithErrorFn(f.name)
 			} else {
-				errMsg = installFormulaWithError(f.name)
+				errMsg = installFormulaWithErrorFn(f.name)
 			}
 			if errMsg == "" {
 				fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)

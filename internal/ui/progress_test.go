@@ -149,4 +149,7 @@ func TestStickyProgressPauseResume(t *testing.T) {
 
 	sp.PauseForInteractive()
 	assert.False(t, sp.active)
+
+	sp.ResumeAfterInteractive()
+	assert.True(t, sp.active)
 }
