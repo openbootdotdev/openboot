@@ -18,6 +18,12 @@ import (
 
 const maxWorkers = 1
 
+// Test seams for install behavior. Production uses the real implementations.
+var (
+	checkNetworkFunc = CheckNetwork
+	sleepFunc        = time.Sleep
+)
+
 type OutdatedPackage struct {
 	Name    string
 	Current string
@@ -511,7 +517,7 @@ func installFormulaWithError(pkg string) string {
 		errMsg := parseBrewError(outputStr)
 		if attempt < maxAttempts && isRetryableError(errMsg) {
 			delay := time.Duration(attempt) * 2 * time.Second
-			time.Sleep(delay)
+			sleepFunc(delay)
 			continue
 		}
 
@@ -561,7 +567,7 @@ func installSmartCaskWithError(pkg string) string {
 
 		if attempt < maxAttempts && isRetryableError(errMsg) {
 			delay := time.Duration(attempt) * 2 * time.Second
-			time.Sleep(delay)
+			sleepFunc(delay)
 			continue
 		}
 
@@ -883,7 +889,7 @@ func DoctorDiagnose() ([]string, error) {
 
 func PreInstallChecks(packageCount int) error {
 	ui.Info("Checking network connectivity...")
-	if err := CheckNetwork(); err != nil {
+	if err := checkNetworkFunc(); err != nil {
 		return fmt.Errorf("network check failed: %v\nPlease check your internet connection and try again", err)
 	}
 
