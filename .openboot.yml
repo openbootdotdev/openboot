@@ -1,0 +1,18 @@
+version: "1.0"
+
+brew:
+  packages:
+    - go
+    - git
+    - gh
+    - upx
+
+init:
+  - go mod download
+  - make build
+
+verify:
+  - go version
+  - git --version
+  - gh --version
+  - ./openboot version

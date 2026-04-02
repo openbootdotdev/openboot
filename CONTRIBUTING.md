@@ -7,11 +7,8 @@ Contributions are welcome. @fullstackjam maintains the project and reviews all P
 ```bash
 git clone https://github.com/YOUR_USERNAME/openboot.git
 cd openboot
+openboot init        # installs Go, upx, gh, tart — then builds
 git checkout -b fix-something
-
-# Build
-go build -o openboot ./cmd/openboot
-./openboot --dry-run
 
 # Test
 make test-unit
@@ -20,6 +17,8 @@ make test-unit
 git commit -m "fix: the thing"
 git push origin fix-something
 ```
+
+> Don't have OpenBoot yet? `curl -fsSL openboot.dev/install.sh | bash`
 
 Then open a PR — use the template, it's short.
 
@@ -37,6 +36,12 @@ See [issues labeled `good first issue`](https://github.com/openbootdotdev/openbo
 make test-unit           # Fast
 make test-integration    # Slower
 make test-all            # Everything + coverage
+```
+
+VM-based E2E tests require [Tart](https://github.com/cirruslabs/tart) (macOS virtualization). Install it only if you need to run `make test-vm-*`:
+
+```bash
+brew install cirruslabs/cli/tart
 ```
 
 ## Code Expectations
