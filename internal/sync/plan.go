@@ -9,6 +9,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/dotfiles"
 	"github.com/openbootdotdev/openboot/internal/macos"
 	"github.com/openbootdotdev/openboot/internal/npm"
+	"github.com/openbootdotdev/openboot/internal/shell"
 )
 
 // SyncPlan describes the concrete actions to apply after the user selects
@@ -31,6 +32,12 @@ type SyncPlan struct {
 
 	// macOS
 	UpdateMacOSPrefs []config.RemoteMacOSPref
+
+	// Shell
+	UpdateShell  bool
+	ShellOhMyZsh bool
+	ShellTheme   string
+	ShellPlugins []string
 }
 
 // SyncResult summarizes what was applied.
@@ -47,6 +54,9 @@ func (p *SyncPlan) TotalActions() int {
 		len(p.UninstallFormulae) + len(p.UninstallCasks) + len(p.UninstallNpm) + len(p.UninstallTaps) +
 		len(p.UpdateMacOSPrefs)
 	if p.UpdateDotfiles != "" {
+		n++
+	}
+	if p.UpdateShell {
 		n++
 	}
 	return n
@@ -151,6 +161,16 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 		} else if err := dotfiles.Link(dryRun); err != nil {
 			errs = append(errs, fmt.Errorf("link dotfiles: %w", err))
 			result.Errors = append(result.Errors, fmt.Sprintf("dotfiles link: %v", err))
+		} else {
+			result.Updated++
+		}
+	}
+
+	// Update shell config
+	if plan.UpdateShell {
+		if err := shell.RestoreFromSnapshot(plan.ShellOhMyZsh, plan.ShellTheme, plan.ShellPlugins, dryRun); err != nil {
+			errs = append(errs, fmt.Errorf("update shell: %w", err))
+			result.Errors = append(result.Errors, fmt.Sprintf("shell: %v", err))
 		} else {
 			result.Updated++
 		}

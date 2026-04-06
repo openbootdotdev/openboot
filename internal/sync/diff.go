@@ -31,6 +31,20 @@ type SyncDiff struct {
 
 	// macOS Preferences
 	MacOSChanged []MacOSPrefDiff
+
+	// Shell (non-nil when theme or plugins differ from remote)
+	Shell *ShellDiff
+}
+
+// ShellDiff records a shell config difference between remote and local.
+// RemoteTheme/RemotePlugins always reflect the remote config values.
+type ShellDiff struct {
+	ThemeChanged   bool
+	RemoteTheme    string
+	LocalTheme     string
+	PluginsChanged bool
+	RemotePlugins  []string
+	LocalPlugins   []string
 }
 
 // MacOSPrefDiff records a single macOS preference that differs.
@@ -54,7 +68,8 @@ func (d *SyncDiff) HasChanges() bool {
 		len(d.ExtraNpm) > 0 ||
 		len(d.ExtraTaps) > 0 ||
 		d.DotfilesChanged ||
-		len(d.MacOSChanged) > 0
+		len(d.MacOSChanged) > 0 ||
+		d.Shell != nil
 }
 
 // TotalMissing returns the count of items in remote but not on the local system.
@@ -67,10 +82,13 @@ func (d *SyncDiff) TotalExtra() int {
 	return len(d.ExtraFormulae) + len(d.ExtraCasks) + len(d.ExtraNpm) + len(d.ExtraTaps)
 }
 
-// TotalChanged returns the count of values that differ (theme, dotfiles, macOS prefs).
+// TotalChanged returns the count of values that differ (theme, dotfiles, macOS prefs, shell).
 func (d *SyncDiff) TotalChanged() int {
 	n := len(d.MacOSChanged)
 	if d.DotfilesChanged {
+		n++
+	}
+	if d.Shell != nil {
 		n++
 	}
 	return n
@@ -122,6 +140,28 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 		}
 	}
 
+	// Shell diff — only when remote config specifies oh-my-zsh
+	if rc.Shell != nil && rc.Shell.OhMyZsh {
+		localShell, err := snapshot.CaptureShell()
+		if err != nil {
+			return nil, fmt.Errorf("capture local shell: %w", err)
+		}
+		var sd *ShellDiff
+		if rc.Shell.Theme != "" && rc.Shell.Theme != localShell.Theme {
+			if sd == nil {
+				sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
+			}
+			sd.ThemeChanged = true
+		}
+		if len(rc.Shell.Plugins) > 0 && !pluginsEqual(rc.Shell.Plugins, localShell.Plugins) {
+			if sd == nil {
+				sd = &ShellDiff{RemoteTheme: rc.Shell.Theme, LocalTheme: localShell.Theme, RemotePlugins: rc.Shell.Plugins, LocalPlugins: localShell.Plugins}
+			}
+			sd.PluginsChanged = true
+		}
+		d.Shell = sd
+	}
+
 	// macOS prefs diff
 	if len(rc.MacOSPrefs) > 0 {
 		localPrefs, prefsErr := snapshot.CaptureMacOSPrefs()
@@ -154,6 +194,24 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	}
 
 	return d, nil
+}
+
+// pluginsEqual reports whether two plugin lists contain the same elements
+// regardless of order.
+func pluginsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[string]bool, len(a))
+	for _, p := range a {
+		set[p] = true
+	}
+	for _, p := range b {
+		if !set[p] {
+			return false
+		}
+	}
+	return true
 }
 
 // diffLists returns (missing, extra) where missing = in remote but not local,

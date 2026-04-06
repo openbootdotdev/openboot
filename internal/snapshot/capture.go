@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -385,6 +386,42 @@ func CaptureDotfiles() (*DotfilesSnapshot, error) {
 	return &DotfilesSnapshot{
 		RepoURL: strings.TrimSpace(string(out)),
 	}, nil
+}
+
+var (
+	zshThemeRe   = regexp.MustCompile(`(?m)^ZSH_THEME="([^"]*)"`)
+	zshPluginsRe = regexp.MustCompile(`(?m)^plugins=\((?s:(.*?))\)`)
+)
+
+// CaptureShell reads the current Oh-My-Zsh state and .zshrc theme/plugins.
+// Returns a zero-value ShellSnapshot (not an error) when .zshrc is absent.
+func CaptureShell() (*ShellSnapshot, error) {
+	snap := &ShellSnapshot{}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return snap, nil
+	}
+
+	if _, err := os.Stat(filepath.Join(home, ".oh-my-zsh")); err == nil {
+		snap.OhMyZsh = true
+	}
+
+	raw, err := os.ReadFile(filepath.Join(home, ".zshrc"))
+	if err != nil {
+		return snap, nil // no .zshrc is fine
+	}
+	content := string(raw)
+
+	if m := zshThemeRe.FindStringSubmatch(content); len(m) > 1 {
+		snap.Theme = m[1]
+	}
+
+	if m := zshPluginsRe.FindStringSubmatch(content); len(m) > 1 {
+		snap.Plugins = strings.Fields(m[1])
+	}
+
+	return snap, nil
 }
 
 func sanitizePath(path string) string {

@@ -153,6 +153,12 @@ type DevTool struct {
 	Version string `json:"version"`
 }
 
+type ShellSnapshot struct {
+	OhMyZsh bool     `json:"oh_my_zsh"`
+	Theme   string   `json:"theme"`
+	Plugins []string `json:"plugins"`
+}
+
 type CatalogMatch struct {
 	Matched   []string `json:"matched"`
 	Unmatched []string `json:"unmatched"`

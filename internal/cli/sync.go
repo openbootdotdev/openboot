@@ -213,6 +213,26 @@ func printSyncDiff(d *syncpkg.SyncDiff) {
 		fmt.Println()
 	}
 
+	// Shell changes
+	if d.Shell != nil {
+		fmt.Printf("  %s\n", ui.Green("Shell Changes"))
+		if d.Shell.ThemeChanged {
+			localTheme := d.Shell.LocalTheme
+			if localTheme == "" {
+				localTheme = "(none)"
+			}
+			fmt.Printf("    Theme: %s %s %s\n", localTheme, ui.Yellow("→"), d.Shell.RemoteTheme)
+		}
+		if d.Shell.PluginsChanged {
+			localPlugins := strings.Join(d.Shell.LocalPlugins, ", ")
+			if localPlugins == "" {
+				localPlugins = "(none)"
+			}
+			fmt.Printf("    Plugins: %s %s %s\n", localPlugins, ui.Yellow("→"), strings.Join(d.Shell.RemotePlugins, ", "))
+		}
+		fmt.Println()
+	}
+
 	// Dotfiles changes
 	if d.DotfilesChanged {
 		fmt.Printf("  %s\n", ui.Green("Dotfiles"))
@@ -294,6 +314,20 @@ func buildSyncPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig, dryRun bool, in
 		}
 	}
 
+	// Shell config
+	if d.Shell != nil {
+		apply, err := ui.Confirm("Update shell config (theme and plugins)?", true)
+		if err != nil {
+			return nil, fmt.Errorf("confirm shell: %w", err)
+		}
+		if apply {
+			plan.UpdateShell = true
+			plan.ShellOhMyZsh = true
+			plan.ShellTheme = d.Shell.RemoteTheme
+			plan.ShellPlugins = d.Shell.RemotePlugins
+		}
+	}
+
 	// Dotfiles
 	if d.DotfilesChanged {
 		apply, err := ui.Confirm(
@@ -316,6 +350,13 @@ func buildDryRunPlan(d *syncpkg.SyncDiff) *syncpkg.SyncPlan {
 		InstallCasks:    d.MissingCasks,
 		InstallNpm:      d.MissingNpm,
 		InstallTaps:     d.MissingTaps,
+	}
+
+	if d.Shell != nil {
+		plan.UpdateShell = true
+		plan.ShellOhMyZsh = true
+		plan.ShellTheme = d.Shell.RemoteTheme
+		plan.ShellPlugins = d.Shell.RemotePlugins
 	}
 
 	if d.DotfilesChanged {

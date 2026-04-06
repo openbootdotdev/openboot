@@ -105,6 +105,15 @@ func vmRunDevBinaryWithGit(t *testing.T, vm *testutil.TartVM, binaryPath, args s
 	return vm.RunWithEnv(env, binaryPath+" "+args)
 }
 
+// installOhMyZsh installs Oh-My-Zsh non-interactively in the VM.
+func installOhMyZsh(t *testing.T, vm *testutil.TartVM) {
+	t.Helper()
+	script := `sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended`
+	output, err := vm.Run(script)
+	t.Logf("oh-my-zsh install: %s", output)
+	require.NoError(t, err, "should install oh-my-zsh")
+}
+
 // vmBrewList returns the list of installed Homebrew formulae in the VM.
 func vmBrewList(t *testing.T, vm *testutil.TartVM) []string {
 	t.Helper()
