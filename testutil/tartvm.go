@@ -105,8 +105,9 @@ func (vm *TartVM) RunInteractive(command string, steps []ExpectStep, timeoutSec 
 	// Build expect script
 	var script strings.Builder
 	script.WriteString(fmt.Sprintf("set timeout %d\n", timeoutSec))
+	// -t forces TTY allocation on the remote side, required for TUI apps (huh/bubbletea).
 	script.WriteString(fmt.Sprintf(
-		"spawn ssh -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR %s %s\n",
+		"spawn ssh -t -i %s -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR %s %s\n",
 		keyPath, vm.sshTarget(), shellescape(command),
 	))
 
