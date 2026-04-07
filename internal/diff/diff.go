@@ -73,6 +73,16 @@ type DotfilesDiff struct {
 	Unpushed    bool         // local commits not pushed to remote
 }
 
+// ShellDiff holds shell configuration differences between system and reference.
+type ShellDiff struct {
+	ThemeChanged     bool
+	LocalTheme       string
+	ReferenceTheme   string
+	PluginsChanged   bool
+	LocalPlugins     []string
+	ReferencePlugins []string
+}
+
 // DiffResult is the top-level diff output.
 type DiffResult struct {
 	Source   Source
@@ -80,6 +90,7 @@ type DiffResult struct {
 	MacOS    *MacOSDiff    // nil when not compared
 	DevTools *DevToolDiff  // nil when not compared
 	Dotfiles *DotfilesDiff // nil when not compared
+	Shell    *ShellDiff    // nil when not compared
 }
 
 // DiffLists computes a bidirectional set diff between system and reference string slices.
@@ -122,6 +133,9 @@ func (r *DiffResult) HasChanges() bool {
 		return true
 	}
 	if r.Dotfiles != nil && (r.Dotfiles.Dirty || r.Dotfiles.Unpushed || r.Dotfiles.RepoChanged != nil) {
+		return true
+	}
+	if r.Shell != nil {
 		return true
 	}
 	return false
@@ -169,6 +183,9 @@ func (r *DiffResult) TotalChanged() int {
 		n += len(r.DevTools.Changed)
 	}
 	if r.Dotfiles != nil && r.Dotfiles.RepoChanged != nil {
+		n++
+	}
+	if r.Shell != nil {
 		n++
 	}
 	return n

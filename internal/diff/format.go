@@ -3,6 +3,7 @@ package diff
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
@@ -32,6 +33,9 @@ func FormatTerminal(result *DiffResult, packagesOnly bool) {
 		if result.DevTools != nil {
 			printDevToolsSection(result.DevTools)
 		}
+		if result.Shell != nil {
+			printShellSection(result.Shell)
+		}
 	}
 
 	printSummary(result)
@@ -45,6 +49,7 @@ func FormatJSON(result *DiffResult) ([]byte, error) {
 		Dotfiles: result.Dotfiles,
 		MacOS:    result.MacOS,
 		DevTools: result.DevTools,
+		Shell:    result.Shell,
 		Summary: jsonSummary{
 			Missing: result.TotalMissing(),
 			Extra:   result.TotalExtra(),
@@ -61,6 +66,7 @@ type jsonOutput struct {
 	Dotfiles *DotfilesDiff `json:"dotfiles,omitempty"`
 	MacOS    *MacOSDiff    `json:"macos,omitempty"`
 	DevTools *DevToolDiff  `json:"dev_tools,omitempty"`
+	Shell    *ShellDiff    `json:"shell,omitempty"`
 	Summary  jsonSummary   `json:"summary"`
 }
 
@@ -159,6 +165,30 @@ func printDevToolsSection(dd *DevToolDiff) {
 	}
 	for _, name := range dd.Extra {
 		fmt.Printf("    %s %-28s %s\n", ui.Red("-"), name, ui.Red("(extra)"))
+	}
+	fmt.Println()
+}
+
+func printShellSection(sd *ShellDiff) {
+	if !sd.ThemeChanged && !sd.PluginsChanged {
+		return
+	}
+	fmt.Printf("  Shell:\n")
+	if sd.ThemeChanged {
+		local := sd.LocalTheme
+		if local == "" {
+			local = "(none)"
+		}
+		fmt.Printf("    %s theme: %s %s %s\n",
+			ui.Yellow("~"), local, ui.Yellow("\u2192"), sd.ReferenceTheme)
+	}
+	if sd.PluginsChanged {
+		local := strings.Join(sd.LocalPlugins, ", ")
+		if local == "" {
+			local = "(none)"
+		}
+		fmt.Printf("    %s plugins: %s %s %s\n",
+			ui.Yellow("~"), local, ui.Yellow("\u2192"), strings.Join(sd.ReferencePlugins, ", "))
 	}
 	fmt.Println()
 }

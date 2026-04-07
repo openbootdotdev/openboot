@@ -62,7 +62,63 @@ func CompareSnapshotToRemote(system *snapshot.Snapshot, remote *config.RemoteCon
 		result.MacOS = diffMacOS(system.MacOSPrefs, refPrefs)
 	}
 
+	// Shell configuration comparison — only when remote specifies oh-my-zsh
+	if remote.Shell != nil && remote.Shell.OhMyZsh {
+		result.Shell = diffShell(remote.Shell.Theme, remote.Shell.Plugins)
+	}
+
 	return result
+}
+
+// diffShell captures the local shell state and compares it against reference values.
+func diffShell(refTheme string, refPlugins []string) *ShellDiff {
+	local, err := snapshot.CaptureShell()
+	if err != nil || local == nil {
+		return nil
+	}
+
+	var sd *ShellDiff
+
+	if refTheme != "" && refTheme != local.Theme {
+		sd = &ShellDiff{
+			ThemeChanged:     true,
+			LocalTheme:       local.Theme,
+			ReferenceTheme:   refTheme,
+			LocalPlugins:     local.Plugins,
+			ReferencePlugins: refPlugins,
+		}
+	}
+
+	if len(refPlugins) > 0 && !pluginsEqual(refPlugins, local.Plugins) {
+		if sd == nil {
+			sd = &ShellDiff{
+				LocalTheme:       local.Theme,
+				ReferenceTheme:   refTheme,
+				LocalPlugins:     local.Plugins,
+				ReferencePlugins: refPlugins,
+			}
+		}
+		sd.PluginsChanged = true
+	}
+
+	return sd
+}
+
+// pluginsEqual reports whether two plugin lists contain the same elements regardless of order.
+func pluginsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[string]bool, len(a))
+	for _, p := range a {
+		set[p] = true
+	}
+	for _, p := range b {
+		if !set[p] {
+			return false
+		}
+	}
+	return true
 }
 
 func diffPackages(system, reference *snapshot.Snapshot) PackageDiff {

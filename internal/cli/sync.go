@@ -20,15 +20,19 @@ var syncCmd = &cobra.Command{
 	Long: `Fetch the latest remote config and apply changes to your local system.
 
 The sync source is automatically saved when you run 'openboot install <config>'.
+If no source is saved, falls back to your logged-in openboot.dev config.
 You can override it with --source.
 
 This command compares your local system against the remote config and lets you
 interactively select which changes to apply.`,
-	Example: `  # Sync with the config you last installed
+	Example: `  # Sync with the config you last installed (or your logged-in config)
   openboot sync
 
   # Preview changes without applying
   openboot sync --dry-run
+
+  # Apply all changes without prompts (for scripts/CI)
+  openboot sync --yes
 
   # Sync with a different config
   openboot sync --source alice/my-setup
@@ -45,12 +49,14 @@ func init() {
 	syncCmd.Flags().String("source", "", "override remote config source (alias or username/slug)")
 	syncCmd.Flags().Bool("dry-run", false, "preview changes without applying")
 	syncCmd.Flags().Bool("install-only", false, "only install missing packages, skip removal prompts")
+	syncCmd.Flags().BoolP("yes", "y", false, "auto-confirm all prompts (non-interactive)")
 }
 
 func runSync(cmd *cobra.Command) error {
 	sourceOverride, _ := cmd.Flags().GetString("source")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	installOnly, _ := cmd.Flags().GetBool("install-only")
+	yes, _ := cmd.Flags().GetBool("yes")
 
 	// 1. Load sync source
 	var source *syncpkg.SyncSource
@@ -63,7 +69,12 @@ func runSync(cmd *cobra.Command) error {
 			return fmt.Errorf("load sync source: %w", err)
 		}
 		if source == nil {
-			return fmt.Errorf("no sync source found — run 'openboot install <config>' first, or use --source")
+			// Fall back to the logged-in user's config
+			if stored, authErr := auth.LoadToken(); authErr == nil && stored != nil && stored.Username != "" {
+				source = &syncpkg.SyncSource{UserSlug: stored.Username}
+			} else {
+				return fmt.Errorf("no sync source found — run 'openboot install <config>' first, or use --source")
+			}
 		}
 	}
 
@@ -111,7 +122,7 @@ func runSync(cmd *cobra.Command) error {
 	printSyncDiff(diff)
 
 	// 7. Build plan from interactive selection
-	plan, err := buildSyncPlan(diff, rc, dryRun, installOnly)
+	plan, err := buildSyncPlan(diff, rc, dryRun, installOnly, yes)
 	if err != nil {
 		return err
 	}
@@ -121,8 +132,8 @@ func runSync(cmd *cobra.Command) error {
 		return nil
 	}
 
-	// 8. Confirm (skip in dry-run mode)
-	if !dryRun {
+	// 8. Confirm (skip in dry-run and --yes modes)
+	if !dryRun && !yes {
 		confirmed, err := ui.Confirm(fmt.Sprintf("Apply %d changes?", plan.TotalActions()), true)
 		if err != nil {
 			return fmt.Errorf("confirm: %w", err)
@@ -253,9 +264,9 @@ func printMissingExtra(category string, missing, extra []string) {
 	}
 }
 
-func buildSyncPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig, dryRun bool, installOnly bool) (*syncpkg.SyncPlan, error) {
-	// Dry-run: include all missing items without interactive prompts
-	if dryRun {
+func buildSyncPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig, dryRun bool, installOnly bool, yes bool) (*syncpkg.SyncPlan, error) {
+	// Dry-run or --yes: include all missing items without interactive prompts
+	if dryRun || yes {
 		return buildDryRunPlan(d), nil
 	}
 
