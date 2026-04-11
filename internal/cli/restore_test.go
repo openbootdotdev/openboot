@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRevisionPackagesToRemoteConfig(t *testing.T) {
@@ -138,6 +142,191 @@ func TestRevisionPackagesToRemoteConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ── runRestore error-path unit tests ─────────────────────────────────────────
+// These test the auth, slug-resolution, and HTTP-error branches.
+// The success path (ComputeDiff → sync pipeline) is covered by E2E VM tests.
+
+func TestRunRestore_NotAuthenticated(t *testing.T) {
+	setupTestAuth(t, false)
+	t.Setenv("OPENBOOT_API_URL", "http://localhost:9999")
+
+	err := runRestore("rev_abc123", "my-config", false, true)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not logged in")
+}
+
+func TestRunRestore_NoSlug_NoSyncSource(t *testing.T) {
+	setupTestAuth(t, true)
+	t.Setenv("OPENBOOT_API_URL", "http://localhost:9999")
+
+	err := runRestore("rev_abc123", "", false, true)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no config slug")
+}
+
+func TestRunRestore_ActualRestore_NotFound(t *testing.T) {
+	setupTestAuth(t, true)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"revision not found"}`))
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	err := runRestore("rev_missing", "my-config", false, true)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "revision not found")
+}
+
+func TestRunRestore_ActualRestore_ServerError(t *testing.T) {
+	setupTestAuth(t, true)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`internal error`))
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	err := runRestore("rev_abc123", "my-config", false, true)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+}
+
+func TestRunRestore_DryRun_RevisionNotFound(t *testing.T) {
+	setupTestAuth(t, true)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method, "dry-run must use GET, not POST")
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	err := runRestore("rev_missing", "my-config", true, true)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRunRestore_DryRun_ServerError(t *testing.T) {
+	setupTestAuth(t, true)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	err := runRestore("rev_abc123", "my-config", true, true)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+}
+
+func TestRunRestore_DryRun_DoesNotCallRestoreEndpoint(t *testing.T) {
+	setupTestAuth(t, true)
+
+	postCalled := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			postCalled = true
+		}
+		// Always return 500 so the test ends early (before ComputeDiff).
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	_ = runRestore("rev_abc123", "my-config", true, true)
+
+	assert.False(t, postCalled, "restore endpoint must NOT be called during dry-run")
+}
+
+func TestRunRestore_AuthorizationHeader(t *testing.T) {
+	setupTestAuth(t, true)
+
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusNotFound) // stop early, before ComputeDiff
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	_ = runRestore("rev_abc123", "my-config", false, true)
+
+	assert.Equal(t, "Bearer obt_test_token_123", gotAuth)
+}
+
+func TestRunRestore_SlugFromSyncSource(t *testing.T) {
+	tmpDir := setupTestAuth(t, true)
+	writeSyncSource(t, tmpDir, "source-slug")
+
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	_ = runRestore("rev_abc123", "", false, true)
+
+	assert.Contains(t, gotPath, "source-slug")
+}
+
+func TestRunRestore_RestoreEndpointPayload(t *testing.T) {
+	setupTestAuth(t, true)
+
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			gotBody = make([]byte, r.ContentLength)
+			r.Body.Read(gotBody)
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	t.Setenv("OPENBOOT_API_URL", server.URL)
+
+	_ = runRestore("rev_abc123", "my-config", false, true)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(gotBody, &payload))
+	// Body should be valid JSON (the empty object sent as the POST body)
+	assert.NotNil(t, payload)
+}
+
+func TestRestoreCmd_CommandStructure(t *testing.T) {
+	assert.Equal(t, "restore <revision-id>", restoreCmd.Use)
+	assert.NotEmpty(t, restoreCmd.Short)
+	assert.NotEmpty(t, restoreCmd.Long)
+	assert.NotEmpty(t, restoreCmd.Example)
+	assert.NotNil(t, restoreCmd.RunE)
+
+	assert.NotNil(t, restoreCmd.Flags().Lookup("slug"))
+	assert.NotNil(t, restoreCmd.Flags().Lookup("dry-run"))
+
+	yesFlag := restoreCmd.Flags().Lookup("yes")
+	assert.NotNil(t, yesFlag)
+	assert.Equal(t, "y", yesFlag.Shorthand)
 }
 
 func TestRevisionPackagesToRemoteConfig_PreservesOrder(t *testing.T) {
