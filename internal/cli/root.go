@@ -140,6 +140,7 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(pullCmd)
 	rootCmd.AddCommand(setupAgentCmd)
 
 	rootCmd.SetUsageTemplate(usageTemplate)

@@ -16,25 +16,37 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var pushCmd = &cobra.Command{
-	Use:   "push <file>",
-	Short: "Upload a local config or snapshot file to openboot.dev",
-	Long: `Upload a local JSON file to openboot.dev as a config.
+	Use:   "push [file]",
+	Short: "Push your system state to openboot.dev",
+	Long: `Upload your current system state (or a local config file) to openboot.dev.
 
-Accepts both config and snapshot formats (auto-detected).
-Use --slug to update an existing config instead of creating a new one.`,
-	Example: `  # Upload a new config
+Like 'git push', running without arguments captures a snapshot of your current
+Mac environment and uploads it. If a sync source is configured (from a previous
+'openboot install'), it updates that config automatically.
+
+You can also push a local JSON file directly (config or snapshot format, auto-detected).
+Use --slug to target a specific existing config.`,
+	Example: `  # Push current system state (auto-capture snapshot)
+  openboot push
+
+  # Push a local config or snapshot file
   openboot push config.json
 
-  # Update an existing config
+  # Push and update a specific existing config
+  openboot push --slug my-config
   openboot push config.json --slug my-config`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug, _ := cmd.Flags().GetString("slug")
+		if len(args) == 0 {
+			return runPushAuto(slug)
+		}
 		return runPush(args[0], slug)
 	},
 }
@@ -42,6 +54,52 @@ Use --slug to update an existing config instead of creating a new one.`,
 func init() {
 	pushCmd.Flags().String("slug", "", "update an existing config by slug")
 	rootCmd.AddCommand(pushCmd)
+}
+
+// runPushAuto captures the current system snapshot and uploads it to openboot.dev.
+// If a sync source is configured, it updates that config; otherwise, creates a new one.
+func runPushAuto(slugOverride string) error {
+	apiBase := auth.GetAPIBase()
+
+	if !auth.IsAuthenticated() {
+		fmt.Fprintln(os.Stderr)
+		ui.Info("You need to log in to upload configs.")
+		fmt.Fprintln(os.Stderr)
+		if _, err := auth.LoginInteractive(apiBase); err != nil {
+			return fmt.Errorf("authentication failed: %w", err)
+		}
+	}
+
+	stored, err := auth.LoadToken()
+	if err != nil {
+		return fmt.Errorf("load auth token: %w", err)
+	}
+	if stored == nil {
+		return fmt.Errorf("no valid auth token found — please log in again")
+	}
+
+	// Capture current system state
+	fmt.Fprintln(os.Stderr)
+	ui.Header("Capturing system snapshot...")
+	snap, err := captureEnvironment()
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(snap)
+	if err != nil {
+		return fmt.Errorf("marshal snapshot: %w", err)
+	}
+
+	// Determine slug: use override, then sync source, then blank (create new)
+	slug := slugOverride
+	if slug == "" {
+		if source, loadErr := syncpkg.LoadSource(); loadErr == nil && source != nil && source.Slug != "" {
+			slug = source.Slug
+		}
+	}
+
+	return pushSnapshot(data, slug, stored.Token, stored.Username, apiBase)
 }
 
 func runPush(filePath, slug string) error {
