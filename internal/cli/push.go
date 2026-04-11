@@ -44,21 +44,23 @@ Use --slug to target a specific existing config.`,
 	Args: cobra.RangeArgs(0, 1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug, _ := cmd.Flags().GetString("slug")
+		message, _ := cmd.Flags().GetString("message")
 		if len(args) == 0 {
-			return runPushAuto(slug)
+			return runPushAuto(slug, message)
 		}
-		return runPush(args[0], slug)
+		return runPush(args[0], slug, message)
 	},
 }
 
 func init() {
 	pushCmd.Flags().String("slug", "", "update an existing config by slug")
+	pushCmd.Flags().StringP("message", "m", "", "revision message (saved in history when updating)")
 	rootCmd.AddCommand(pushCmd)
 }
 
 // runPushAuto captures the current system snapshot and uploads it to openboot.dev.
 // If a sync source is configured, it updates that config; otherwise, creates a new one.
-func runPushAuto(slugOverride string) error {
+func runPushAuto(slugOverride, message string) error {
 	apiBase := auth.GetAPIBase()
 
 	if !auth.IsAuthenticated() {
@@ -99,10 +101,10 @@ func runPushAuto(slugOverride string) error {
 		}
 	}
 
-	return pushSnapshot(data, slug, stored.Token, stored.Username, apiBase)
+	return pushSnapshot(data, slug, message, stored.Token, stored.Username, apiBase)
 }
 
-func runPush(filePath, slug string) error {
+func runPush(filePath, slug, message string) error {
 	apiBase := auth.GetAPIBase()
 
 	if !auth.IsAuthenticated() {
@@ -136,12 +138,12 @@ func runPush(filePath, slug string) error {
 	}
 
 	if probe.CapturedAt != "" {
-		return pushSnapshot(data, slug, stored.Token, stored.Username, apiBase)
+		return pushSnapshot(data, slug, message, stored.Token, stored.Username, apiBase)
 	}
 	return pushConfig(data, slug, stored.Token, stored.Username, apiBase)
 }
 
-func pushSnapshot(data []byte, slug, token, username, apiBase string) error {
+func pushSnapshot(data []byte, slug, message, token, username, apiBase string) error {
 	var snap snapshot.Snapshot
 	if err := json.Unmarshal(data, &snap); err != nil {
 		return fmt.Errorf("parse snapshot: %w", err)
@@ -160,6 +162,9 @@ func pushSnapshot(data []byte, slug, token, username, apiBase string) error {
 	}
 	if slug != "" {
 		reqBody["config_slug"] = slug
+	}
+	if message != "" {
+		reqBody["message"] = message
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
