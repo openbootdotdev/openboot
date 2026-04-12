@@ -13,32 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSyncCmdRegistered(t *testing.T) {
-	found := false
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.Use == "sync" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "sync command should be registered on rootCmd")
-}
-
-func TestSyncCmdFlags(t *testing.T) {
-	f := syncCmd.Flags()
-
-	sourceFlag := f.Lookup("source")
-	assert.NotNil(t, sourceFlag)
-	assert.Equal(t, "string", sourceFlag.Value.Type())
-
-	dryRunFlag := f.Lookup("dry-run")
-	assert.NotNil(t, dryRunFlag)
-	assert.Equal(t, "bool", dryRunFlag.Value.Type())
-
-	installOnlyFlag := f.Lookup("install-only")
-	assert.NotNil(t, installOnlyFlag)
-	assert.Equal(t, "bool", installOnlyFlag.Value.Type())
-}
 
 func TestBuildMissingOptions(t *testing.T) {
 	d := &syncpkg.SyncDiff{

@@ -8,6 +8,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/diff"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
+	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -84,6 +85,12 @@ func runDiff(cmd *cobra.Command) error {
 	}
 
 	diff.FormatTerminal(result, packagesOnly)
+
+	if result.HasChanges() {
+		fmt.Println()
+		ui.Muted("  Apply remote → local: openboot pull   •   Upload local → remote: openboot push")
+	}
+
 	return nil
 }
 
