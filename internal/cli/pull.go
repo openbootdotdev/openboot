@@ -28,6 +28,12 @@ You can override it with --source.`,
   openboot pull --source alice/my-setup`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// pull applies all changes automatically (like git pull).
+		// Use 'openboot sync' for the interactive selective-apply flow.
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		if !dryRun {
+			_ = cmd.Flags().Set("yes", "true")
+		}
 		return runSync(cmd)
 	},
 }
