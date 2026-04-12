@@ -87,7 +87,7 @@ func runList() error {
 
 	fmt.Println()
 	ui.Muted(fmt.Sprintf(
-		"Install: openboot -u %s/<slug>  •  Delete: openboot delete <slug>",
+		"Install: openboot -u %s/<slug>  •  Edit: openboot edit --slug <slug>  •  Delete: openboot delete <slug>",
 		stored.Username,
 	))
 	fmt.Println()
