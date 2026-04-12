@@ -57,7 +57,7 @@ func runEdit(slugOverride string) error {
 		}
 	}
 
-	url := fmt.Sprintf("https://openboot.dev/%s/%s", stored.Username, slug)
+	url := fmt.Sprintf("https://openboot.dev/dashboard/edit/%s", slug)
 
 	if err := exec.Command("open", url).Run(); err != nil {
 		return fmt.Errorf("open browser: %w", err)
