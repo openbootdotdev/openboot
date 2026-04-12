@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/httputil"
@@ -45,10 +46,17 @@ Use --slug to target a specific existing config.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug, _ := cmd.Flags().GetString("slug")
 		message, _ := cmd.Flags().GetString("message")
+		var err error
 		if len(args) == 0 {
-			return runPushAuto(slug, message)
+			err = runPushAuto(slug, message)
+		} else {
+			err = runPush(args[0], slug, message)
 		}
-		return runPush(args[0], slug, message)
+		if errors.Is(err, huh.ErrUserAborted) {
+			ui.Info("Cancelled.")
+			return nil
+		}
+		return err
 	},
 }
 
@@ -395,6 +403,9 @@ func pickOrCreateConfig(token, apiBase string) (string, error) {
 	fmt.Fprintln(os.Stderr)
 	choice, err := ui.SelectOption("Push to which config?", options)
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", huh.ErrUserAborted
+		}
 		return "", fmt.Errorf("select config: %w", err)
 	}
 
@@ -417,6 +428,9 @@ func promptPushDetails(defaultName string) (string, string, string, error) {
 		name, err = ui.Input("Config name", "My Mac Setup")
 	}
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
 		return "", "", "", fmt.Errorf("get config name: %w", err)
 	}
 	name = strings.TrimSpace(name)
@@ -427,6 +441,9 @@ func promptPushDetails(defaultName string) (string, string, string, error) {
 	fmt.Fprintln(os.Stderr)
 	desc, err := ui.Input("Description (optional)", "")
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
 		return "", "", "", fmt.Errorf("get description: %w", err)
 	}
 	desc = strings.TrimSpace(desc)
@@ -439,6 +456,9 @@ func promptPushDetails(defaultName string) (string, string, string, error) {
 	}
 	choice, err := ui.SelectOption("Who can see this config?", options)
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
 		return "", "", "", fmt.Errorf("select visibility: %w", err)
 	}
 

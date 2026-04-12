@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 
+	"github.com/charmbracelet/huh"
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
@@ -88,6 +90,9 @@ func pickConfig(token, apiBase string) (string, error) {
 	fmt.Println()
 	choice, err := ui.SelectOption("Which config would you like to edit?", options)
 	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", nil
+		}
 		return "", fmt.Errorf("select config: %w", err)
 	}
 
