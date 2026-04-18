@@ -14,14 +14,26 @@ func applyShell(plan InstallPlan, r Reporter) error {
 	if plan.InstallOhMyZsh {
 		r.Header("Shell Configuration")
 		fmt.Println()
-		if shell.IsOhMyZshInstalled() {
-			r.Muted("Oh-My-Zsh already installed")
-		} else {
-			if err := shell.InstallOhMyZsh(plan.DryRun); err != nil {
-				return fmt.Errorf("install oh-my-zsh: %w", err)
+
+		if plan.ShellTheme != "" || len(plan.ShellPlugins) > 0 {
+			// Restore mode: install OMZ if missing, then write theme/plugins.
+			if err := shell.RestoreFromSnapshot(true, plan.ShellTheme, plan.ShellPlugins, plan.DryRun); err != nil {
+				return fmt.Errorf("restore shell config: %w", err)
 			}
 			if !plan.DryRun {
-				r.Success("Oh-My-Zsh installed")
+				r.Success(fmt.Sprintf("Shell restored (theme: %s, %d plugins)", plan.ShellTheme, len(plan.ShellPlugins)))
+			}
+		} else {
+			// Fresh install mode: just install OMZ.
+			if shell.IsOhMyZshInstalled() {
+				r.Muted("Oh-My-Zsh already installed")
+			} else {
+				if err := shell.InstallOhMyZsh(plan.DryRun); err != nil {
+					return fmt.Errorf("install oh-my-zsh: %w", err)
+				}
+				if !plan.DryRun {
+					r.Success("Oh-My-Zsh installed")
+				}
 			}
 		}
 		fmt.Println()

@@ -88,11 +88,13 @@ type Config struct {
 
 	SelectedPkgs     map[string]bool    // set by UI package selector
 	OnlinePkgs       []Package          // fetched from packages API
-	SnapshotTaps     []string           // from snapshot capture
-	RemoteConfig     *RemoteConfig      // fetched from openboot.dev at startup
-	SnapshotGit      *SnapshotGitConfig // from snapshot capture
-	SnapshotMacOS    []RemoteMacOSPref  // from snapshot capture
-	SnapshotDotfiles string             // from snapshot capture
+	SnapshotTaps        []string           // from snapshot capture
+	RemoteConfig        *RemoteConfig      // fetched from openboot.dev at startup
+	SnapshotGit         *SnapshotGitConfig // from snapshot capture
+	SnapshotMacOS       []RemoteMacOSPref  // from snapshot capture
+	SnapshotDotfiles    string             // from snapshot capture
+	SnapshotShellTheme  string             // from snapshot capture
+	SnapshotShellPlugins []string          // from snapshot capture
 }
 
 // InstallOptions holds user-supplied inputs set from CLI flags and environment
@@ -118,13 +120,15 @@ type InstallOptions struct {
 // InstallState holds runtime values populated during installation.
 // Fields are written by installer steps and read by subsequent steps.
 type InstallState struct {
-	SelectedPkgs     map[string]bool
-	OnlinePkgs       []Package
-	SnapshotTaps     []string
-	RemoteConfig     *RemoteConfig
-	SnapshotGit      *SnapshotGitConfig
-	SnapshotMacOS    []RemoteMacOSPref
-	SnapshotDotfiles string
+	SelectedPkgs         map[string]bool
+	OnlinePkgs           []Package
+	SnapshotTaps         []string
+	RemoteConfig         *RemoteConfig
+	SnapshotGit          *SnapshotGitConfig
+	SnapshotMacOS        []RemoteMacOSPref
+	SnapshotDotfiles     string
+	SnapshotShellTheme   string
+	SnapshotShellPlugins []string
 }
 
 // ToInstallOptions extracts the read-only input fields from Config.
@@ -151,13 +155,15 @@ func (c *Config) ToInstallOptions() *InstallOptions {
 // ToInstallState extracts the mutable runtime fields from Config.
 func (c *Config) ToInstallState() *InstallState {
 	return &InstallState{
-		SelectedPkgs:     c.SelectedPkgs,
-		OnlinePkgs:       c.OnlinePkgs,
-		SnapshotTaps:     c.SnapshotTaps,
-		RemoteConfig:     c.RemoteConfig,
-		SnapshotGit:      c.SnapshotGit,
-		SnapshotMacOS:    c.SnapshotMacOS,
-		SnapshotDotfiles: c.SnapshotDotfiles,
+		SelectedPkgs:         c.SelectedPkgs,
+		OnlinePkgs:           c.OnlinePkgs,
+		SnapshotTaps:         c.SnapshotTaps,
+		RemoteConfig:         c.RemoteConfig,
+		SnapshotGit:          c.SnapshotGit,
+		SnapshotMacOS:        c.SnapshotMacOS,
+		SnapshotDotfiles:     c.SnapshotDotfiles,
+		SnapshotShellTheme:   c.SnapshotShellTheme,
+		SnapshotShellPlugins: c.SnapshotShellPlugins,
 	}
 }
 
@@ -171,6 +177,8 @@ func (c *Config) ApplyState(s *InstallState) {
 	c.SnapshotGit = s.SnapshotGit
 	c.SnapshotMacOS = s.SnapshotMacOS
 	c.SnapshotDotfiles = s.SnapshotDotfiles
+	c.SnapshotShellTheme = s.SnapshotShellTheme
+	c.SnapshotShellPlugins = s.SnapshotShellPlugins
 }
 
 type SnapshotGitConfig struct {

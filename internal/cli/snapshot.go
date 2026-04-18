@@ -766,5 +766,8 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		}
 	}
 
+	cfg.SnapshotShellTheme = edited.Shell.Theme
+	cfg.SnapshotShellPlugins = edited.Shell.Plugins
+
 	return cfg
 }

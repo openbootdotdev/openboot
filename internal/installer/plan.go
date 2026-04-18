@@ -35,7 +35,9 @@ type InstallPlan struct {
 
 	// Shell
 	InstallOhMyZsh bool
-	DotfilesURL    string // "" = skip dotfiles entirely; any URL = use it (may be DefaultDotfilesURL)
+	ShellTheme     string   // ZSH_THEME to restore; empty = leave as-is
+	ShellPlugins   []string // plugins=(...) to restore; nil = leave as-is
+	DotfilesURL    string   // "" = skip dotfiles entirely; any URL = use it (may be DefaultDotfilesURL)
 
 	// macOS
 	MacOSPrefs []macos.Preference
@@ -319,9 +321,11 @@ func PlanFromSnapshot(opts *config.InstallOptions, st *config.InstallState) Inst
 		plan.DotfilesURL = st.SnapshotDotfiles
 	}
 
-	// Shell: attempt Oh-My-Zsh for snapshot restores unless explicitly skipped.
+	// Shell: restore Oh-My-Zsh and theme/plugins from snapshot unless explicitly skipped.
 	if opts.Shell != "skip" {
 		plan.InstallOhMyZsh = true
+		plan.ShellTheme = st.SnapshotShellTheme
+		plan.ShellPlugins = st.SnapshotShellPlugins
 	}
 
 	// macOS: convert snapshot preferences to macos.Preference values, unless skipped via flag.
