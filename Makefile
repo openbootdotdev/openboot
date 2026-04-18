@@ -1,5 +1,6 @@
 .PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
-       test-vm test-vm-short test-vm-run test-vm-quick test-vm-release test-vm-full
+       test-vm test-vm-short test-vm-run test-vm-quick test-vm-release test-vm-full \
+       install-hooks uninstall-hooks
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
@@ -84,3 +85,28 @@ build-release:
 
 clean:
 	rm -f $(BINARY_PATH) $(COVERAGE_FILE) $(COVERAGE_HTML)
+
+# =============================================================================
+# Git hooks — symlink scripts/hooks/ into .git/hooks/
+# =============================================================================
+#
+# After cloning or pulling new hook scripts, run:
+#   make install-hooks
+#
+# pre-commit: go vet + go build   (<5s, runs on every commit)
+# pre-push:   go test ./...       (~15s L1 unit+contract, runs on every push)
+#
+# Skip once:  git commit --no-verify  |  git push --no-verify
+
+install-hooks:
+	@mkdir -p .git/hooks
+	@for hook in pre-commit pre-push; do \
+		ln -sf ../../scripts/hooks/$$hook .git/hooks/$$hook; \
+		echo "✓ installed .git/hooks/$$hook -> scripts/hooks/$$hook"; \
+	done
+
+uninstall-hooks:
+	@for hook in pre-commit pre-push; do \
+		rm -f .git/hooks/$$hook; \
+		echo "✓ removed .git/hooks/$$hook"; \
+	done

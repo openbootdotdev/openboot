@@ -1,0 +1,22 @@
+#!/bin/sh
+#
+# pre-commit: keep commits from introducing obvious regressions.
+# Fast (<5s): vet + build. No tests run here — use pre-push for that.
+#
+# To skip once:  git commit --no-verify
+# To uninstall:  rm .git/hooks/pre-commit
+
+set -e
+
+# Only check Go if .go files changed.
+if ! git diff --cached --name-only --diff-filter=ACMR | grep -qE '\.go$'; then
+	exit 0
+fi
+
+echo "→ go vet"
+go vet ./...
+
+echo "→ go build (quick compile check)"
+go build ./...
+
+exit 0

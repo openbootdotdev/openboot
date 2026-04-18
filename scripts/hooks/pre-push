@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# pre-push: run the full L1 unit/contract suite before pushing.
+# Typical runtime: ~15s. Skips L2 integration and L3+ E2E — those run in CI.
+#
+# To skip once:  git push --no-verify
+# To uninstall:  rm .git/hooks/pre-push
+
+set -e
+
+# If the remote ref being pushed is a deletion, nothing to validate.
+while read local_ref local_sha remote_ref remote_sha; do
+	if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+		exit 0
+	fi
+done
+
+echo "→ go test ./... (L1: unit + contract)"
+go test -race -count=1 ./...
+
+exit 0
