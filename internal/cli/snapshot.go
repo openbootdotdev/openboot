@@ -3,13 +3,16 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
@@ -20,6 +23,68 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
+
+var openBrowser = func(url string) error {
+	return exec.Command("open", url).Run()
+}
+
+func promptPushDetails(defaultName string) (string, string, string, error) {
+	var (
+		name string
+		err  error
+	)
+
+	fmt.Fprintln(os.Stderr)
+	if defaultName != "" {
+		name, err = ui.InputWithDefault("Config name", "My Mac Setup", defaultName)
+	} else {
+		name, err = ui.Input("Config name", "My Mac Setup")
+	}
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
+		return "", "", "", fmt.Errorf("get config name: %w", err)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "My Mac Setup"
+	}
+
+	fmt.Fprintln(os.Stderr)
+	desc, err := ui.Input("Description (optional)", "")
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
+		return "", "", "", fmt.Errorf("get description: %w", err)
+	}
+	desc = strings.TrimSpace(desc)
+
+	fmt.Fprintln(os.Stderr)
+	options := []string{
+		"Public - Anyone can discover and use this config",
+		"Unlisted - Only people with the link can access",
+		"Private - Only you can see this config",
+	}
+	choice, err := ui.SelectOption("Who can see this config?", options)
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
+		return "", "", "", fmt.Errorf("select visibility: %w", err)
+	}
+
+	visibility := "unlisted"
+	switch {
+	case strings.HasPrefix(choice, "Public"):
+		visibility = "public"
+	case strings.HasPrefix(choice, "Private"):
+		visibility = "private"
+	}
+
+	return name, desc, visibility, nil
+}
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
