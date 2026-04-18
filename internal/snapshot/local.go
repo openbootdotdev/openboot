@@ -60,3 +60,11 @@ func LoadFile(path string) (*Snapshot, error) {
 
 	return &snap, nil
 }
+
+func ParseBytes(data []byte) (*Snapshot, error) {
+	var snap Snapshot
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return nil, fmt.Errorf("parse snapshot: %w", err)
+	}
+	return &snap, nil
+}

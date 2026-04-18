@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -609,41 +608,49 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 	return installer.RunFromSnapshot(buildImportConfig(edited, dryRun))
 }
 
-func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
-	localPath := importPath
-	if strings.HasPrefix(importPath, "http://") {
-		return nil, fmt.Errorf("insecure HTTP not allowed for snapshot import — use https:// instead")
-	}
-	if strings.HasPrefix(importPath, "https://") {
-		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
-		client := &http.Client{Timeout: apiRequestTimeout}
-		req, err := http.NewRequest("GET", importPath, nil)
-		if err != nil {
-			return nil, fmt.Errorf("download snapshot request: %w", err)
-		}
-		resp, err := httputil.Do(client, req)
-		if err != nil {
-			return nil, fmt.Errorf("download snapshot: %w", err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
-		}
-		tmpFile := filepath.Join(os.TempDir(), "openboot-snapshot-import.json")
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
-		if err != nil {
-			return nil, fmt.Errorf("read snapshot response: %w", err)
-		}
-		if err := os.WriteFile(tmpFile, data, 0600); err != nil {
-			return nil, fmt.Errorf("save snapshot: %w", err)
-		}
-		defer os.Remove(tmpFile)
-		localPath = tmpFile
-	}
-
-	snap, err := snapshot.LoadFile(localPath)
+func downloadSnapshotBytes(url string, client *http.Client) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("download snapshot request: %w", err)
+	}
+	resp, err := httputil.Do(client, req)
+	if err != nil {
+		return nil, fmt.Errorf("download snapshot: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read snapshot response: %w", err)
+	}
+	return data, nil
+}
+
+func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
+	var snap *snapshot.Snapshot
+
+	switch {
+	case strings.HasPrefix(importPath, "http://"):
+		return nil, fmt.Errorf("insecure HTTP not allowed for snapshot import — use https:// instead")
+	case strings.HasPrefix(importPath, "https://"):
+		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
+		data, err := downloadSnapshotBytes(importPath, &http.Client{Timeout: apiRequestTimeout})
+		if err != nil {
+			return nil, err
+		}
+		s, err := snapshot.ParseBytes(data)
+		if err != nil {
+			return nil, err
+		}
+		snap = s
+	default:
+		s, err := snapshot.LoadFile(importPath)
+		if err != nil {
+			return nil, err
+		}
+		snap = s
 	}
 
 	catalogMatch := snapshot.MatchPackages(snap)
