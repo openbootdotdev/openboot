@@ -45,7 +45,7 @@ openboot/
 │   ├── auth/             # OAuth-like login, token in ~/.openboot/auth.json (0600)
 │   ├── brew/             # Homebrew ops, parallel install (4 workers), retry logic, uninstall
 │   ├── cleaner/          # Diff current system vs desired state, remove extra packages
-│   ├── cli/              # Cobra commands: root, snapshot, doctor, clean, diff, sync, update, version
+│   ├── cli/              # Cobra commands: root, install, snapshot, config (list/edit/delete), doctor, init, setup-agent, update, version, deprecated
 │   ├── config/           # Package catalog, presets, remote config fetch
 │   │   └── data/         # packages.yaml (embedded fallback), presets.yaml (3 presets)
 │   ├── diff/             # Read-only system vs config/snapshot comparison (pure logic)
@@ -102,7 +102,10 @@ cli (root)
 | Change snapshot restore | `internal/installer/installer.go` | stepRestoreGit, stepRestoreShell + packages/shell/macos |
 | Update self-update | `internal/updater/updater.go` | AutoUpgrade() called from root.go RunE |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |
-| Change sync behavior | `internal/sync/` + `internal/cli/sync.go` | Diff: sync/diff.go, Plan: sync/plan.go, Source: sync/source.go, TUI: cli/sync.go |
+| Change sync diff | `internal/sync/diff.go` | Diff structure + ComputeDiff. Used by install's sync-source path. |
+| Change install sync flow | `internal/cli/install.go` (`runSyncInstall`) | Diff + confirm + execute for 'openboot install' (no args). |
+| Change publish flow | `internal/cli/snapshot.go` (`publishSnapshot`) | Upload rules live here (slug resolution, P7 in docs/SPEC.md). |
+| Source resolution | `internal/cli/install.go` (`resolvePositionalArg`) | Smart detection of file/user-slug/preset/alias. |
 
 ## Conventions
 
@@ -116,7 +119,7 @@ cli (root)
 - **Version**: Default `"dev"` in `internal/cli/root.go`, injected via `-ldflags -X` at build time. Never edit manually.
 - **Config storage**: `~/.openboot/` directory for auth, state, snapshots
 - **Commits**: Conventional format (`feat:`, `fix:`, `docs:`, `refactor:`), one thing per commit
-- **CLI changes**: Must maintain backward compatibility — old syntax continues to work
+- **CLI changes**: Breaking changes are allowed with a major version bump + migration entry in `CHANGELOG.md`. Same-name commands must not silently change behavior — either preserve semantics or remove the command. Non-breaking changes (new flags, new commands) do not require version bumps.
 - **Testing**: Table-driven tests with `testify/assert` (non-fatal) and `testify/require` (fatal). Integration tests use `//go:build integration`, E2E uses `//go:build e2e`.
 - **No `panic()`** except `log.Fatalf` in `init()` for fatal config errors
 - **No ignored errors** (`_ = err`) in production code

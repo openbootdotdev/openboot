@@ -92,8 +92,7 @@ openboot
 - **macOS settings** — Developer-friendly defaults for Dock, Finder, keyboard
 - **Git setup** — Asks for your name and email, configures git
 - **Smart about duplicates** — Detects what's already installed, skips it
-- **Clean command** — Remove packages that drifted from your config
-- **Full restore** — Snapshots save everything: packages, git config, shell theme, plugins
+- **Snapshot** — Capture everything and save/publish to share with another Mac
 
 ## Web Dashboard
 
@@ -128,17 +127,6 @@ This captures everything: Homebrew packages, macOS settings, shell config, git i
 
 When you restore a snapshot, you get everything back exactly as it was. [Docs →](https://openboot.dev/docs/snapshot)
 
-### Clean
-
-Installed too much? Clean up what's not in your config.
-
-```bash
-openboot clean                        # Compare against local snapshot
-openboot clean --user yourname        # Compare against cloud config
-openboot clean --from my-setup.json   # Compare against a snapshot file
-openboot clean --dry-run              # See what would be removed
-```
-
 ## For Teams
 
 New hire runs one command, gets the same environment as everyone else. [Guide →](https://openboot.dev/docs/teams)
@@ -166,19 +154,30 @@ curl -fsSL openboot.dev/install.sh | bash -s -- --preset developer --silent
 <summary><strong>All Commands</strong></summary>
 
 ```bash
-openboot                        # Interactive setup
-openboot install myalias        # Install from a config alias
-openboot install user/config    # Install from a specific user config
-openboot snapshot               # Capture your current setup
-openboot clean                  # Remove packages not in your config
-openboot init                   # Set up project from .openboot.yml
-openboot doctor                 # Check system health
-openboot update                 # Update Homebrew and packages
-openboot update --self          # Update OpenBoot itself
-openboot login                  # Authenticate with openboot.dev
-openboot logout                 # Remove auth token
-openboot version                # Print version
+openboot                            # Resume last sync (or interactive if none)
+openboot install                    # Same as above, explicit
+openboot install alice/dev-setup    # Install from a cloud config
+openboot install ./backup.json      # Install from a local file
+openboot install -p developer       # Install a built-in preset
+openboot install --dry-run          # Preview without installing
+
+openboot snapshot                   # Capture (interactive menu in terminal)
+openboot snapshot --local           # Save to ~/.openboot/snapshot.json
+openboot snapshot --publish         # Upload to openboot.dev
+openboot snapshot --import FILE     # Restore from a snapshot file
+
+openboot config list                # List your openboot.dev configs
+openboot config edit                # Open a config in the browser
+openboot config delete SLUG         # Remove a config
+
+openboot init                       # Scan project deps, install missing
+openboot doctor                     # Check system health
+openboot update                     # Update Homebrew and packages
+openboot login / logout             # openboot.dev auth
+openboot version                    # Print version
 ```
+
+Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`. See [docs/SPEC.md](docs/SPEC.md) for migration.
 
 </details>
 
