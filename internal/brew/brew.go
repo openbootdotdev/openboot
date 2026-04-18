@@ -16,8 +16,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-const maxWorkers = 1
-
 // Test seams for install behavior. Production uses the real implementations.
 var (
 	checkNetworkFunc = CheckNetwork
@@ -195,13 +193,6 @@ type installJob struct {
 	isCask bool
 }
 
-type installResult struct {
-	name   string
-	failed bool
-	isCask bool
-	errMsg string
-}
-
 func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedFormulae []string, installedCasks []string, err error) {
 	total := len(cliPkgs) + len(caskPkgs)
 	if total == 0 {
@@ -268,7 +259,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
-		failed := runParallelInstallWithProgress(newCli, progress)
+		failed := runSerialInstallWithProgress(newCli, progress)
 		failedSet := make(map[string]bool, len(failed))
 		for _, f := range failed {
 			failedSet[f.name] = true
@@ -376,66 +367,30 @@ type failedJob struct {
 	errMsg string
 }
 
-func runParallelInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []failedJob {
+func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []failedJob {
 	if len(pkgs) == 0 {
 		return nil
 	}
 
-	jobs := make([]installJob, 0, len(pkgs))
+	failed := make([]failedJob, 0)
 	for _, pkg := range pkgs {
-		jobs = append(jobs, installJob{name: pkg, isCask: false})
-	}
-
-	jobChan := make(chan installJob, len(jobs))
-	results := make(chan installResult, len(jobs))
-
-	var wg sync.WaitGroup
-	workers := maxWorkers
-	if len(jobs) < workers {
-		workers = len(jobs)
-	}
-
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for job := range jobChan {
-				progress.SetCurrent(job.name)
-				start := time.Now()
-				errMsg := installFormulaWithError(job.name)
-				elapsed := time.Since(start)
-				progress.IncrementWithStatus(errMsg == "")
-				duration := ui.FormatDuration(elapsed)
-				if errMsg == "" {
-					progress.PrintLine("  %s %s", ui.Green("✔ "+job.name), ui.Cyan("("+duration+")"))
-				} else {
-					progress.PrintLine("  %s %s", ui.Red("✗ "+job.name+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
-				}
-				results <- installResult{name: job.name, failed: errMsg != "", isCask: job.isCask, errMsg: errMsg}
-			}
-		}()
-	}
-
-	go func() {
-		for _, job := range jobs {
-			jobChan <- job
+		job := installJob{name: pkg, isCask: false}
+		progress.SetCurrent(job.name)
+		start := time.Now()
+		errMsg := installFormulaWithError(job.name)
+		elapsed := time.Since(start)
+		progress.IncrementWithStatus(errMsg == "")
+		duration := ui.FormatDuration(elapsed)
+		if errMsg == "" {
+			progress.PrintLine("  %s %s", ui.Green("✔ "+job.name), ui.Cyan("("+duration+")"))
+			continue
 		}
-		close(jobChan)
-	}()
 
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var failed []failedJob
-	for result := range results {
-		if result.failed {
-			failed = append(failed, failedJob{
-				installJob: installJob{name: result.name, isCask: result.isCask},
-				errMsg:     result.errMsg,
-			})
-		}
+		progress.PrintLine("  %s %s", ui.Red("✗ "+job.name+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
+		failed = append(failed, failedJob{
+			installJob: job,
+			errMsg:     errMsg,
+		})
 	}
 
 	return failed

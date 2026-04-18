@@ -30,6 +30,7 @@ __pycache__/
 
 # Work tracking (internal)
 .sisyphus/
+.claude/
 
 # Go vendor (deps downloaded at build time)
 vendor/
