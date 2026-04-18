@@ -61,12 +61,17 @@ func runEdit(slugOverride string) error {
 
 	url := fmt.Sprintf("https://openboot.dev/dashboard/edit/%s", slug)
 
-	if err := exec.Command("open", url).Run(); err != nil {
+	if err := openBrowser(url); err != nil {
 		return fmt.Errorf("open browser: %w", err)
 	}
 
 	ui.Success(fmt.Sprintf("Opened %s", url))
 	return nil
+}
+
+// openBrowser is a package-level seam so tests can intercept browser launches.
+var openBrowser = func(url string) error {
+	return exec.Command("open", url).Run()
 }
 
 // pickConfig fetches the user's configs and shows an interactive select list.

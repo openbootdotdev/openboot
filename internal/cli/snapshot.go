@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -422,7 +421,7 @@ func showUploadedConfigInfo(visibility, configURL, installURL string) {
 		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with others:"))
 		fmt.Fprintf(os.Stderr, "    %s\n", installURL)
 		fmt.Fprintln(os.Stderr)
-		if err := exec.Command("open", configURL).Start(); err != nil {
+		if err := openBrowser(configURL); err != nil {
 			ui.Warn(fmt.Sprintf("Could not open browser: %v", err))
 		}
 		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Opening in browser..."))

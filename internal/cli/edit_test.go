@@ -22,13 +22,16 @@ func TestRunEdit_NotAuthenticated(t *testing.T) {
 func TestRunEdit_WithSlugFlag_OpensDirectly(t *testing.T) {
 	setupTestAuth(t, true)
 
-	// With --slug, no API call is made (no picker needed).
-	// exec.Command("open", url) succeeds on macOS; error is from "open" only.
-	err := runEdit("my-config")
+	// With --slug, no API call is made (no picker needed). Stub the browser
+	// launch so tests don't actually open tabs.
+	var capturedURL string
+	orig := openBrowser
+	openBrowser = func(url string) error { capturedURL = url; return nil }
+	t.Cleanup(func() { openBrowser = orig })
 
-	if err != nil {
-		assert.Contains(t, err.Error(), "open browser")
-	}
+	err := runEdit("my-config")
+	assert.NoError(t, err)
+	assert.Contains(t, capturedURL, "my-config")
 }
 
 func TestRunEdit_NoConfigs_ReturnsError(t *testing.T) {
