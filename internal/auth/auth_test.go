@@ -425,7 +425,8 @@ func TestLoadToken_BoundaryExpiration(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(authDir, 0700))
 
-	expiresAt := time.Now().Add(1 * time.Second)
+	// Use a short expiration window so the test doesn't sleep for seconds.
+	expiresAt := time.Now().Add(50 * time.Millisecond)
 	auth := &StoredAuth{
 		Token:     "obt_boundary_token",
 		Username:  "boundaryuser",
@@ -443,7 +444,7 @@ func TestLoadToken_BoundaryExpiration(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, loaded)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	loaded, err = LoadToken()
 	require.NoError(t, err)

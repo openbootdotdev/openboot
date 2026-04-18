@@ -128,7 +128,12 @@ func TestStartAuthSession_MissingCode(t *testing.T) {
 }
 
 func TestStartAuthSession_NetworkError(t *testing.T) {
-	_, _, err := startAuthSession("http://invalid-host-that-does-not-exist-12345.local")
+	// Use a closed server to get an immediate connection-refused error,
+	// instead of waiting ~5s for a DNS lookup of a bogus hostname.
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.Close()
+
+	_, _, err := startAuthSession(server.URL)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "start auth session")
 }
@@ -224,8 +229,8 @@ func TestPollForApproval_Pending(t *testing.T) {
 func TestPollForApproval_TimeoutBehavior(t *testing.T) {
 	origTimeout := pollTimeout
 	origInterval := pollInterval
-	pollTimeout = 3 * time.Second
-	pollInterval = 100 * time.Millisecond
+	pollTimeout = 200 * time.Millisecond
+	pollInterval = 20 * time.Millisecond
 	t.Cleanup(func() {
 		pollTimeout = origTimeout
 		pollInterval = origInterval
@@ -245,15 +250,15 @@ func TestPollForApproval_TimeoutBehavior(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "timed out")
-	assert.GreaterOrEqual(t, elapsed, 3*time.Second)
-	assert.Less(t, elapsed, 5*time.Second)
+	assert.GreaterOrEqual(t, elapsed, 200*time.Millisecond)
+	assert.Less(t, elapsed, 1*time.Second)
 }
 
 func TestPollForApproval_InvalidResponse(t *testing.T) {
 	origTimeout := pollTimeout
 	origInterval := pollInterval
-	pollTimeout = 3 * time.Second
-	pollInterval = 100 * time.Millisecond
+	pollTimeout = 200 * time.Millisecond
+	pollInterval = 20 * time.Millisecond
 	t.Cleanup(func() {
 		pollTimeout = origTimeout
 		pollInterval = origInterval
@@ -321,7 +326,10 @@ func TestPollOnce_Expired(t *testing.T) {
 }
 
 func TestPollOnce_NetworkError(t *testing.T) {
-	result, done, err := pollOnce("http://invalid-host-that-does-not-exist-12345.local")
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.Close()
+
+	result, done, err := pollOnce(server.URL)
 	assert.NoError(t, err)
 	assert.False(t, done)
 	assert.Nil(t, result)
