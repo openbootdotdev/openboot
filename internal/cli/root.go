@@ -135,8 +135,6 @@ func init() {
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(snapshotCmd)
-	rootCmd.AddCommand(cleanCmd)
-	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 	rootCmd.AddCommand(setupAgentCmd)

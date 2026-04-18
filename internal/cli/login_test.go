@@ -8,10 +8,27 @@ import (
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// writeSyncSource writes a sync source file into the temp HOME directory so
+// tests can assert on sync-source-aware behavior without running a real install.
+func writeSyncSource(t *testing.T, tmpDir, slug string) {
+	t.Helper()
+	dir := filepath.Join(tmpDir, ".openboot")
+	require.NoError(t, os.MkdirAll(dir, 0700))
+	src := syncpkg.SyncSource{
+		Slug:        slug,
+		Username:    "testuser",
+		InstalledAt: time.Now(),
+	}
+	data, err := json.MarshalIndent(src, "", "  ")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sync_source.json"), data, 0600))
+}
 
 func setupTestAuth(t *testing.T, authenticated bool) string {
 	tmpDir := t.TempDir()

@@ -22,47 +22,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// pushCmd is retained only to print a removal error — its functionality
+// has moved to `openboot snapshot --publish`.
 var pushCmd = &cobra.Command{
-	Use:   "push [file]",
-	Short: "Push your system state to openboot.dev",
-	Long: `Upload your current system state (or a local config file) to openboot.dev.
-
-Like 'git push', running without arguments captures a snapshot of your current
-Mac environment and uploads it. If a sync source is configured (from a previous
-'openboot install'), it updates that config automatically.
-
-You can also push a local JSON file directly (config or snapshot format, auto-detected).
-Use --slug to target a specific existing config.`,
-	Example: `  # Push current system state (auto-capture snapshot)
-  openboot push
-
-  # Push a local config or snapshot file
-  openboot push config.json
-
-  # Push and update a specific existing config
-  openboot push --slug my-config
-  openboot push config.json --slug my-config`,
-	Args: cobra.RangeArgs(0, 1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		slug, _ := cmd.Flags().GetString("slug")
-		message, _ := cmd.Flags().GetString("message")
-		var err error
-		if len(args) == 0 {
-			err = runPushAuto(slug, message)
-		} else {
-			err = runPush(args[0], slug, message)
-		}
-		if errors.Is(err, huh.ErrUserAborted) {
-			ui.Info("Cancelled.")
-			return nil
-		}
-		return err
-	},
+	Use:          "push",
+	Short:        "[removed] Use 'openboot snapshot --publish' instead",
+	Hidden:       true,
+	SilenceUsage: true,
+	RunE:         removedError("push", "use 'openboot snapshot --publish' to upload your current state"),
 }
 
 func init() {
-	pushCmd.Flags().String("slug", "", "update an existing config by slug")
-	pushCmd.Flags().StringP("message", "m", "", "revision message (saved in history when updating)")
 	rootCmd.AddCommand(pushCmd)
 }
 
@@ -164,14 +134,25 @@ func pushSnapshot(data []byte, slug, message, token, username, apiBase string) e
 		return fmt.Errorf("parse snapshot: %w", err)
 	}
 
-	// Updating an existing config: skip all prompts.
-	// Creating a new config: ask for name, description, visibility.
 	var name, desc, visibility string
 	if slug == "" {
+		// New config: show what will be uploaded, then prompt for details.
+		fmt.Fprintln(os.Stderr)
+		printSnapshotSummary(&snap)
 		var err error
 		name, desc, visibility, err = promptPushDetails("")
 		if err != nil {
 			return err
+		}
+	} else {
+		// Updating existing: show diff vs remote and confirm.
+		// showPushDiff prints its own "nothing to push" / "cancelled" messages.
+		confirmed, err := showPushDiff(&snap, slug, username, token, apiBase)
+		if err != nil {
+			return fmt.Errorf("push diff: %w", err)
+		}
+		if !confirmed {
+			return nil
 		}
 	}
 
@@ -471,4 +452,187 @@ func promptPushDetails(defaultName string) (string, string, string, error) {
 	}
 
 	return name, desc, visibility, nil
+}
+
+// showPushDiff fetches the existing remote config, shows what will change, and
+// asks for confirmation. Prints its own "nothing to push" / "cancelled" messages
+// so the caller can just return nil when false.
+func showPushDiff(snap *snapshot.Snapshot, slug, username, token, apiBase string) (bool, error) {
+	fmt.Fprintln(os.Stderr)
+
+	rc, fetchErr := config.FetchRemoteConfig(username+"/"+slug, token)
+	if fetchErr != nil {
+		// Can't fetch remote — fall back to showing upload summary.
+		printSnapshotSummary(snap)
+		confirmed, err := ui.Confirm("Push these changes?", true)
+		if err != nil {
+			return false, err
+		}
+		if !confirmed {
+			ui.Info("Push cancelled.")
+		}
+		return confirmed, nil
+	}
+
+	// Package diff
+	addFormulae, rmFormulae := diffSets(snap.Packages.Formulae, rc.Packages.Names())
+	addCasks, rmCasks := diffSets(snap.Packages.Casks, rc.Casks.Names())
+	addNpm, rmNpm := diffSets(snap.Packages.Npm, rc.Npm.Names())
+	addTaps, rmTaps := diffSets(snap.Packages.Taps, rc.Taps)
+
+	pkgTotal := len(addFormulae) + len(rmFormulae) + len(addCasks) + len(rmCasks) +
+		len(addNpm) + len(rmNpm) + len(addTaps) + len(rmTaps)
+
+	// macOS prefs diff: key by "domain.key"
+	macChanged := diffMacOSPrefs(snap.MacOSPrefs, rc.MacOSPrefs)
+
+	// Dotfiles diff
+	dotfilesChanged := ""
+	if snap.Dotfiles.RepoURL != rc.DotfilesRepo {
+		dotfilesChanged = fmt.Sprintf("%s → %s", fallback(rc.DotfilesRepo, "(none)"), fallback(snap.Dotfiles.RepoURL, "(none)"))
+	}
+
+	total := pkgTotal + len(macChanged)
+	if dotfilesChanged != "" {
+		total++
+	}
+
+	if total == 0 {
+		ui.Success("Nothing to push — remote config matches your system.")
+		return false, nil
+	}
+
+	if pkgTotal > 0 {
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.Green("Package Changes"))
+		printPushCategory("Formulae", addFormulae, rmFormulae)
+		printPushCategory("Casks", addCasks, rmCasks)
+		printPushCategory("NPM", addNpm, rmNpm)
+		printPushCategory("Taps", addTaps, rmTaps)
+		fmt.Fprintln(os.Stderr)
+	}
+
+	if len(macChanged) > 0 {
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.Green("macOS Changes"))
+		for _, line := range macChanged {
+			fmt.Fprintf(os.Stderr, "    %s\n", line)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
+
+	if dotfilesChanged != "" {
+		fmt.Fprintf(os.Stderr, "  %s\n", ui.Green("Dotfiles"))
+		fmt.Fprintf(os.Stderr, "    Repo: %s\n", dotfilesChanged)
+		fmt.Fprintln(os.Stderr)
+	}
+
+	confirmed, err := ui.Confirm(fmt.Sprintf("Push %d change(s) to remote config?", total), true)
+	if err != nil {
+		return false, err
+	}
+	if !confirmed {
+		ui.Info("Push cancelled.")
+	}
+	return confirmed, nil
+}
+
+// fallback returns s if non-empty, otherwise def.
+func fallback(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
+}
+
+// diffMacOSPrefs returns human-readable lines for each changed/added/removed macOS pref.
+func diffMacOSPrefs(local []snapshot.MacOSPref, remote []config.RemoteMacOSPref) []string {
+	key := func(domain, k string) string { return domain + "." + k }
+	localMap := make(map[string]snapshot.MacOSPref, len(local))
+	for _, p := range local {
+		localMap[key(p.Domain, p.Key)] = p
+	}
+	remoteMap := make(map[string]config.RemoteMacOSPref, len(remote))
+	for _, p := range remote {
+		remoteMap[key(p.Domain, p.Key)] = p
+	}
+
+	var lines []string
+	seen := make(map[string]bool, len(local)+len(remote))
+	for k, lp := range localMap {
+		seen[k] = true
+		rp, exists := remoteMap[k]
+		if !exists {
+			lines = append(lines, fmt.Sprintf("+ %s: %s", label(lp.Desc, k), lp.Value))
+			continue
+		}
+		if rp.Value != lp.Value {
+			lines = append(lines, fmt.Sprintf("~ %s: %s → %s", label(lp.Desc, k), rp.Value, lp.Value))
+		}
+	}
+	for k, rp := range remoteMap {
+		if seen[k] {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("- %s: %s", label(rp.Desc, k), rp.Value))
+	}
+	return lines
+}
+
+func label(desc, fallbackKey string) string {
+	if desc != "" {
+		return desc
+	}
+	return fallbackKey
+}
+
+// diffSets returns (toAdd, toRemove): items in local but not remote, and items in remote but not local.
+func diffSets(local, remote []string) (toAdd, toRemove []string) {
+	localSet := syncpkg.ToSet(local)
+	remoteSet := syncpkg.ToSet(remote)
+	for _, item := range local {
+		if !remoteSet[item] {
+			toAdd = append(toAdd, item)
+		}
+	}
+	for _, item := range remote {
+		if !localSet[item] {
+			toRemove = append(toRemove, item)
+		}
+	}
+	return toAdd, toRemove
+}
+
+func printPushCategory(category string, toAdd, toRemove []string) {
+	if len(toAdd) == 0 && len(toRemove) == 0 {
+		return
+	}
+	if len(toAdd) > 0 {
+		fmt.Fprintf(os.Stderr, "    + %s (%d): %s\n", category, len(toAdd), strings.Join(toAdd, ", "))
+	}
+	if len(toRemove) > 0 {
+		fmt.Fprintf(os.Stderr, "    - %s (%d): %s\n", category, len(toRemove), strings.Join(toRemove, ", "))
+	}
+}
+
+// printSnapshotSummary shows a brief count of what's in the snapshot being uploaded.
+func printSnapshotSummary(snap *snapshot.Snapshot) {
+	fmt.Fprintf(os.Stderr, "  %s\n", ui.Green("Uploading"))
+	parts := []string{}
+	if n := len(snap.Packages.Formulae); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d formulae", n))
+	}
+	if n := len(snap.Packages.Casks); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d casks", n))
+	}
+	if n := len(snap.Packages.Npm); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d npm packages", n))
+	}
+	if n := len(snap.Packages.Taps); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d taps", n))
+	}
+	if len(parts) == 0 {
+		fmt.Fprintln(os.Stderr, "    (no packages)")
+	} else {
+		fmt.Fprintf(os.Stderr, "    %s\n", strings.Join(parts, ", "))
+	}
+	fmt.Fprintln(os.Stderr)
 }
