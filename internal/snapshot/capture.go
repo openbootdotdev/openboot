@@ -102,84 +102,46 @@ type captureStep struct {
 	count   func(interface{}) int
 }
 
-func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
+func stringsCount(v interface{}) int {
+	if s, ok := v.([]string); ok {
+		return len(s)
 	}
+	return 0
+}
 
-	steps := []captureStep{
-		{"Homebrew Formulae", func() (interface{}, error) { return CaptureFormulae() }, func(v interface{}) int {
-			if s, ok := v.([]string); ok {
-				return len(s)
-			}
-			return 0
-		}},
-		{"Homebrew Casks", func() (interface{}, error) { return CaptureCasks() }, func(v interface{}) int {
-			if s, ok := v.([]string); ok {
-				return len(s)
-			}
-			return 0
-		}},
-		{"Homebrew Taps", func() (interface{}, error) { return CaptureTaps() }, func(v interface{}) int {
-			if s, ok := v.([]string); ok {
-				return len(s)
-			}
-			return 0
-		}},
-		{"NPM Global Packages", func() (interface{}, error) { return CaptureNpm() }, func(v interface{}) int {
-			if s, ok := v.([]string); ok {
-				return len(s)
-			}
-			return 0
-		}},
-		{"macOS Preferences", func() (interface{}, error) { return CaptureMacOSPrefs() }, func(v interface{}) int {
-			if s, ok := v.([]MacOSPref); ok {
-				return len(s)
-			}
-			return 0
-		}},
-		{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
-		{"Dotfiles", func() (interface{}, error) { return CaptureDotfiles() }, func(v interface{}) int {
-			if s, ok := v.(*DotfilesSnapshot); ok && s.RepoURL != "" {
-				return 1
-			}
-			return 0
-		}},
-		{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int {
-			if s, ok := v.([]DevTool); ok {
-				return len(s)
-			}
-			return 0
-		}},
-		{"Shell Config", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int {
-			if s, ok := v.(*ShellSnapshot); ok && (s.Theme != "" || len(s.Plugins) > 0 || s.OhMyZsh) {
-				return 1
-			}
-			return 0
-		}},
-	}
-
-	results := make([]interface{}, len(steps))
-	var failedSteps []string
-	for i, step := range steps {
-		if callback != nil {
-			callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "scanning", Count: 0})
+var captureSteps = []captureStep{
+	{"Homebrew Formulae", func() (interface{}, error) { return CaptureFormulae() }, stringsCount},
+	{"Homebrew Casks", func() (interface{}, error) { return CaptureCasks() }, stringsCount},
+	{"Homebrew Taps", func() (interface{}, error) { return CaptureTaps() }, stringsCount},
+	{"NPM Global Packages", func() (interface{}, error) { return CaptureNpm() }, stringsCount},
+	{"macOS Preferences", func() (interface{}, error) { return CaptureMacOSPrefs() }, func(v interface{}) int {
+		if s, ok := v.([]MacOSPref); ok {
+			return len(s)
 		}
-
-		result, err := step.capture()
-		results[i] = result
-
-		if err != nil {
-			failedSteps = append(failedSteps, step.name)
-			if callback != nil {
-				callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "error", Count: 0})
-			}
-		} else if callback != nil {
-			callback(ScanStep{Name: step.name, Index: i, Total: len(steps), Status: "done", Count: step.count(result)})
+		return 0
+	}},
+	{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
+	{"Dotfiles", func() (interface{}, error) { return CaptureDotfiles() }, func(v interface{}) int {
+		if s, ok := v.(*DotfilesSnapshot); ok && s.RepoURL != "" {
+			return 1
 		}
-	}
+		return 0
+	}},
+	{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int {
+		if s, ok := v.([]DevTool); ok {
+			return len(s)
+		}
+		return 0
+	}},
+	{"Shell Config", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int {
+		if s, ok := v.(*ShellSnapshot); ok && (s.Theme != "" || len(s.Plugins) > 0 || s.OhMyZsh) {
+			return 1
+		}
+		return 0
+	}},
+}
 
+func assembleSnapshot(results []interface{}, failedSteps []string, hostname string) *Snapshot {
 	formulae, _ := results[0].([]string)
 	casks, _ := results[1].([]string)
 	taps, _ := results[2].([]string)
@@ -243,7 +205,36 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			FailedSteps: failedSteps,
 			Partial:     len(failedSteps) > 0,
 		},
-	}, nil
+	}
+}
+
+func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	results := make([]interface{}, len(captureSteps))
+	var failedSteps []string
+	for i, step := range captureSteps {
+		if callback != nil {
+			callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "scanning", Count: 0})
+		}
+
+		result, err := step.capture()
+		results[i] = result
+
+		if err != nil {
+			failedSteps = append(failedSteps, step.name)
+			if callback != nil {
+				callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "error", Count: 0})
+			}
+		} else if callback != nil {
+			callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "done", Count: step.count(result)})
+		}
+	}
+
+	return assembleSnapshot(results, failedSteps, hostname), nil
 }
 
 func CaptureNpm() ([]string, error) {
