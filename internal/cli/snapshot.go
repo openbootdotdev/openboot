@@ -702,17 +702,7 @@ func confirmInstallation(edited *snapshot.Snapshot, dryRun bool) (bool, error) {
 		totalFormulae, totalCasks, totalNpm, totalTaps)
 	fmt.Fprintf(os.Stderr, "  %s %d total packages\n", snapBoldStyle.Render("Total:"), totalPkgs)
 	fmt.Fprintln(os.Stderr)
-	if dryRun {
-		fmt.Fprintf(os.Stderr, "  %s", snapMutedStyle.Render("Proceed with installation? [y/N] (dry-run mode) "))
-	} else {
-		fmt.Fprintf(os.Stderr, "  %s", snapMutedStyle.Render("Proceed with installation? [y/N] "))
-	}
-
-	var response string
-	fmt.Scanln(&response)
-	response = strings.ToLower(strings.TrimSpace(response))
-
-	return response == "y" || response == "yes", nil
+	return ui.Confirm("Proceed with installation?", false)
 }
 
 func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
