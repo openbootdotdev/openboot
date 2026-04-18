@@ -8,6 +8,34 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
+func applyGitConfig(plan InstallPlan, r Reporter) error {
+	r.Header("Step 1: Git Configuration")
+	fmt.Println()
+
+	existingName, existingEmail := system.GetExistingGitConfig()
+	if existingName != "" && existingEmail != "" {
+		r.Success(fmt.Sprintf("✓ Already configured: %s <%s>", existingName, existingEmail))
+		fmt.Println()
+		return nil
+	}
+
+	if plan.GitName == "" || plan.GitEmail == "" {
+		return fmt.Errorf("git name and email are required")
+	}
+
+	if plan.DryRun {
+		fmt.Printf("[DRY-RUN] Would configure git: %s <%s>\n", plan.GitName, plan.GitEmail)
+	} else {
+		if err := system.ConfigureGit(plan.GitName, plan.GitEmail); err != nil {
+			return err
+		}
+		r.Success(fmt.Sprintf("Git configured: %s <%s>", plan.GitName, plan.GitEmail))
+	}
+
+	fmt.Println()
+	return nil
+}
+
 func stepGitConfig(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("Step 1: Git Configuration")
 	fmt.Println()

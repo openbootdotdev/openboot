@@ -10,6 +10,58 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
+func applyShell(plan InstallPlan, r Reporter) error {
+	if plan.InstallOhMyZsh {
+		r.Header("Shell Configuration")
+		fmt.Println()
+		if shell.IsOhMyZshInstalled() {
+			r.Muted("Oh-My-Zsh already installed")
+		} else {
+			if err := shell.InstallOhMyZsh(plan.DryRun); err != nil {
+				return fmt.Errorf("install oh-my-zsh: %w", err)
+			}
+			if !plan.DryRun {
+				r.Success("Oh-My-Zsh installed")
+			}
+		}
+		fmt.Println()
+	}
+
+	// Ensure brew shellenv in .zshrc only when user has no dotfiles managing it.
+	if plan.DotfilesURL == "" || plan.DotfilesURL == dotfiles.DefaultDotfilesURL {
+		if err := shell.EnsureBrewShellenv(plan.DryRun); err != nil {
+			return fmt.Errorf("ensure brew shellenv: %w", err)
+		}
+	}
+	return nil
+}
+
+func applyDotfiles(plan InstallPlan, r Reporter) error {
+	if plan.DotfilesURL == "" {
+		return nil // explicitly skipped via --dotfiles skip
+	}
+
+	r.Header("Step 6: Dotfiles")
+	fmt.Println()
+
+	if plan.DotfilesURL == dotfiles.DefaultDotfilesURL {
+		r.Info(fmt.Sprintf("Using OpenBoot default dotfiles (%s)", plan.DotfilesURL))
+	}
+
+	if err := dotfiles.Clone(plan.DotfilesURL, plan.DryRun); err != nil {
+		return err
+	}
+	if err := dotfiles.Link(plan.DryRun); err != nil {
+		return err
+	}
+
+	if !plan.DryRun {
+		r.Success("Dotfiles configured")
+	}
+	fmt.Println()
+	return nil
+}
+
 // hasDotfiles reports whether dotfiles will be applied in this install.
 // Checks remote config, env var, opts flag, and local ~/.dotfiles existence.
 func hasDotfiles(opts *config.InstallOptions, st *config.InstallState) bool {

@@ -320,6 +320,178 @@ func stepInstallNpm(opts *config.InstallOptions, st *config.InstallState) error 
 	return err
 }
 
+func applyPackages(plan InstallPlan, r Reporter) error {
+	r.Header("Step 4: Installation")
+	fmt.Println()
+
+	if len(plan.Taps) > 0 {
+		if err := brew.InstallTaps(plan.Taps, plan.DryRun); err != nil {
+			r.Warn(fmt.Sprintf("Some taps failed: %v", err))
+		}
+		fmt.Println()
+	}
+
+	cliPkgs := plan.Formulae
+	caskPkgs := plan.Casks
+	total := len(cliPkgs) + len(caskPkgs)
+	if total == 0 {
+		r.Muted("No packages selected")
+		return nil
+	}
+
+	state, stateErr := loadState()
+	if stateErr != nil {
+		r.Warn(fmt.Sprintf("Failed to load install state: %v", stateErr))
+	}
+
+	var newCli, newCask []string
+	if !plan.DryRun {
+		actualFormulae, actualCasks, checkErr := brew.GetInstalledPackages()
+		if checkErr != nil {
+			r.Warn(fmt.Sprintf("Failed to check installed packages: %v", checkErr))
+		} else {
+			removed := state.reconcileBrewWithSystem(actualFormulae, actualCasks)
+			if removed > 0 {
+				if err := state.save(); err != nil {
+					r.Warn(fmt.Sprintf("Failed to update install state: %v", err))
+				}
+			}
+		}
+
+		for _, pkg := range cliPkgs {
+			if !state.isFormulaInstalled(pkg) {
+				newCli = append(newCli, pkg)
+			}
+		}
+		for _, pkg := range caskPkgs {
+			if !state.isCaskInstalled(pkg) {
+				newCask = append(newCask, pkg)
+			}
+		}
+
+		stateSkipped := (len(cliPkgs) - len(newCli)) + (len(caskPkgs) - len(newCask))
+		if stateSkipped > 0 {
+			r.Muted(fmt.Sprintf("Skipping %d packages from previous install", stateSkipped))
+		}
+		cliPkgs = newCli
+		caskPkgs = newCask
+	}
+
+	if len(cliPkgs)+len(caskPkgs) == 0 {
+		r.Success("All packages already installed!")
+		fmt.Println()
+		return nil
+	}
+
+	r.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
+	fmt.Println()
+
+	installedCli, installedCask, brewErr := brew.InstallWithProgress(cliPkgs, caskPkgs, plan.DryRun)
+	if brewErr != nil {
+		r.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
+	}
+
+	if !plan.DryRun {
+		for _, pkg := range installedCli {
+			if err := state.markFormula(pkg); err != nil {
+				r.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
+			}
+		}
+		for _, pkg := range installedCask {
+			if err := state.markCask(pkg); err != nil {
+				r.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
+			}
+		}
+		r.Success("Package installation complete")
+	}
+	fmt.Println()
+	return nil
+}
+
+func applyNpm(plan InstallPlan, r Reporter) error {
+	npmPkgs := plan.Npm
+	if len(npmPkgs) == 0 {
+		return nil
+	}
+
+	state, stateErr := loadState()
+	if stateErr != nil {
+		r.Warn(fmt.Sprintf("Failed to load install state: %v", stateErr))
+	}
+
+	var newNpm []string
+	if !plan.DryRun {
+		actualNpm, npmCheckErr := npm.GetInstalledPackages()
+		if npmCheckErr != nil {
+			r.Warn(fmt.Sprintf("Failed to check installed npm packages: %v", npmCheckErr))
+		} else {
+			removed := state.reconcileNpmWithSystem(actualNpm)
+			if removed > 0 {
+				if err := state.save(); err != nil {
+					r.Warn(fmt.Sprintf("Failed to update install state: %v", err))
+				}
+			}
+		}
+
+		for _, pkg := range npmPkgs {
+			if !state.isNpmInstalled(pkg) {
+				newNpm = append(newNpm, pkg)
+			}
+		}
+		stateSkipped := len(npmPkgs) - len(newNpm)
+		if stateSkipped > 0 {
+			r.Muted(fmt.Sprintf("Skipping %d npm packages from previous install", stateSkipped))
+		}
+		npmPkgs = newNpm
+	}
+
+	if len(npmPkgs) == 0 {
+		r.Success("All npm packages already installed!")
+		return nil
+	}
+
+	fmt.Println()
+	r.Header("NPM Global Packages")
+	fmt.Println()
+	r.Info(fmt.Sprintf("Installing %d npm packages...", len(npmPkgs)))
+	fmt.Println()
+
+	maxAttempts := 3
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		lastErr = npm.Install(npmPkgs, plan.DryRun)
+		if lastErr == nil {
+			break
+		}
+		if attempt == maxAttempts {
+			r.Error(fmt.Sprintf("npm package installation failed after %d attempts: %v", maxAttempts, lastErr))
+			return fmt.Errorf("npm installation failed after %d attempts: %w", maxAttempts, lastErr)
+		}
+		if plan.Silent || !system.HasTTY() {
+			r.Warn(fmt.Sprintf("npm installation failed (attempt %d/%d), retrying...", attempt, maxAttempts))
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			continue
+		}
+		fmt.Println()
+		fmt.Printf("  Retry npm installation? [Y/n] ")
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(strings.TrimSpace(response)) == "n" || strings.ToLower(strings.TrimSpace(response)) == "no" {
+			r.Muted("Skipping npm package retry")
+			return lastErr
+		}
+	}
+
+	if !plan.DryRun && lastErr == nil {
+		for _, pkg := range npmPkgs {
+			if err := state.markNpm(pkg); err != nil {
+				r.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
+			}
+		}
+	}
+	return lastErr
+}
+
 func stepInstallNpmWithRetry(opts *config.InstallOptions, st *config.InstallState) error {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {

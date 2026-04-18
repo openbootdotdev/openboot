@@ -50,11 +50,124 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 		return err
 	}
 
-	if st.RemoteConfig != nil {
-		return runCustomInstall(opts, st)
+	plan, err := Plan(opts, st)
+	if err != nil {
+		return err
 	}
 
-	return runInteractiveInstall(opts, st)
+	// Write resolved selections back to st so callers that hold a reference to
+	// st (e.g. Run → cfg.ApplyState) can observe the final selected packages.
+	if plan.SelectedPkgs != nil {
+		st.SelectedPkgs = plan.SelectedPkgs
+	}
+	if plan.OnlinePkgs != nil {
+		st.OnlinePkgs = plan.OnlinePkgs
+	}
+
+	// Remote-config installs: show what will be installed and confirm before proceeding.
+	if plan.RemoteConfig != nil && !opts.Silent && !opts.DryRun {
+		ui.Info(fmt.Sprintf("Custom config: @%s/%s", plan.RemoteConfig.Username, plan.RemoteConfig.Slug))
+		fmt.Println()
+		printPackageList("CLI tools", plan.RemoteConfig.Packages)
+		printPackageList("Apps", plan.RemoteConfig.Casks)
+		printPackageList("npm", plan.RemoteConfig.Npm)
+		fmt.Println()
+		proceed, err := ui.Confirm("Install these packages?", true)
+		if err != nil {
+			return err
+		}
+		if !proceed {
+			return ErrUserCancelled
+		}
+		fmt.Println()
+	}
+
+	return Apply(plan, ConsoleReporter{})
+}
+
+// Apply executes a resolved InstallPlan, reporting progress via r.
+// All user interaction has already happened in Plan(); this function only performs actions.
+func Apply(plan InstallPlan, r Reporter) error {
+	if !plan.PackagesOnly {
+		if err := applyGitConfig(plan, r); err != nil {
+			return err
+		}
+	}
+
+	if err := applyPackages(plan, r); err != nil {
+		return err
+	}
+
+	var softErrs []error
+
+	if err := applyNpm(plan, r); err != nil {
+		r.Error(fmt.Sprintf("npm package installation failed: %v", err))
+		softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
+	}
+
+	if !plan.PackagesOnly {
+		if err := applyShell(plan, r); err != nil {
+			r.Error(fmt.Sprintf("Shell setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+		}
+		if err := applyDotfiles(plan, r); err != nil {
+			r.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
+		}
+		if err := applyMacOSPrefs(plan, r); err != nil {
+			r.Error(fmt.Sprintf("macOS configuration failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
+		}
+		if err := applyPostInstall(plan, r); err != nil {
+			r.Error(fmt.Sprintf("Post-install script failed: %v", err))
+			softErrs = append(softErrs, fmt.Errorf("post-install: %w", err))
+		}
+	}
+
+	showCompletionFromPlan(plan, r)
+
+	if len(softErrs) > 0 {
+		fmt.Println()
+		r.Warn(fmt.Sprintf("%d step(s) had errors — check the output above for details.", len(softErrs)))
+		return errors.Join(softErrs...)
+	}
+	return nil
+}
+
+func showCompletionFromPlan(plan InstallPlan, r Reporter) {
+	fmt.Println()
+	r.Header("Installation Complete!")
+	fmt.Println()
+	r.Success("OpenBoot has successfully configured your Mac.")
+	fmt.Println()
+
+	r.Info("What was installed:")
+	if !plan.PackagesOnly {
+		r.Info("  - Git configured with your identity")
+	}
+	r.Info(fmt.Sprintf("  - %d CLI packages", len(plan.Formulae)))
+	r.Info(fmt.Sprintf("  - %d GUI applications", len(plan.Casks)))
+	if len(plan.Npm) > 0 {
+		r.Info(fmt.Sprintf("  - %d npm global packages", len(plan.Npm)))
+	}
+	fmt.Println()
+
+	showScreenRecordingReminderFromPlan(plan)
+
+	r.Info("Next steps:")
+	r.Info("  - Restart your terminal to apply changes")
+	r.Info("  - Run 'brew doctor' to verify Homebrew health")
+	fmt.Println()
+}
+
+func showScreenRecordingReminderFromPlan(plan InstallPlan) {
+	if plan.DryRun || plan.Silent {
+		return
+	}
+	// reuse existing showScreenRecordingReminder logic by constructing opts/st
+	opts := &config.InstallOptions{DryRun: plan.DryRun, Silent: plan.Silent}
+	st := &config.InstallState{SelectedPkgs: plan.SelectedPkgs, OnlinePkgs: plan.OnlinePkgs}
+	showScreenRecordingReminder(opts, st)
 }
 
 func checkDependencies(opts *config.InstallOptions, st *config.InstallState) error {
