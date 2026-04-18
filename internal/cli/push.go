@@ -19,22 +19,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/ui"
-	"github.com/spf13/cobra"
 )
-
-// pushCmd is retained only to print a removal error — its functionality
-// has moved to `openboot snapshot --publish`.
-var pushCmd = &cobra.Command{
-	Use:          "push",
-	Short:        "[removed] Use 'openboot snapshot --publish' instead",
-	Hidden:       true,
-	SilenceUsage: true,
-	RunE:         removedError("push", "use 'openboot snapshot --publish' to upload your current state"),
-}
-
-func init() {
-	rootCmd.AddCommand(pushCmd)
-}
 
 // runPushAuto captures the current system snapshot and uploads it to openboot.dev.
 // If a sync source is configured, it updates that config silently; otherwise, it
