@@ -3,13 +3,12 @@ package sync
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/diff"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
+	"github.com/openbootdotdev/openboot/internal/system"
 )
 
 // SyncDiff holds all differences between the remote config and the local system.
@@ -220,9 +219,9 @@ func getLocalDotfilesURL() string {
 	if _, err := os.Stat(filepath.Join(dotfilesPath, ".git")); err != nil {
 		return ""
 	}
-	out, err := exec.Command("git", "-C", dotfilesPath, "remote", "get-url", "origin").Output()
+	out, err := system.RunCommandOutput("git", "-C", dotfilesPath, "remote", "get-url", "origin")
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return out
 }
