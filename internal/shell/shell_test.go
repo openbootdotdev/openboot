@@ -1,6 +1,11 @@
 package shell
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,4 +210,69 @@ source $ZSH/oh-my-zsh.sh
 		"restore block should appear exactly once after repeated calls")
 	assert.Contains(t, string(content), `ZSH_THEME="agnoster"`)
 	assert.NotContains(t, string(content), `ZSH_THEME="robbyrussell"`)
+}
+
+// --- Hash verification tests for InstallOhMyZsh ---
+
+// hashOf returns the lowercase hex SHA256 of data.
+func hashOf(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// serveScript starts an httptest server that returns body as the script payload.
+// It restores omzInstallURL when the test completes.
+func serveScript(t *testing.T, body []byte, statusCode int) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(statusCode)
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+
+	orig := omzInstallURL
+	omzInstallURL = srv.URL
+	t.Cleanup(func() { omzInstallURL = orig })
+}
+
+func TestInstallOhMyZsh_HashMismatch(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Serve a script whose hash does NOT match knownOMZInstallHash.
+	fakeScript := []byte("#!/bin/sh\necho fake\n")
+	serveScript(t, fakeScript, http.StatusOK)
+
+	err := InstallOhMyZsh(false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "hash mismatch")
+	assert.Contains(t, err.Error(), "download may be compromised")
+	// The returned hash should be the hash of the fake content.
+	assert.Contains(t, err.Error(), hashOf(fakeScript))
+}
+
+func TestInstallOhMyZsh_HTTPError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Serve a 500 so the status-code check fires.
+	serveScript(t, nil, http.StatusInternalServerError)
+
+	err := InstallOhMyZsh(false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("unexpected status %d", http.StatusInternalServerError))
+}
+
+func TestInstallOhMyZsh_DryRun_NoNetwork(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Dry-run must return without making any network call — URL is deliberately
+	// set to something unreachable to catch any accidental HTTP access.
+	orig := omzInstallURL
+	omzInstallURL = "http://127.0.0.1:0/should-not-be-called"
+	t.Cleanup(func() { omzInstallURL = orig })
+
+	err := InstallOhMyZsh(true)
+	assert.NoError(t, err)
 }

@@ -1,15 +1,28 @@
 package shell
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
 )
+
+// knownOMZInstallHash is the SHA256 of the Oh-My-Zsh install script pinned on
+// 2026-04-19 (ohmyzsh/ohmyzsh master, commit circa that date). Update this
+// constant whenever the installer script changes upstream.
+const knownOMZInstallHash = "21043aec5b791ce4835479dc33ba2f92155946aeafd54604a8c83522627cc803"
+
+// omzInstallURL is a var so tests can redirect it to a local httptest server.
+var omzInstallURL = "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
 
 var shellIdentifierRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
@@ -42,12 +55,53 @@ func InstallOhMyZsh(dryRun bool) error {
 		return nil
 	}
 
-	script := `sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended`
-	cmd := exec.Command("bash", "-c", script)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
+	// Download the installer via httputil.Do so rate-limit handling is applied.
+	req, err := http.NewRequest(http.MethodGet, omzInstallURL, nil)
+	if err != nil {
+		return fmt.Errorf("create omz install request: %w", err)
+	}
+	resp, err := httputil.Do(http.DefaultClient, req)
+	if err != nil {
+		return fmt.Errorf("download omz install script: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download omz install script: unexpected status %d", resp.StatusCode)
+	}
+
+	scriptBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read omz install script: %w", err)
+	}
+
+	// Verify SHA256 before executing anything.
+	sum := sha256.Sum256(scriptBytes)
+	got := hex.EncodeToString(sum[:])
+	if got != knownOMZInstallHash {
+		return fmt.Errorf("Oh-My-Zsh install script hash mismatch: download may be compromised (got %s, want %s)", got, knownOMZInstallHash)
+	}
+
+	// Write verified script to a temp file, execute, then clean up.
+	tmpFile, err := os.CreateTemp("", "omz-install-*.sh")
+	if err != nil {
+		return fmt.Errorf("create temp file for omz install: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(scriptBytes); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("write omz install script: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close omz install script: %w", err)
+	}
+
+	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+		return fmt.Errorf("chmod omz install script: %w", err)
+	}
+
+	return system.RunCommand(tmpFile.Name(), "--unattended")
 }
 
 const brewShellenvLine = `eval "$(/opt/homebrew/bin/brew shellenv)"`
