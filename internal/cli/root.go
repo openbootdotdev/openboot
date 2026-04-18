@@ -40,13 +40,14 @@ shell configuration, and macOS preferences.`,
 		config.SetClientVersion(version)
 		cfg.Version = version
 
-		// Skip network operations for lightweight commands that don't
-		// need the package catalog or auto-update check.
-		lightweightCmds := map[string]bool{
-			"version": true,
-			"help":    true,
+		// Only the install flow needs the package catalog and auto-update.
+		// All other commands (snapshot, login, logout, etc.) run without
+		// network overhead.
+		installCmds := map[string]bool{
+			"openboot": true, // root command delegates to install
+			"install":  true,
 		}
-		if !lightweightCmds[cmd.Name()] {
+		if installCmds[cmd.Name()] {
 			updater.AutoUpgrade(version)
 			config.RefreshPackagesFromRemote()
 		}
