@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -87,7 +86,7 @@ func Configure(prefs []Preference, dryRun bool) error {
 		value := expandHome(pref.Value)
 
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would set %s %s = %s (%s)\n", pref.Domain, pref.Key, value, pref.Desc)
+			fmt.Fprintf(os.Stderr, "[DRY-RUN] Would set %s %s = %s (%s)\n", pref.Domain, pref.Key, value, pref.Desc)
 			continue
 		}
 
@@ -105,8 +104,7 @@ func Configure(prefs []Preference, dryRun bool) error {
 			args = append(args, value)
 		}
 
-		cmd := exec.Command("defaults", args...)
-		if err := cmd.Run(); err != nil {
+		if _, err := system.RunCommandSilent("defaults", args...); err != nil {
 			errs = append(errs, fmt.Errorf("set %s %s: %w", pref.Domain, pref.Key, err))
 		}
 	}
@@ -122,7 +120,7 @@ func CreateScreenshotsDir(dryRun bool) error {
 	dir := filepath.Join(home, "Screenshots")
 
 	if dryRun {
-		fmt.Printf("[DRY-RUN] Would create %s directory\n", dir)
+		fmt.Fprintf(os.Stderr, "[DRY-RUN] Would create %s directory\n", dir)
 		return nil
 	}
 
@@ -134,13 +132,12 @@ func RestartAffectedApps(dryRun bool) error {
 
 	for _, app := range apps {
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would restart %s\n", app)
+			fmt.Fprintf(os.Stderr, "[DRY-RUN] Would restart %s\n", app)
 			continue
 		}
 
 		// killall returns an error if the app isn't running, which is expected and safe to ignore
-		cmd := exec.Command("killall", app)
-		cmd.Run() //nolint:errcheck // non-fatal: app may not be running
+		system.RunCommandSilent("killall", app) //nolint:errcheck // non-fatal: app may not be running
 	}
 
 	return nil
