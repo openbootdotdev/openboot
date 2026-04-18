@@ -280,25 +280,18 @@ func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
 		return fmt.Errorf("no valid auth token found — please log in again")
 	}
 
-	targetSlug := explicitSlug
-	if targetSlug == "" {
-		if source, _ := syncpkg.LoadSource(); source != nil && source.Slug != "" {
-			targetSlug = source.Slug
-		}
-	}
+	targetSlug := resolveTargetSlug(explicitSlug)
 
 	var configName, configDesc, visibility string
 	if targetSlug != "" {
-		label := fmt.Sprintf("@%s/%s", stored.Username, targetSlug)
 		fmt.Fprintln(os.Stderr)
-		ui.Info(fmt.Sprintf("Publishing to %s (updating)", label))
+		ui.Info(fmt.Sprintf("Publishing to @%s/%s (updating)", stored.Username, targetSlug))
 	} else {
 		fmt.Fprintln(os.Stderr)
 		ui.Info("Publishing as a new config on openboot.dev")
-		var promptErr error
-		configName, configDesc, visibility, promptErr = promptPushDetails("")
-		if promptErr != nil {
-			return promptErr
+		configName, configDesc, visibility, err = promptPushDetails("")
+		if err != nil {
+			return err
 		}
 	}
 
@@ -307,22 +300,40 @@ func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
 		return err
 	}
 
-	// New config becomes this machine's sync source.
+	recordPublishResult(stored.Username, resultSlug, targetSlug, visibility, apiBase)
+	return nil
+}
+
+// resolveTargetSlug returns the slug to update: explicit arg takes precedence,
+// then the current machine's sync source, then empty (create new).
+func resolveTargetSlug(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	if source, _ := syncpkg.LoadSource(); source != nil && source.Slug != "" {
+		return source.Slug
+	}
+	return ""
+}
+
+// recordPublishResult saves the new config as the machine's sync source (on
+// first publish) and prints the success output.
+func recordPublishResult(username, resultSlug, targetSlug, visibility, apiBase string) {
 	if targetSlug == "" && resultSlug != "" {
 		src := &syncpkg.SyncSource{
-			UserSlug:    fmt.Sprintf("%s/%s", stored.Username, resultSlug),
-			Username:    stored.Username,
+			UserSlug:    fmt.Sprintf("%s/%s", username, resultSlug),
+			Username:    username,
 			Slug:        resultSlug,
 			InstalledAt: time.Now(),
 			SyncedAt:    time.Now(),
 		}
-		if saveErr := syncpkg.SaveSource(src); saveErr != nil {
-			ui.Warn(fmt.Sprintf("Failed to save sync source: %v", saveErr))
+		if err := syncpkg.SaveSource(src); err != nil {
+			ui.Warn(fmt.Sprintf("Failed to save sync source: %v", err))
 		}
 	}
 
-	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, resultSlug)
-	installURL := fmt.Sprintf("openboot install %s/%s", stored.Username, resultSlug)
+	configURL := fmt.Sprintf("%s/%s/%s", apiBase, username, resultSlug)
+	installURL := fmt.Sprintf("openboot install %s/%s", username, resultSlug)
 
 	fmt.Fprintln(os.Stderr)
 	if targetSlug != "" {
@@ -334,8 +345,6 @@ func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
 	fmt.Fprintln(os.Stderr)
 	showUploadedConfigInfo(visibility, configURL, installURL)
 	fmt.Fprintln(os.Stderr)
-
-	return nil
 }
 
 func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibility, token, apiBase, slug string) (string, error) {
