@@ -12,17 +12,18 @@ type CaptureHealth struct {
 }
 
 type Snapshot struct {
-	Version       int             `json:"version"`
-	CapturedAt    time.Time       `json:"captured_at"`
-	Hostname      string          `json:"hostname"`
-	Packages      PackageSnapshot `json:"packages"`
-	MacOSPrefs    []MacOSPref     `json:"macos_prefs"`
-	Git           GitSnapshot     `json:"git"`
+	Version       int              `json:"version"`
+	CapturedAt    time.Time        `json:"captured_at"`
+	Hostname      string           `json:"hostname"`
+	Packages      PackageSnapshot  `json:"packages"`
+	MacOSPrefs    []MacOSPref      `json:"macos_prefs"`
+	Shell         ShellSnapshot    `json:"shell"`
+	Git           GitSnapshot      `json:"git"`
 	Dotfiles      DotfilesSnapshot `json:"dotfiles"`
-	DevTools      []DevTool       `json:"dev_tools"`
-	MatchedPreset string          `json:"matched_preset"`
-	CatalogMatch  CatalogMatch    `json:"catalog_match"`
-	Health        CaptureHealth   `json:"health"`
+	DevTools      []DevTool        `json:"dev_tools"`
+	MatchedPreset string           `json:"matched_preset"`
+	CatalogMatch  CatalogMatch     `json:"catalog_match"`
+	Health        CaptureHealth    `json:"health"`
 }
 
 type DotfilesSnapshot struct {

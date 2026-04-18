@@ -217,7 +217,7 @@ func captureEnvironment() (*snapshot.Snapshot, error) {
 func captureWithUI() (*snapshot.Snapshot, error) {
 	fmt.Fprintln(os.Stderr)
 
-	progress := ui.NewScanProgress(8)
+	progress := ui.NewScanProgress(9)
 
 	snap, err := snapshot.CaptureWithProgress(func(step snapshot.ScanStep) {
 		progress.Update(step)

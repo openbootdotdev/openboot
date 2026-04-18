@@ -58,6 +58,11 @@ func Capture() (*Snapshot, error) {
 		return nil, err
 	}
 
+	shellSnap, err := CaptureShell()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Snapshot{
 		Version:    1,
 		CapturedAt: time.Now(),
@@ -69,6 +74,7 @@ func Capture() (*Snapshot, error) {
 			Npm:      npmPkgs,
 		},
 		MacOSPrefs:    prefs,
+		Shell:         *shellSnap,
 		Git:           *gitSnap,
 		Dotfiles:      *dotfilesSnap,
 		DevTools:      devTools,
@@ -145,6 +151,12 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			}
 			return 0
 		}},
+		{"Shell Config", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int {
+			if s, ok := v.(*ShellSnapshot); ok && (s.Theme != "" || len(s.Plugins) > 0 || s.OhMyZsh) {
+				return 1
+			}
+			return 0
+		}},
 	}
 
 	results := make([]interface{}, len(steps))
@@ -175,6 +187,7 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	gitSnap, _ := results[5].(*GitSnapshot)
 	dotfilesSnap, _ := results[6].(*DotfilesSnapshot)
 	devTools, _ := results[7].([]DevTool)
+	shellSnap, _ := results[8].(*ShellSnapshot)
 
 	if formulae == nil {
 		formulae = []string{}
@@ -200,6 +213,9 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	if devTools == nil {
 		devTools = []DevTool{}
 	}
+	if shellSnap == nil {
+		shellSnap = &ShellSnapshot{}
+	}
 
 	return &Snapshot{
 		Version:    1,
@@ -212,6 +228,7 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 			Npm:      npmPkgs,
 		},
 		MacOSPrefs:    prefs,
+		Shell:         *shellSnap,
 		Git:           *gitSnap,
 		Dotfiles:      *dotfilesSnap,
 		DevTools:      devTools,
