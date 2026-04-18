@@ -161,3 +161,27 @@ func vmIsInstalled(t *testing.T, vm *testutil.TartVM, cmd string) bool {
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
+
+// vmWriteTestSnapshot writes a minimal valid snapshot JSON to a path on the VM.
+func vmWriteTestSnapshot(t *testing.T, vm *testutil.TartVM, remotePath string, formulae, casks, npm []string) {
+	t.Helper()
+
+	toJSON := func(ss []string) string {
+		if len(ss) == 0 {
+			return "[]"
+		}
+		quoted := make([]string, len(ss))
+		for i, s := range ss {
+			quoted[i] = fmt.Sprintf("%q", s)
+		}
+		return "[" + strings.Join(quoted, ",") + "]"
+	}
+
+	json := fmt.Sprintf(
+		`{"version":1,"captured_at":"2026-01-01T00:00:00Z","hostname":"test-vm","packages":{"formulae":%s,"casks":%s,"taps":[],"npm":%s},"macos_prefs":[],"shell":{},"git":{},"dotfiles":{},"dev_tools":[],"matched_preset":"","catalog_match":{},"health":{"failed_steps":[],"partial":false}}`,
+		toJSON(formulae), toJSON(casks), toJSON(npm),
+	)
+
+	_, err := vm.Run(fmt.Sprintf("cat > %s << 'SNAPEOF'\n%s\nSNAPEOF", remotePath, json))
+	require.NoError(t, err, "failed to write test snapshot to VM")
+}
