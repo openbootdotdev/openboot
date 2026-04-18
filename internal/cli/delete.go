@@ -19,10 +19,10 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete a config from openboot.dev",
 	Long:  `Delete a config from your openboot.dev account by its slug.`,
 	Example: `  # Delete a config (with confirmation prompt)
-  openboot delete my-config
+  openboot config delete my-config
 
   # Delete without confirmation (for scripting)
-  openboot delete my-config --force`,
+  openboot config delete my-config --force`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
@@ -32,7 +32,7 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().BoolP("force", "f", false, "skip confirmation prompt")
-	rootCmd.AddCommand(deleteCmd)
+	configCmd.AddCommand(deleteCmd)
 }
 
 func runDelete(slug string, force bool) error {

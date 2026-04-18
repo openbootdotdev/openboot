@@ -16,8 +16,8 @@ var listCmd = &cobra.Command{
 	Long: `Show all configs stored in your openboot.dev account.
 
 The config currently linked to this machine (via sync source) is marked
-with an arrow. Use 'openboot delete <slug>' to remove a config.`,
-	Example: `  openboot list`,
+with an arrow. Use 'openboot config delete <slug>' to remove a config.`,
+	Example:      `  openboot config list`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runList()
@@ -25,7 +25,7 @@ with an arrow. Use 'openboot delete <slug>' to remove a config.`,
 }
 
 func init() {
-	rootCmd.AddCommand(listCmd)
+	configCmd.AddCommand(listCmd)
 }
 
 func runList() error {
@@ -59,7 +59,7 @@ func runList() error {
 	fmt.Println()
 
 	if len(configs) == 0 {
-		ui.Muted("  No configs yet. Run 'openboot push' to create one.")
+		ui.Muted("  No configs yet. Run 'openboot snapshot --publish' to create one.")
 		fmt.Println()
 		return nil
 	}
@@ -87,7 +87,7 @@ func runList() error {
 
 	fmt.Println()
 	ui.Muted(fmt.Sprintf(
-		"Install: openboot -u %s/<slug>  •  Edit: openboot edit --slug <slug>  •  Delete: openboot delete <slug>",
+		"Install: openboot install %s/<slug>  •  Edit: openboot config edit --slug <slug>  •  Delete: openboot config delete <slug>",
 		stored.Username,
 	))
 	fmt.Println()

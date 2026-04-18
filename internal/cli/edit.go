@@ -18,10 +18,10 @@ var editCmd = &cobra.Command{
 
 Use --slug to skip the picker and open a specific config directly.`,
 	Example: `  # Pick a config interactively
-  openboot edit
+  openboot config edit
 
   # Open a specific config directly
-  openboot edit --slug my-config`,
+  openboot config edit --slug my-config`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		slug, _ := cmd.Flags().GetString("slug")
@@ -31,7 +31,7 @@ Use --slug to skip the picker and open a specific config directly.`,
 
 func init() {
 	editCmd.Flags().String("slug", "", "config slug to open (skips the picker)")
-	rootCmd.AddCommand(editCmd)
+	configCmd.AddCommand(editCmd)
 }
 
 func runEdit(slugOverride string) error {
