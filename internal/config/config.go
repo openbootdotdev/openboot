@@ -478,6 +478,12 @@ func (rc *RemoteConfig) Validate() error {
 		if !validPrefTypes[mp.Type] {
 			return fmt.Errorf("invalid macos_prefs type: %q for %s %s (allowed: string, int, bool, float)", mp.Type, mp.Domain, mp.Key)
 		}
+		if strings.HasPrefix(mp.Domain, "-") {
+			return fmt.Errorf("invalid macos_prefs domain: %q must not start with '-'", mp.Domain)
+		}
+		if strings.HasPrefix(mp.Key, "-") {
+			return fmt.Errorf("invalid macos_prefs key: %q must not start with '-'", mp.Key)
+		}
 	}
 	for i, cmd := range rc.PostInstall {
 		if strings.TrimSpace(cmd) == "" {
