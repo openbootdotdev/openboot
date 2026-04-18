@@ -3,6 +3,7 @@ package brew
 import (
 	"os"
 	"os/exec"
+	"sync"
 )
 
 // Runner is the swappable executor for brew subcommands. The package uses a
@@ -16,8 +17,7 @@ type Runner interface {
 	Output(args ...string) ([]byte, error)
 
 	// CombinedOutput runs `brew args...` and returns stdout+stderr merged.
-	// Extra env vars in env are appended to os.Environ().
-	CombinedOutput(env []string, args ...string) ([]byte, error)
+	CombinedOutput(args ...string) ([]byte, error)
 
 	// Run runs `brew args...` with stdout/stderr attached to the process,
 	// so the user sees progress output. Returns the exit error.
@@ -30,12 +30,8 @@ func (execRunner) Output(args ...string) ([]byte, error) {
 	return exec.Command("brew", args...).Output()
 }
 
-func (execRunner) CombinedOutput(env []string, args ...string) ([]byte, error) {
-	cmd := exec.Command("brew", args...)
-	if len(env) > 0 {
-		cmd.Env = append(os.Environ(), env...)
-	}
-	return cmd.CombinedOutput()
+func (execRunner) CombinedOutput(args ...string) ([]byte, error) {
+	return exec.Command("brew", args...).CombinedOutput()
 }
 
 func (execRunner) Run(args ...string) error {
@@ -45,12 +41,27 @@ func (execRunner) Run(args ...string) error {
 	return cmd.Run()
 }
 
-var runner Runner = execRunner{}
+var (
+	runnerMu sync.RWMutex
+	runner   Runner = execRunner{}
+)
+
+func currentRunner() Runner {
+	runnerMu.RLock()
+	defer runnerMu.RUnlock()
+	return runner
+}
 
 // SetRunner replaces the runner. Returns a restore function intended for
 // t.Cleanup. Test-only.
 func SetRunner(r Runner) (restore func()) {
+	runnerMu.Lock()
 	prev := runner
 	runner = r
-	return func() { runner = prev }
+	runnerMu.Unlock()
+	return func() {
+		runnerMu.Lock()
+		runner = prev
+		runnerMu.Unlock()
+	}
 }

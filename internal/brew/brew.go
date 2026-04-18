@@ -45,11 +45,11 @@ func GetInstalledPackages() (formulae map[string]bool, casks map[string]bool, er
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		fOut, fErr = runner.Output("list", "--formula", "-1")
+		fOut, fErr = currentRunner().Output("list", "--formula", "-1")
 	}()
 	go func() {
 		defer wg.Done()
-		cOut, cErr = runner.Output("list", "--cask", "-1")
+		cOut, cErr = currentRunner().Output("list", "--cask", "-1")
 	}()
 	wg.Wait()
 
@@ -74,7 +74,7 @@ func GetInstalledPackages() (formulae map[string]bool, casks map[string]bool, er
 }
 
 func ListOutdated() ([]OutdatedPackage, error) {
-	output, err := runner.Output("outdated", "--json")
+	output, err := currentRunner().Output("outdated", "--json")
 	if err != nil {
 		return nil, fmt.Errorf("brew outdated: %w", err)
 	}
@@ -161,7 +161,7 @@ func InstallTaps(taps []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Adding %d Homebrew taps...", len(taps)))
 
 	for _, tap := range taps {
-		if err := runner.Run("tap", tap); err != nil {
+		if err := currentRunner().Run("tap", tap); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to tap %s: %v", tap, err))
 		}
 	}
@@ -670,7 +670,7 @@ func Uninstall(packages []string, dryRun bool) error {
 
 	var failed []string
 	for _, pkg := range packages {
-		if output, err := runner.CombinedOutput(nil, "uninstall", pkg); err != nil {
+		if output, err := currentRunner().CombinedOutput("uninstall", pkg); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to uninstall %s: %s", pkg, strings.TrimSpace(string(output))))
 			failed = append(failed, pkg)
 		} else {
@@ -699,7 +699,7 @@ func UninstallCask(packages []string, dryRun bool) error {
 
 	var failed []string
 	for _, pkg := range packages {
-		if output, err := runner.CombinedOutput(nil, "uninstall", "--cask", pkg); err != nil {
+		if output, err := currentRunner().CombinedOutput("uninstall", "--cask", pkg); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to uninstall %s: %s", pkg, strings.TrimSpace(string(output))))
 			failed = append(failed, pkg)
 		} else {
@@ -716,7 +716,7 @@ func UninstallCask(packages []string, dryRun bool) error {
 // GetInstalledLeaves returns top-level formulae (not dependencies) as a set.
 // This matches what `brew leaves` reports and is consistent with snapshot captures.
 func GetInstalledLeaves() (map[string]bool, error) {
-	output, err := runner.Output("leaves")
+	output, err := currentRunner().Output("leaves")
 	if err != nil {
 		return nil, fmt.Errorf("brew leaves: %w", err)
 	}
@@ -731,7 +731,7 @@ func GetInstalledLeaves() (map[string]bool, error) {
 }
 
 func GetInstalledTaps() ([]string, error) {
-	output, err := runner.Output("tap")
+	output, err := currentRunner().Output("tap")
 	if err != nil {
 		return nil, fmt.Errorf("brew tap: %w", err)
 	}
@@ -760,7 +760,7 @@ func Untap(taps []string, dryRun bool) error {
 
 	var failed []string
 	for _, tap := range taps {
-		if output, err := runner.CombinedOutput(nil, "untap", tap); err != nil {
+		if output, err := currentRunner().CombinedOutput("untap", tap); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to remove tap %s: %s", tap, strings.TrimSpace(string(output))))
 			failed = append(failed, tap)
 		} else {
@@ -781,7 +781,7 @@ func Update(dryRun bool) error {
 	}
 
 	ui.Info("Updating Homebrew...")
-	if err := runner.Run("update"); err != nil {
+	if err := currentRunner().Run("update"); err != nil {
 		return fmt.Errorf("brew update: %w", err)
 	}
 
@@ -800,7 +800,7 @@ func Update(dryRun bool) error {
 
 func Cleanup() error {
 	ui.Info("Cleaning up old versions...")
-	return runner.Run("cleanup")
+	return currentRunner().Run("cleanup")
 }
 
 func CheckNetwork() error {
@@ -831,7 +831,7 @@ func CheckDiskSpace() (float64, error) {
 }
 
 func DoctorDiagnose() ([]string, error) {
-	output, err := runner.CombinedOutput(nil, "doctor")
+	output, err := currentRunner().CombinedOutput("doctor")
 	outputStr := string(output)
 	// brew doctor exits non-zero when it finds warnings — that's expected.
 	// Only treat as a hard error if the process couldn't start at all.

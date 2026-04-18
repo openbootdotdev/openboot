@@ -21,7 +21,7 @@ func (b *brewFake) Output(args ...string) ([]byte, error) {
 	return b.handler(args)
 }
 
-func (b *brewFake) CombinedOutput(_ []string, args ...string) ([]byte, error) {
+func (b *brewFake) CombinedOutput(args ...string) ([]byte, error) {
 	return b.handler(args)
 }
 

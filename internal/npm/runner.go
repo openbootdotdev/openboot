@@ -1,6 +1,9 @@
 package npm
 
-import "os/exec"
+import (
+	"os/exec"
+	"sync"
+)
 
 // Runner is the swappable executor for npm subcommands. Default uses the real
 // npm binary; tests replace it with a fake to avoid fork/exec overhead.
@@ -24,12 +27,27 @@ func (execRunner) CombinedOutput(args ...string) ([]byte, error) {
 	return exec.Command("npm", args...).CombinedOutput()
 }
 
-var runner Runner = execRunner{}
+var (
+	runnerMu sync.RWMutex
+	runner   Runner = execRunner{}
+)
+
+func currentRunner() Runner {
+	runnerMu.RLock()
+	defer runnerMu.RUnlock()
+	return runner
+}
 
 // SetRunner replaces the runner. Returns a restore function intended for
 // t.Cleanup. Test-only.
 func SetRunner(r Runner) (restore func()) {
+	runnerMu.Lock()
 	prev := runner
 	runner = r
-	return func() { runner = prev }
+	runnerMu.Unlock()
+	return func() {
+		runnerMu.Lock()
+		runner = prev
+		runnerMu.Unlock()
+	}
 }

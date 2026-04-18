@@ -45,7 +45,7 @@ func GetNodeVersion() (int, error) {
 func GetInstalledPackages() (map[string]bool, error) {
 	packages := make(map[string]bool)
 
-	output, err := runner.Output("list", "-g", "--depth=0", "--parseable")
+	output, err := currentRunner().Output("list", "-g", "--depth=0", "--parseable")
 	if err != nil {
 		if len(output) > 0 {
 			// npm list exits non-zero when packages have issues, but still
@@ -144,7 +144,7 @@ func Install(packages []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(toInstall)))
 
 	args := append([]string{"install", "-g"}, toInstall...)
-	batchOutput, err := runner.CombinedOutput(args...)
+	batchOutput, err := currentRunner().CombinedOutput(args...)
 
 	var failed []string
 	if err == nil {
@@ -220,7 +220,7 @@ func Uninstall(packages []string, dryRun bool) error {
 
 	var failed []string
 	for _, pkg := range packages {
-		if output, err := runner.CombinedOutput("uninstall", "-g", pkg); err != nil {
+		if output, err := currentRunner().CombinedOutput("uninstall", "-g", pkg); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to uninstall %s: %s", pkg, strings.TrimSpace(string(output))))
 			failed = append(failed, pkg)
 		} else {
@@ -242,7 +242,7 @@ var retryBackoff = 2 * time.Second
 func installNpmPackageWithRetry(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		output, err := runner.CombinedOutput("install", "-g", pkg)
+		output, err := currentRunner().CombinedOutput("install", "-g", pkg)
 		if err == nil {
 			return ""
 		}

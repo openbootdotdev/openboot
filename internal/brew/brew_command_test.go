@@ -35,7 +35,7 @@ func (f *fakeRunner) Output(args ...string) ([]byte, error) {
 	return f.handler(args)
 }
 
-func (f *fakeRunner) CombinedOutput(_ []string, args ...string) ([]byte, error) {
+func (f *fakeRunner) CombinedOutput(args ...string) ([]byte, error) {
 	return f.handler(args)
 }
 

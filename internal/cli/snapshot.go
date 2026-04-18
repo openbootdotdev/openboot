@@ -298,9 +298,10 @@ func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
 	} else {
 		fmt.Fprintln(os.Stderr)
 		ui.Info("Publishing as a new config on openboot.dev")
-		configName, configDesc, visibility, err = promptPushDetails("")
-		if err != nil {
-			return err
+		var promptErr error
+		configName, configDesc, visibility, promptErr = promptPushDetails("")
+		if promptErr != nil {
+			return promptErr
 		}
 	}
 
