@@ -49,9 +49,45 @@ var restoreCmd = &cobra.Command{
 	RunE:         removedError("restore", "version history is no longer supported"),
 }
 
+var initCmd = &cobra.Command{
+	Use:          "init",
+	Short:        "[removed] OpenBoot no longer scans project dependencies",
+	Hidden:       true,
+	SilenceUsage: true,
+	RunE:         removedError("init", "project-level dependency scanning was removed in v1.0 — use your project's own tooling (npm/pip/go/cargo)"),
+}
+
+var setupAgentCmd = &cobra.Command{
+	Use:          "setup-agent",
+	Short:        "[removed] AI agent integration is no longer bundled",
+	Hidden:       true,
+	SilenceUsage: true,
+	RunE:         removedError("setup-agent", "AI agent integration was tied to 'openboot init', which is removed"),
+}
+
+var doctorCmd = &cobra.Command{
+	Use:          "doctor",
+	Short:        "[removed] Use 'brew doctor' and 'git config' directly",
+	Hidden:       true,
+	SilenceUsage: true,
+	RunE:         removedError("doctor", "use 'brew doctor' and 'git config --list' directly"),
+}
+
+var updateCmd = &cobra.Command{
+	Use:          "update",
+	Short:        "[removed] Use 'brew upgrade' directly",
+	Hidden:       true,
+	SilenceUsage: true,
+	RunE:         removedError("update", "use 'brew upgrade' for packages; OpenBoot self-updates automatically on launch"),
+}
+
 func init() {
 	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(logCmd)
 	rootCmd.AddCommand(restoreCmd)
+	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(setupAgentCmd)
+	rootCmd.AddCommand(doctorCmd)
+	rootCmd.AddCommand(updateCmd)
 }

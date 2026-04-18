@@ -45,7 +45,7 @@ openboot/
 │   ├── auth/             # OAuth-like login, token in ~/.openboot/auth.json (0600)
 │   ├── brew/             # Homebrew ops, parallel install (4 workers), retry logic, uninstall
 │   ├── cleaner/          # Diff current system vs desired state, remove extra packages
-│   ├── cli/              # Cobra commands: root, install, snapshot, config (list/edit/delete), doctor, init, setup-agent, update, version, deprecated
+│   ├── cli/              # Cobra commands: root, install, snapshot, config (list/edit/delete), login/logout, version, deprecated
 │   ├── config/           # Package catalog, presets, remote config fetch
 │   │   └── data/         # packages.yaml (embedded fallback), presets.yaml (3 presets)
 │   ├── diff/             # Read-only system vs config/snapshot comparison (pure logic)

@@ -19,7 +19,7 @@ Two directions, two verbs:
 - **`install`** — add only. Never uninstalls.
 - **`snapshot`** — output only. Captures current state.
 
-Everything else is either cloud-config CRUD or independent tooling (init, doctor, etc.).
+Everything else is cloud-config CRUD (`config list/edit/delete`) or auth/version.
 
 ---
 
@@ -40,23 +40,14 @@ Everything else is either cloud-config CRUD or independent tooling (init, doctor
 | `openboot config edit [slug]` | Open a config in the browser for editing. |
 | `openboot config delete <slug>` | Delete a config. |
 
-### Independent tools
-
-| Command | Purpose |
-|---------|---------|
-| `openboot init` | Detect project dependencies (package.json, go.mod, etc.) and install missing. |
-| `openboot setup-agent` | Configure AI coding agent integration (Claude, Codex). |
-| `openboot doctor` | Diagnose system health. |
-| `openboot update` | Update OpenBoot itself. |
-
 ### Infrastructure
 
 | Command | Purpose |
 |---------|---------|
 | `openboot login` / `logout` | Authenticate with openboot.dev. |
-| `openboot version` | Print version. |
+| `openboot version` | Print version. Self-update happens on launch automatically. |
 
-**Total: 12 commands.** (plus `help`, `completion` from Cobra)
+**Total: 8 commands.** (plus `help`, `completion` from Cobra)
 
 ---
 
@@ -175,6 +166,10 @@ preset                               ← Config-only
 | `list` | `config list` |
 | `edit` | `config edit` |
 | `delete` | `config delete` |
+| `init` | **No replacement.** Project deps are each ecosystem's own job (npm/pip/go/cargo). |
+| `setup-agent` | **No replacement.** Existed only to service `init`. |
+| `doctor` | **No replacement.** Use `brew doctor` and `git config --list` directly. |
+| `update` | **No replacement.** `brew upgrade` for packages; OpenBoot self-updates on launch. |
 
 **Why hard-break instead of aliases:**
 Old `pull` / `push` had behaviors (uninstall, revision messages) that the new equivalents don't have. Silent aliasing would make behavior regress invisibly — worse than a clear error.

@@ -170,14 +170,11 @@ openboot config list                # List your openboot.dev configs
 openboot config edit                # Open a config in the browser
 openboot config delete SLUG         # Remove a config
 
-openboot init                       # Scan project deps, install missing
-openboot doctor                     # Check system health
-openboot update                     # Update Homebrew and packages
 openboot login / logout             # openboot.dev auth
 openboot version                    # Print version
 ```
 
-Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`. See [docs/SPEC.md](docs/SPEC.md) for migration.
+Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `setup-agent`, `doctor`, `update`. See [CHANGELOG.md](CHANGELOG.md) for migration.
 
 </details>
 
@@ -210,16 +207,6 @@ Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`. See [docs/SP
 | `OPENBOOT_USER` | Config alias or username/slug |
 
 </details>
-
-## AI Agent Integration
-
-```bash
-openboot setup-agent
-```
-
-One-time setup. Writes a global rule to your AI coding agent so it uses `openboot init` when it encounters missing dependencies — instead of installing them one by one.
-
-Supports Claude Code and OpenAI Codex.
 
 ---
 

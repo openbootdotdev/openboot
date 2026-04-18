@@ -16,6 +16,10 @@ Six commands are removed outright. Each prints an error with a migration hint wh
 | `openboot clean` | **no replacement** — OpenBoot no longer manages package removal |
 | `openboot log` | **no replacement** — version history is dropped |
 | `openboot restore` | **no replacement** — version history is dropped |
+| `openboot init` | **no replacement** — use your project's own tooling (npm/pip/go/cargo) |
+| `openboot setup-agent` | **no replacement** — existed only to service `openboot init` |
+| `openboot doctor` | **no replacement** — use `brew doctor` and `git config --list` directly |
+| `openboot update` | **no replacement** — use `brew upgrade` directly; OpenBoot self-updates on launch |
 
 Three flat commands move under a `config` namespace:
 
