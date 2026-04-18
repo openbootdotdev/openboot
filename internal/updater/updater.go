@@ -1,6 +1,9 @@
 package updater
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -244,6 +247,83 @@ var execSelf = func() {
 	}
 }
 
+// parseChecksumsFile parses a shasum-style checksums file ("<hex>  <filename>"
+// or "<hex> *<filename>") into a map of filename → lowercase hex digest.
+// Blank lines and comment lines (prefixed with '#') are ignored.
+func parseChecksumsFile(r io.Reader) (map[string]string, error) {
+	out := make(map[string]string)
+	scanner := bufio.NewScanner(r)
+	// Allow long lines up to 1 MiB for safety.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Split into (hash, filename) on the first run of whitespace.
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		hash := strings.ToLower(fields[0])
+		name := fields[len(fields)-1]
+		// Strip the leading "*" marker used by some checksum tools for binary mode.
+		name = strings.TrimPrefix(name, "*")
+		// Strip any leading "./" that sha256sum may emit.
+		name = strings.TrimPrefix(name, "./")
+		out[name] = hash
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read checksums: %w", err)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("checksums file is empty or unparseable")
+	}
+	return out, nil
+}
+
+// verifyChecksum returns nil if the SHA-256 of the file at path matches the
+// entry for filename in the provided checksums map. It fails loudly if the
+// entry is missing or the hash does not match.
+func verifyChecksum(path, filename string, checksums map[string]string) error {
+	expected, ok := checksums[filename]
+	if !ok {
+		return fmt.Errorf("no checksum entry for %q in checksums file", filename)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open %s for checksum: %w", path, err)
+	}
+	defer f.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return fmt.Errorf("hash %s: %w", path, err)
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if !strings.EqualFold(actual, expected) {
+		return fmt.Errorf("checksum mismatch for %s: expected %s, got %s", filename, expected, actual)
+	}
+	return nil
+}
+
+// fetchChecksums downloads and parses the checksums.txt file published
+// alongside a GitHub release. Uses the /latest/ redirect so it matches the
+// binary downloaded in DownloadAndReplace.
+func fetchChecksums(client *http.Client) (map[string]string, error) {
+	url := "https://github.com/openbootdotdev/openboot/releases/latest/download/checksums.txt"
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("download checksums: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download checksums: HTTP %d", resp.StatusCode)
+	}
+	// Cap the body to 1 MiB; a checksums file is tiny.
+	return parseChecksumsFile(io.LimitReader(resp.Body, 1<<20))
+}
+
 func DownloadAndReplace() error {
 	if IsHomebrewInstall() {
 		return fmt.Errorf("openboot is managed by Homebrew — run 'brew upgrade openboot' instead")
@@ -254,12 +334,22 @@ func DownloadAndReplace() error {
 		arch = "arm64"
 	}
 
+	filename := fmt.Sprintf("openboot-darwin-%s", arch)
+
+	client := getHTTPClient()
+
+	// Fetch checksums first so we can verify integrity before overwriting the
+	// running binary. If the checksums file is missing or malformed, abort.
+	checksums, err := fetchChecksums(client)
+	if err != nil {
+		return fmt.Errorf("verify update integrity: %w", err)
+	}
+
 	// Uses /latest/ redirect — always downloads whatever GitHub considers the
 	// current latest release. The displayed version (from resolveLatestVersion)
 	// may differ by one patch if a release lands between the check and download.
-	url := fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/openboot-darwin-%s", arch)
+	url := fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/%s", filename)
 
-	client := getHTTPClient()
 	resp, err := client.Get(url)
 	if err != nil {
 		return fmt.Errorf("download failed: %w", err)
@@ -300,6 +390,12 @@ func DownloadAndReplace() error {
 		return fmt.Errorf("write binary: %w", err)
 	}
 	f.Close()
+
+	// Verify checksum BEFORE chmod/rename so a tampered or truncated download
+	// never replaces the running binary.
+	if err := verifyChecksum(tmpPath, filename, checksums); err != nil {
+		return fmt.Errorf("integrity check failed: %w", err)
+	}
 
 	if err := os.Chmod(tmpPath, 0755); err != nil {
 		return fmt.Errorf("chmod: %w", err)

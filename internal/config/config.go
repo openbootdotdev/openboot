@@ -384,6 +384,11 @@ func backfillMacOSPrefsFromSnapshot(rc *RemoteConfig, data []byte) {
 
 const maxPackageNameLen = 200
 
+// maxPostInstallCmdLen bounds each post_install command string. Keeps us well
+// under any reasonable shell ARG_MAX limit per line and ensures a rogue or
+// malformed remote config cannot flood the terminal with a multi-megabyte line.
+const maxPostInstallCmdLen = 4096
+
 var (
 	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
 	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
@@ -472,6 +477,17 @@ func (rc *RemoteConfig) Validate() error {
 	for _, mp := range rc.MacOSPrefs {
 		if !validPrefTypes[mp.Type] {
 			return fmt.Errorf("invalid macos_prefs type: %q for %s %s (allowed: string, int, bool, float)", mp.Type, mp.Domain, mp.Key)
+		}
+	}
+	for i, cmd := range rc.PostInstall {
+		if strings.TrimSpace(cmd) == "" {
+			return fmt.Errorf("post_install[%d]: command must not be empty or whitespace only", i)
+		}
+		if strings.ContainsRune(cmd, 0) {
+			return fmt.Errorf("post_install[%d]: command must not contain NUL bytes", i)
+		}
+		if len(cmd) > maxPostInstallCmdLen {
+			return fmt.Errorf("post_install[%d]: command too long (%d chars, max %d)", i, len(cmd), maxPostInstallCmdLen)
 		}
 	}
 	return nil

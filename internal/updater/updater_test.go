@@ -3,10 +3,13 @@
 package updater
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -488,4 +491,124 @@ func TestAutoUpgrade_NotifyMode_NoUpdate(t *testing.T) {
 
 	// Should not panic or error when already on latest
 	AutoUpgrade("1.0.0")
+}
+
+// --- Checksum verification ---
+
+func writeFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, data, 0644))
+}
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func TestParseChecksumsFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    map[string]string
+		wantErr string
+	}{
+		{
+			name: "standard sha256sum format",
+			input: "abc123  openboot-darwin-arm64\n" +
+				"def456  openboot-darwin-amd64\n",
+			want: map[string]string{
+				"openboot-darwin-arm64": "abc123",
+				"openboot-darwin-amd64": "def456",
+			},
+		},
+		{
+			name:  "binary mode asterisk prefix",
+			input: "abc123 *openboot-darwin-arm64\n",
+			want:  map[string]string{"openboot-darwin-arm64": "abc123"},
+		},
+		{
+			name:  "leading dot-slash is stripped",
+			input: "abc123  ./openboot-darwin-arm64\n",
+			want:  map[string]string{"openboot-darwin-arm64": "abc123"},
+		},
+		{
+			name:  "blank lines and comments ignored",
+			input: "# header\n\nabc123  openboot-darwin-arm64\n",
+			want:  map[string]string{"openboot-darwin-arm64": "abc123"},
+		},
+		{
+			name:  "hash is lowercased",
+			input: "ABCDEF123  openboot-darwin-arm64\n",
+			want:  map[string]string{"openboot-darwin-arm64": "abcdef123"},
+		},
+		{
+			name:    "empty file rejected",
+			input:   "",
+			wantErr: "empty or unparseable",
+		},
+		{
+			name:    "only comments rejected",
+			input:   "# nothing here\n",
+			wantErr: "empty or unparseable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseChecksumsFile(strings.NewReader(tt.input))
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestVerifyChecksum(t *testing.T) {
+	tmpDir := t.TempDir()
+	binPath := filepath.Join(tmpDir, "openboot-darwin-arm64")
+	payload := []byte("fake binary contents for test")
+	writeFile(t, binPath, payload)
+	expectedHash := sha256Hex(payload)
+
+	t.Run("matching hash passes", func(t *testing.T) {
+		err := verifyChecksum(binPath, "openboot-darwin-arm64", map[string]string{
+			"openboot-darwin-arm64": expectedHash,
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("mismatched hash fails", func(t *testing.T) {
+		err := verifyChecksum(binPath, "openboot-darwin-arm64", map[string]string{
+			"openboot-darwin-arm64": strings.Repeat("0", 64),
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "checksum mismatch")
+	})
+
+	t.Run("missing entry fails", func(t *testing.T) {
+		err := verifyChecksum(binPath, "openboot-darwin-arm64", map[string]string{
+			"openboot-darwin-amd64": expectedHash,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no checksum entry")
+	})
+
+	t.Run("hash comparison is case-insensitive", func(t *testing.T) {
+		err := verifyChecksum(binPath, "openboot-darwin-arm64", map[string]string{
+			"openboot-darwin-arm64": strings.ToUpper(expectedHash),
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("missing file fails", func(t *testing.T) {
+		err := verifyChecksum(filepath.Join(tmpDir, "does-not-exist"), "openboot-darwin-arm64", map[string]string{
+			"openboot-darwin-arm64": expectedHash,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "open")
+	})
 }

@@ -587,6 +587,61 @@ func TestRemoteConfig_Validate_NameTooLong(t *testing.T) {
 	}
 }
 
+func TestRemoteConfig_Validate_PostInstall(t *testing.T) {
+	longCmd := strings.Repeat("a", maxPostInstallCmdLen+1)
+
+	tests := []struct {
+		name    string
+		config  RemoteConfig
+		wantErr string
+	}{
+		{
+			name:   "empty post_install is valid",
+			config: RemoteConfig{PostInstall: []string{}},
+		},
+		{
+			name:   "nil post_install is valid",
+			config: RemoteConfig{},
+		},
+		{
+			name:   "normal commands are valid",
+			config: RemoteConfig{PostInstall: []string{"mise install", "npm install -g pnpm"}},
+		},
+		{
+			name:    "empty command rejected",
+			config:  RemoteConfig{PostInstall: []string{"mise install", ""}},
+			wantErr: "post_install[1]: command must not be empty",
+		},
+		{
+			name:    "whitespace-only command rejected",
+			config:  RemoteConfig{PostInstall: []string{"   \t  "}},
+			wantErr: "post_install[0]: command must not be empty",
+		},
+		{
+			name:    "NUL byte rejected",
+			config:  RemoteConfig{PostInstall: []string{"echo hi\x00"}},
+			wantErr: "post_install[0]: command must not contain NUL bytes",
+		},
+		{
+			name:    "command too long rejected",
+			config:  RemoteConfig{PostInstall: []string{longCmd}},
+			wantErr: "post_install[0]: command too long",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestFetchRemoteConfig_ExplicitSlugNoFallback(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/default/config", r.URL.Path)
