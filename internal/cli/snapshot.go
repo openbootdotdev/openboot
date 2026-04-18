@@ -186,7 +186,7 @@ func captureJSONSnapshot() error {
 	fmt.Fprintln(os.Stderr, "Capturing environment snapshot...")
 	snap, err := snapshot.Capture()
 	if err != nil {
-		return err
+		return fmt.Errorf("capture snapshot: %w", err)
 	}
 	fmt.Fprintln(os.Stderr, "Matching packages with catalog...")
 	catalogMatch := snapshot.MatchPackages(snap)
