@@ -90,6 +90,20 @@ func Clone(repoURL string, dryRun bool) error {
 			if branch == "" || branch == "HEAD" {
 				branch = "main"
 			}
+			// Guard against silently discarding local uncommitted changes.
+			if statusOut, err := exec.Command("git", "-C", dotfilesPath, "status", "--porcelain").Output(); err == nil && len(strings.TrimSpace(string(statusOut))) > 0 {
+				ui.Warn(fmt.Sprintf("Local uncommitted changes detected in %s", dotfilesPath))
+				if system.HasTTY() {
+					proceed, confirmErr := ui.Confirm("Proceeding will discard all local changes in your dotfiles. Continue?", false)
+					if confirmErr != nil || !proceed {
+						fmt.Printf("Skipping dotfiles sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", branch)
+						return nil
+					}
+				} else {
+					fmt.Printf("Local changes detected in %s — skipping sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", dotfilesPath, branch)
+					return nil
+				}
+			}
 			resetCmd := exec.Command("git", "-C", dotfilesPath, "reset", "--hard", "origin/"+branch)
 			resetCmd.Stdout = os.Stdout
 			resetCmd.Stderr = os.Stderr

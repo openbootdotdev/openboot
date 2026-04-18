@@ -539,3 +539,81 @@ func TestBackupConflicts_SkipsMissingTargets(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, backed, 0)
 }
+
+// TestClone_LocalChanges_NoTTY verifies that when the dotfiles repo has
+// uncommitted local changes and there is no TTY (non-interactive), Clone
+// skips the reset and returns nil without modifying the working tree.
+func TestClone_LocalChanges_NoTTY(t *testing.T) {
+	if _, err := os.Open("/dev/tty"); err == nil {
+		// /dev/tty is available in this environment — the guard will prompt
+		// interactively rather than taking the no-TTY path. Skip so the test
+		// only runs in non-interactive CI environments where it is meaningful.
+		t.Skip("skipping no-TTY path when /dev/tty is available")
+	}
+
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	bare := initBareAndClone(t, tmpHome)
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+
+	// Introduce an uncommitted local change after cloning.
+	localFile := filepath.Join(dotfilesPath, ".bashrc")
+	require.NoError(t, os.WriteFile(localFile, []byte("# local tweak"), 0644))
+
+	// Push a new upstream commit so there is something to reset to.
+	scratch := filepath.Join(tmpHome, "scratch")
+	require.NoError(t, exec.Command("git", "clone", bare, scratch).Run())
+	require.NoError(t, os.WriteFile(filepath.Join(scratch, ".vimrc"), []byte("\" vimrc"), 0644))
+	runIn := func(dir string, args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test")
+		require.NoError(t, cmd.Run())
+	}
+	runIn(scratch, "add", ".")
+	runIn(scratch, "commit", "-m", "add vimrc")
+	runIn(scratch, "push")
+
+	// Clone must not reset --hard when local changes exist and no TTY.
+	err := Clone(bare, false)
+	require.NoError(t, err)
+
+	// The local tweak must survive — reset was skipped.
+	content, readErr := os.ReadFile(localFile)
+	require.NoError(t, readErr)
+	assert.Equal(t, "# local tweak", string(content), ".bashrc local change should be preserved when sync is skipped")
+
+	// The upstream-only file must NOT appear (reset was skipped).
+	_, statErr := os.Stat(filepath.Join(dotfilesPath, ".vimrc"))
+	assert.True(t, os.IsNotExist(statErr), ".vimrc must not appear when sync was skipped due to local changes")
+}
+
+// TestClone_LocalChanges_CleanRepo verifies that when there are no local
+// changes the sync still runs normally (regression guard for the guard code).
+func TestClone_LocalChanges_CleanRepo(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	bare := initBareAndClone(t, tmpHome)
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+
+	// Push a new upstream commit.
+	scratch := filepath.Join(tmpHome, "scratch")
+	require.NoError(t, exec.Command("git", "clone", bare, scratch).Run())
+	require.NoError(t, os.WriteFile(filepath.Join(scratch, ".vimrc"), []byte("\" vimrc"), 0644))
+	runIn := func(dir string, args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@test", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@test")
+		require.NoError(t, cmd.Run())
+	}
+	runIn(scratch, "add", ".")
+	runIn(scratch, "commit", "-m", "add vimrc")
+	runIn(scratch, "push")
+
+	// No local changes — sync must proceed and pull in the new file.
+	err := Clone(bare, false)
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(filepath.Join(dotfilesPath, ".vimrc"))
+	assert.NoError(t, statErr, ".vimrc must appear after clean sync")
+}
