@@ -1,21 +1,16 @@
 package cli
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
-	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
@@ -25,30 +20,28 @@ import (
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
-	Short: "Capture your dev environment",
+	Short: "Capture or restore your dev environment",
 	Long: `Capture your Mac's Homebrew packages, npm globals, macOS preferences,
-shell config, and dev tools. The destination is chosen by flag or TTY:
+shell config, and dev tools into a portable JSON snapshot.
 
-  openboot snapshot              Interactive menu (TTY) or JSON to stdout (pipe)
-  openboot snapshot --local      Save to ~/.openboot/snapshot.json
-  openboot snapshot --publish    Upload to openboot.dev
-  openboot snapshot --json       Output JSON to stdout
+Export:
+  openboot snapshot                            Capture interactively (save or upload)
+  openboot snapshot --local                    Save to ~/.openboot/snapshot.json
+  openboot snapshot --json > my-setup.json     Export as JSON
 
-Restore:
-  openboot snapshot --import my-setup.json   Restore from a local file
-  openboot snapshot --import https://...     Restore from a URL`,
+Import:
+  openboot snapshot --import my-setup.json     Restore from a local file
+  openboot snapshot --import https://...       Restore from a URL`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runSnapshot(cmd)
 	},
 }
 
 func init() {
-	snapshotCmd.Flags().Bool("local", false, "save to ~/.openboot/snapshot.json")
-	snapshotCmd.Flags().Bool("publish", false, "upload to openboot.dev")
-	snapshotCmd.Flags().String("slug", "", "target an existing config by slug (with --publish)")
-	snapshotCmd.Flags().Bool("json", false, "output JSON to stdout")
-	snapshotCmd.Flags().Bool("dry-run", false, "preview without modifying anything")
-	snapshotCmd.Flags().String("import", "", "restore from a snapshot file or URL")
+	snapshotCmd.Flags().Bool("local", false, "Save snapshot locally only")
+	snapshotCmd.Flags().Bool("json", false, "Output as JSON to stdout")
+	snapshotCmd.Flags().Bool("dry-run", false, "preview without installing or modifying anything")
+	snapshotCmd.Flags().String("import", "", "Restore from a snapshot file or URL")
 }
 
 // stderr-only styles so stdout stays clean for --json piping
@@ -67,52 +60,25 @@ func runSnapshot(cmd *cobra.Command) error {
 	}
 
 	localFlag, _ := cmd.Flags().GetBool("local")
-	publishFlag, _ := cmd.Flags().GetBool("publish")
 	jsonFlag, _ := cmd.Flags().GetBool("json")
 	dryRunFlag, _ := cmd.Flags().GetBool("dry-run")
-	slugFlag, _ := cmd.Flags().GetString("slug")
 
-	// Explicit flags: route directly to the requested destination(s).
-	// Multiple flags combine (e.g. --local --publish does both).
 	if jsonFlag {
-		return captureJSONSnapshot()
-	}
-
-	if localFlag || publishFlag {
-		snap, err := captureEnvironment()
-		if err != nil {
-			return err
-		}
-		if dryRunFlag {
-			showSnapshotPreview(snap)
-			fmt.Fprintln(os.Stderr)
-			fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Dry run — no changes made"))
-			fmt.Fprintln(os.Stderr)
-			return nil
-		}
-		if localFlag {
-			path, err := snapshot.SaveLocal(snap)
-			if err != nil {
-				return fmt.Errorf("save snapshot: %w", err)
-			}
-			showLocalSaveSummary(snap, path)
-		}
-		if publishFlag {
-			if err := publishSnapshot(snap, slugFlag); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	// No explicit flag: interactive if TTY, JSON to stdout otherwise.
-	if !isStdoutTTY() {
 		return captureJSONSnapshot()
 	}
 
 	snap, err := captureEnvironment()
 	if err != nil {
 		return err
+	}
+
+	if localFlag {
+		path, err := snapshot.SaveLocal(snap)
+		if err != nil {
+			return fmt.Errorf("save snapshot: %w", err)
+		}
+		showLocalSaveSummary(snap, path)
+		return nil
 	}
 
 	if dryRunFlag {
@@ -131,55 +97,33 @@ func runSnapshot(cmd *cobra.Command) error {
 		return nil
 	}
 
-	return interactiveSaveOrPublish(edited)
-}
-
-// interactiveSaveOrPublish asks the user where to send the captured snapshot.
-// This is the TTY-interactive path; explicit flags bypass it.
-func interactiveSaveOrPublish(snap *snapshot.Snapshot) error {
 	fmt.Fprintln(os.Stderr)
-	options := []string{
-		"Save locally (~/.openboot/snapshot.json)",
-		"Publish to openboot.dev",
-		"Save locally and publish",
-		"Discard",
-	}
-	choice, err := ui.SelectOption("What to do with this snapshot?", options)
+	upload, err := ui.Confirm("Upload this snapshot to openboot.dev?", false)
 	if err != nil {
 		return err
 	}
 
-	switch choice {
-	case options[0]:
-		path, err := snapshot.SaveLocal(snap)
-		if err != nil {
-			return fmt.Errorf("save snapshot: %w", err)
-		}
-		showLocalSaveSummary(snap, path)
-	case options[1]:
-		return publishSnapshot(snap, "")
-	case options[2]:
-		path, err := snapshot.SaveLocal(snap)
-		if err != nil {
-			return fmt.Errorf("save snapshot: %w", err)
-		}
-		showLocalSaveSummary(snap, path)
-		return publishSnapshot(snap, "")
-	case options[3]:
+	if !upload {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Snapshot discarded."))
-		fmt.Fprintln(os.Stderr)
+		saveLocal, err := ui.Confirm("Save snapshot locally instead?", true)
+		if err != nil {
+			return err
+		}
+		if saveLocal {
+			path, err := snapshot.SaveLocal(edited)
+			if err != nil {
+				return fmt.Errorf("save snapshot: %w", err)
+			}
+			showLocalSaveSummary(edited, path)
+		} else {
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Snapshot discarded."))
+			fmt.Fprintln(os.Stderr)
+		}
+		return nil
 	}
-	return nil
-}
 
-// isStdoutTTY returns true when stdout is an interactive terminal.
-func isStdoutTTY() bool {
-	fi, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return uploadSnapshot(edited)
 }
 
 func captureJSONSnapshot() error {
@@ -216,7 +160,7 @@ func captureEnvironment() (*snapshot.Snapshot, error) {
 func captureWithUI() (*snapshot.Snapshot, error) {
 	fmt.Fprintln(os.Stderr)
 
-	progress := ui.NewScanProgress(9)
+	progress := ui.NewScanProgress(8)
 
 	snap, err := snapshot.CaptureWithProgress(func(step snapshot.ScanStep) {
 		progress.Update(step)
@@ -254,21 +198,14 @@ func reviewSnapshot(snap *snapshot.Snapshot) (*snapshot.Snapshot, bool, error) {
 	return edited, true, nil
 }
 
-// publishSnapshot uploads a captured snapshot to openboot.dev. Slug resolution
-// follows the v1.0 spec (P7):
-//   - explicit --slug X → update X (error if X does not exist)
-//   - no --slug, sync source exists → update the sync source's config
-//   - otherwise → create new (prompts for name/description/visibility)
-//
-// Updating an existing config does not prompt for metadata; visibility is
-// preserved from the existing config.
-func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
+func uploadSnapshot(snap *snapshot.Snapshot) error {
 	apiBase := auth.GetAPIBase()
 
 	if !auth.IsAuthenticated() {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "  You need to log in to publish your snapshot.")
+		fmt.Fprintf(os.Stderr, "  You need to log in to upload your snapshot.\n")
 		fmt.Fprintln(os.Stderr)
+
 		if _, err := auth.LoginInteractive(apiBase); err != nil {
 			return fmt.Errorf("authentication failed: %w", err)
 		}
@@ -282,56 +219,42 @@ func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
 		return fmt.Errorf("no valid auth token found — please log in again")
 	}
 
-	targetSlug := explicitSlug
-	if targetSlug == "" {
-		if source, _ := syncpkg.LoadSource(); source != nil && source.Slug != "" {
-			targetSlug = source.Slug
-		}
-	}
-
-	var configName, configDesc, visibility string
-	if targetSlug != "" {
-		label := fmt.Sprintf("@%s/%s", stored.Username, targetSlug)
-		fmt.Fprintln(os.Stderr)
-		ui.Info(fmt.Sprintf("Publishing to %s (updating)", label))
-	} else {
-		fmt.Fprintln(os.Stderr)
-		ui.Info("Publishing as a new config on openboot.dev")
-		var promptErr error
-		configName, configDesc, visibility, promptErr = promptPushDetails("")
-		if promptErr != nil {
-			return promptErr
-		}
-	}
-
-	resultSlug, err := postSnapshotToAPI(snap, configName, configDesc, visibility, stored.Token, apiBase, targetSlug)
+	updateSlug, err := promptUpdateOrCreate()
 	if err != nil {
 		return err
 	}
 
-	// New config becomes this machine's sync source.
-	if targetSlug == "" && resultSlug != "" {
-		src := &syncpkg.SyncSource{
-			UserSlug:    fmt.Sprintf("%s/%s", stored.Username, resultSlug),
-			Username:    stored.Username,
-			Slug:        resultSlug,
-			InstalledAt: time.Now(),
-			SyncedAt:    time.Now(),
-		}
-		if saveErr := syncpkg.SaveSource(src); saveErr != nil {
-			ui.Warn(fmt.Sprintf("Failed to save sync source: %v", saveErr))
-		}
+	defaultName := ""
+	if updateSlug != "" {
+		defaultName = snapshot.SlugToTitle(updateSlug)
 	}
 
-	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, resultSlug)
-	installURL := fmt.Sprintf("openboot install %s/%s", stored.Username, resultSlug)
+	configName, configDesc, visibility, err := promptPushDetails(defaultName)
+	if err != nil {
+		return err
+	}
+
+	result, err := snapshot.Publish(context.Background(), snapshot.PublishOptions{
+		Snapshot:    snap,
+		Name:        configName,
+		Description: configDesc,
+		Visibility:  visibility,
+		Token:       stored.Token,
+		APIBase:     apiBase,
+		Slug:        updateSlug,
+	})
+	if err != nil {
+		return err
+	}
+
+	configURL := fmt.Sprintf("%s/%s/%s", apiBase, stored.Username, result.Slug)
+	installURL := fmt.Sprintf("openboot -u %s/%s", stored.Username, result.Slug)
 
 	fmt.Fprintln(os.Stderr)
-	if targetSlug != "" {
+	if result.Updated {
 		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config updated successfully!"))
 	} else {
-		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config published successfully!"))
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Future 'openboot snapshot --publish' will update this config."))
+		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config uploaded successfully!"))
 	}
 	fmt.Fprintln(os.Stderr)
 	showUploadedConfigInfo(visibility, configURL, installURL)
@@ -340,76 +263,26 @@ func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
 	return nil
 }
 
-func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibility, token, apiBase, slug string) (string, error) {
-	method := "POST"
-	reqBody := map[string]interface{}{
-		"name":        configName,
-		"description": configDesc,
-		"snapshot":    snap,
-		"visibility":  visibility,
+func promptUpdateOrCreate() (string, error) {
+	source, err := syncpkg.LoadSource()
+	if err != nil || source == nil || source.Username == "" || source.Slug == "" {
+		return "", nil
 	}
-	if slug != "" {
-		method = "PUT"
-		reqBody["config_slug"] = slug
-	}
-	bodyBytes, err := json.Marshal(reqBody)
+
+	label := fmt.Sprintf("@%s/%s", source.Username, source.Slug)
+	updateOption := fmt.Sprintf("Update existing config (%s)", label)
+	options := []string{updateOption, "Create new config"}
+
+	fmt.Fprintln(os.Stderr)
+	choice, err := ui.SelectOption("Upload mode:", options)
 	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
+		return "", fmt.Errorf("select upload mode: %w", err)
 	}
 
-	uploadURL := fmt.Sprintf("%s/api/configs/from-snapshot", apiBase)
-	req, err := http.NewRequest(method, uploadURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", fmt.Errorf("create upload request: %w", err)
+	if choice == updateOption {
+		return source.Slug, nil
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := httputil.Do(client, req)
-	if err != nil {
-		return "", fmt.Errorf("upload snapshot: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		if readErr != nil {
-			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, readErr)
-		}
-		if resp.StatusCode == http.StatusConflict {
-			var errResp struct {
-				Message string `json:"message"`
-				Error   string `json:"error"`
-			}
-			if jsonErr := json.Unmarshal(respBody, &errResp); jsonErr == nil {
-				msg := errResp.Message
-				if msg == "" {
-					msg = errResp.Error
-				}
-				if msg != "" && strings.Contains(strings.ToLower(msg), "maximum") {
-					return "", errors.New("config limit reached (max 20): delete an existing config with 'openboot delete <slug>' first")
-				}
-				if msg != "" {
-					return "", errors.New(msg)
-				}
-			}
-			return "", fmt.Errorf("conflict: %s", string(respBody))
-		}
-		return "", fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var result struct {
-		Slug string `json:"slug"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("parse upload response: %w", err)
-	}
-	resultSlug := result.Slug
-	if resultSlug == "" {
-		resultSlug = slug
-	}
-	return resultSlug, nil
+	return "", nil
 }
 
 func showUploadedConfigInfo(visibility, configURL, installURL string) {
@@ -421,7 +294,7 @@ func showUploadedConfigInfo(visibility, configURL, installURL string) {
 		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with others:"))
 		fmt.Fprintf(os.Stderr, "    %s\n", installURL)
 		fmt.Fprintln(os.Stderr)
-		if err := openBrowser(configURL); err != nil {
+		if err := exec.Command("open", configURL).Start(); err != nil {
 			ui.Warn(fmt.Sprintf("Could not open browser: %v", err))
 		}
 		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Opening in browser..."))
@@ -575,7 +448,10 @@ func printSnapshotList(items []string, max int) {
 }
 
 func runSnapshotImport(importPath string, dryRun bool) error {
-	snap, err := loadSnapshot(importPath)
+	if strings.HasPrefix(importPath, "https://") {
+		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
+	}
+	snap, err := snapshot.LoadFromSource(context.Background(), importPath)
 	if err != nil {
 		return err
 	}
@@ -624,49 +500,6 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 	}
 
 	return installer.RunFromSnapshot(buildImportConfig(edited, dryRun))
-}
-
-func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
-	localPath := importPath
-	if strings.HasPrefix(importPath, "http://") {
-		return nil, fmt.Errorf("insecure HTTP not allowed for snapshot import — use https:// instead")
-	}
-	if strings.HasPrefix(importPath, "https://") {
-		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
-		client := &http.Client{Timeout: 30 * time.Second}
-		req, err := http.NewRequest("GET", importPath, nil)
-		if err != nil {
-			return nil, fmt.Errorf("download snapshot request: %w", err)
-		}
-		resp, err := httputil.Do(client, req)
-		if err != nil {
-			return nil, fmt.Errorf("download snapshot: %w", err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
-		}
-		tmpFile := filepath.Join(os.TempDir(), "openboot-snapshot-import.json")
-		data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
-		if err != nil {
-			return nil, fmt.Errorf("read snapshot response: %w", err)
-		}
-		if err := os.WriteFile(tmpFile, data, 0600); err != nil {
-			return nil, fmt.Errorf("save snapshot: %w", err)
-		}
-		defer os.Remove(tmpFile)
-		localPath = tmpFile
-	}
-
-	snap, err := snapshot.LoadFile(localPath)
-	if err != nil {
-		return nil, err
-	}
-
-	catalogMatch := snapshot.MatchPackages(snap)
-	snap.CatalogMatch = *catalogMatch
-	snap.MatchedPreset = snapshot.DetectBestPreset(snap)
-	return snap, nil
 }
 
 func showRestoreInfo(snap *snapshot.Snapshot, source string) {
