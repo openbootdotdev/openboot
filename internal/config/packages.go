@@ -68,6 +68,21 @@ func GetPackagesForPreset(presetName string) map[string]bool {
 	return selected
 }
 
+// GetCategories returns a deep copy of the package catalog under RLock.
+// Callers must not modify the returned slice.
+func GetCategories() []Category {
+	categoriesMu.RLock()
+	defer categoriesMu.RUnlock()
+	result := make([]Category, len(Categories))
+	for i, cat := range Categories {
+		pkgs := make([]Package, len(cat.Packages))
+		copy(pkgs, cat.Packages)
+		result[i] = cat
+		result[i].Packages = pkgs
+	}
+	return result
+}
+
 func GetAllPackageNames() []string {
 	categoriesMu.RLock()
 	defer categoriesMu.RUnlock()

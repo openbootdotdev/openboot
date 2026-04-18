@@ -74,7 +74,7 @@ type SnapshotEditorModel struct {
 func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 	// Build a lookup from the embedded catalog for package descriptions.
 	descMap := make(map[string]string)
-	for _, cat := range config.Categories {
+	for _, cat := range config.GetCategories() {
 		for _, pkg := range cat.Packages {
 			descMap[pkg.Name] = pkg.Description
 		}

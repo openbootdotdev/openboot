@@ -43,7 +43,7 @@ func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallS
 	}
 
 	seen := make(map[string]bool)
-	for _, cat := range config.Categories {
+	for _, cat := range config.GetCategories() {
 		for _, pkg := range cat.Packages {
 			if st.SelectedPkgs[pkg.Name] {
 				seen[pkg.Name] = true

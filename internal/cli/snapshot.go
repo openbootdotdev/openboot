@@ -709,7 +709,7 @@ func confirmInstallation(edited *snapshot.Snapshot, dryRun bool) (bool, error) {
 
 func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 	catalogSet := make(map[string]bool)
-	for _, cat := range config.Categories {
+	for _, cat := range config.GetCategories() {
 		for _, pkg := range cat.Packages {
 			catalogSet[pkg.Name] = true
 		}

@@ -766,7 +766,7 @@ func TestSnapshotEditorAddedItemVisualBadge(t *testing.T) {
 func TestNewSnapshotEditorDescriptionFromCatalog(t *testing.T) {
 	// Find a formula in the embedded catalog.
 	var catalogPkg, catalogDesc string
-	for _, cat := range config.Categories {
+	for _, cat := range config.GetCategories() {
 		for _, pkg := range cat.Packages {
 			if !pkg.IsCask && !pkg.IsNpm {
 				catalogPkg = pkg.Name

@@ -129,7 +129,7 @@ type SelectorModel struct {
 
 func NewSelector(presetName string) SelectorModel {
 	return SelectorModel{
-		categories:      config.Categories,
+		categories:      config.GetCategories(),
 		selected:        config.GetPackagesForPreset(presetName),
 		selectedOnline:  make(map[string]config.Package),
 		activeTab:       0,

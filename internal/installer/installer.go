@@ -349,7 +349,7 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 
 func showCompletion(opts *config.InstallOptions, st *config.InstallState) {
 	var cliCount, caskCount, npmCount int
-	for _, cat := range config.Categories {
+	for _, cat := range config.GetCategories() {
 		for _, pkg := range cat.Packages {
 			if st.SelectedPkgs[pkg.Name] {
 				if pkg.IsNpm {

@@ -8,7 +8,7 @@ import (
 // Returns a CatalogMatch with matched/unmatched packages and match rate.
 func MatchPackages(snap *Snapshot) *CatalogMatch {
 	catalogSet := make(map[string]bool)
-	for _, cat := range config.Categories {
+	for _, cat := range config.GetCategories() {
 		for _, pkg := range cat.Packages {
 			catalogSet[pkg.Name] = true
 		}
