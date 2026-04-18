@@ -38,17 +38,29 @@ func checkUpgradeHint(resp *http.Response) {
 var isAllowedAPIURL = system.IsAllowedAPIURL
 
 // clientVersion is set by the CLI at startup via SetClientVersion.
-var clientVersion = "dev"
+// Guarded by clientVersionMu; RoundTrip reads it concurrently via HTTP goroutines.
+var (
+	clientVersion   = "dev"
+	clientVersionMu sync.RWMutex
+)
 
 // SetClientVersion sets the version string sent in X-OpenBoot-Version headers.
-func SetClientVersion(v string) { clientVersion = v }
+func SetClientVersion(v string) {
+	clientVersionMu.Lock()
+	clientVersion = v
+	clientVersionMu.Unlock()
+}
 
 // versionTransport wraps http.DefaultTransport to inject the version header.
+// It clones the request before modification per http.RoundTripper contract.
 type versionTransport struct{ base http.RoundTripper }
 
 func (t *versionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("X-OpenBoot-Version", clientVersion)
-	return t.base.RoundTrip(req)
+	r2 := req.Clone(req.Context())
+	clientVersionMu.RLock()
+	r2.Header.Set("X-OpenBoot-Version", clientVersion)
+	clientVersionMu.RUnlock()
+	return t.base.RoundTrip(r2)
 }
 
 var remoteHTTPClient = &http.Client{
@@ -93,7 +105,8 @@ type Config struct {
 	SnapshotGit         *SnapshotGitConfig // from snapshot capture
 	SnapshotMacOS       []RemoteMacOSPref  // from snapshot capture
 	SnapshotDotfiles    string             // from snapshot capture
-	SnapshotShellTheme  string             // from snapshot capture
+	SnapshotShellOhMyZsh bool              // from snapshot capture
+	SnapshotShellTheme   string            // from snapshot capture
 	SnapshotShellPlugins []string          // from snapshot capture
 }
 
@@ -127,6 +140,7 @@ type InstallState struct {
 	SnapshotGit          *SnapshotGitConfig
 	SnapshotMacOS        []RemoteMacOSPref
 	SnapshotDotfiles     string
+	SnapshotShellOhMyZsh bool
 	SnapshotShellTheme   string
 	SnapshotShellPlugins []string
 }
@@ -162,6 +176,7 @@ func (c *Config) ToInstallState() *InstallState {
 		SnapshotGit:          c.SnapshotGit,
 		SnapshotMacOS:        c.SnapshotMacOS,
 		SnapshotDotfiles:     c.SnapshotDotfiles,
+		SnapshotShellOhMyZsh: c.SnapshotShellOhMyZsh,
 		SnapshotShellTheme:   c.SnapshotShellTheme,
 		SnapshotShellPlugins: c.SnapshotShellPlugins,
 	}
@@ -177,6 +192,7 @@ func (c *Config) ApplyState(s *InstallState) {
 	c.SnapshotGit = s.SnapshotGit
 	c.SnapshotMacOS = s.SnapshotMacOS
 	c.SnapshotDotfiles = s.SnapshotDotfiles
+	c.SnapshotShellOhMyZsh = s.SnapshotShellOhMyZsh
 	c.SnapshotShellTheme = s.SnapshotShellTheme
 	c.SnapshotShellPlugins = s.SnapshotShellPlugins
 }

@@ -321,8 +321,8 @@ func PlanFromSnapshot(opts *config.InstallOptions, st *config.InstallState) Inst
 		plan.DotfilesURL = st.SnapshotDotfiles
 	}
 
-	// Shell: restore Oh-My-Zsh and theme/plugins from snapshot unless explicitly skipped.
-	if opts.Shell != "skip" {
+	// Shell: restore exactly what the snapshot recorded; don't install OMZ if it wasn't there.
+	if opts.Shell != "skip" && st.SnapshotShellOhMyZsh {
 		plan.InstallOhMyZsh = true
 		plan.ShellTheme = st.SnapshotShellTheme
 		plan.ShellPlugins = st.SnapshotShellPlugins
