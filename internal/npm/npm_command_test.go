@@ -1,53 +1,43 @@
 package npm
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupFakeNodeNpm(t *testing.T) string {
+// fakeRunner routes npm invocations through a Go handler, avoiding fork/exec.
+type fakeRunner struct {
+	handler func(args []string) ([]byte, error)
+}
+
+func (f *fakeRunner) Output(args ...string) ([]byte, error) {
+	return f.handler(args)
+}
+
+func (f *fakeRunner) CombinedOutput(args ...string) ([]byte, error) {
+	return f.handler(args)
+}
+
+func withFakeNpm(t *testing.T, handler func(args []string) ([]byte, error)) {
 	t.Helper()
-	tmpDir := t.TempDir()
-	npmPath := filepath.Join(tmpDir, "npm")
-	nodePath := filepath.Join(tmpDir, "node")
-
-	npmScript := "#!/bin/sh\n" +
-		"if [ \"$1\" = \"list\" ]; then\n" +
-		"  echo /usr/local/lib/node_modules\n" +
-		"  echo /usr/local/lib/node_modules/npm\n" +
-		"  echo /usr/local/lib/node_modules/corepack\n" +
-		"  echo /usr/local/lib/node_modules/typescript\n" +
-		"  echo /usr/local/lib/node_modules/@scope/pkg\n" +
-		"  exit 0\n" +
-		"fi\n" +
-		"if [ \"$1\" = \"install\" ]; then\n" +
-		"  if [ -n \"$NPM_CALLS_FILE\" ]; then\n" +
-		"    echo \"$@\" >> \"$NPM_CALLS_FILE\"\n" +
-		"  fi\n" +
-		"  echo installed\n" +
-		"  exit 0\n" +
-		"fi\n" +
-		"exit 0\n"
-
-	nodeScript := "#!/bin/sh\n" +
-		"echo v22.1.0\n"
-
-	require.NoError(t, os.WriteFile(npmPath, []byte(npmScript), 0755))
-	require.NoError(t, os.WriteFile(nodePath, []byte(nodeScript), 0755))
-
-	originalPath := os.Getenv("PATH")
-	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+originalPath)
-
-	return tmpDir
+	t.Cleanup(SetRunner(&fakeRunner{handler: handler}))
 }
 
 func TestGetInstalledPackages_ParsesList(t *testing.T) {
-	setupFakeNodeNpm(t)
+	withFakeNpm(t, func(args []string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "list" {
+			// npm list -g --parseable output: paths, one per line.
+			return []byte(`/usr/local/lib/node_modules
+/usr/local/lib/node_modules/npm
+/usr/local/lib/node_modules/corepack
+/usr/local/lib/node_modules/typescript
+/usr/local/lib/node_modules/@scope/pkg
+`), nil
+		}
+		return nil, nil
+	})
 
 	packages, err := GetInstalledPackages()
 	require.NoError(t, err)
@@ -58,7 +48,9 @@ func TestGetInstalledPackages_ParsesList(t *testing.T) {
 }
 
 func TestGetNodeVersion_ParsesVersion(t *testing.T) {
-	setupFakeNodeNpm(t)
+	orig := nodeVersionOutput
+	t.Cleanup(func() { nodeVersionOutput = orig })
+	nodeVersionOutput = func() ([]byte, error) { return []byte("v22.1.0\n"), nil }
 
 	version, err := GetNodeVersion()
 	require.NoError(t, err)
@@ -66,19 +58,29 @@ func TestGetNodeVersion_ParsesVersion(t *testing.T) {
 }
 
 func TestInstall_FiltersInstalledPackages(t *testing.T) {
-	setupFakeNodeNpm(t)
-
-	callsFile := filepath.Join(t.TempDir(), "npm_calls.txt")
-	t.Setenv("NPM_CALLS_FILE", callsFile)
+	var installCalls [][]string
+	withFakeNpm(t, func(args []string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "list" {
+			// typescript and @scope/pkg already installed; eslint is not.
+			return []byte(`/usr/local/lib/node_modules
+/usr/local/lib/node_modules/typescript
+/usr/local/lib/node_modules/@scope/pkg
+`), nil
+		}
+		if len(args) > 0 && args[0] == "install" {
+			installCalls = append(installCalls, append([]string(nil), args...))
+			return []byte("installed"), nil
+		}
+		return nil, nil
+	})
 
 	err := Install([]string{"typescript", "eslint", "@scope/pkg"}, false)
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(callsFile)
-	require.NoError(t, err)
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	require.GreaterOrEqual(t, len(lines), 1)
-	assert.Contains(t, lines[0], "install -g eslint")
-	assert.NotContains(t, lines[0], "typescript")
-	assert.NotContains(t, lines[0], "@scope/pkg")
+	require.Len(t, installCalls, 1, "expected one batch install call")
+	call := installCalls[0]
+	// Should install only eslint (other two are already present).
+	assert.Contains(t, call, "eslint")
+	assert.NotContains(t, call, "typescript")
+	assert.NotContains(t, call, "@scope/pkg")
 }

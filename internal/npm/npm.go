@@ -15,9 +15,14 @@ func IsAvailable() bool {
 	return err == nil
 }
 
+// nodeVersionOutput returns the raw output of `node --version`. Swappable
+// for tests without PATH manipulation.
+var nodeVersionOutput = func() ([]byte, error) {
+	return exec.Command("node", "--version").Output()
+}
+
 func GetNodeVersion() (int, error) {
-	cmd := exec.Command("node", "--version")
-	output, err := cmd.Output()
+	output, err := nodeVersionOutput()
 	if err != nil {
 		return 0, err
 	}
@@ -40,8 +45,7 @@ func GetNodeVersion() (int, error) {
 func GetInstalledPackages() (map[string]bool, error) {
 	packages := make(map[string]bool)
 
-	cmd := exec.Command("npm", "list", "-g", "--depth=0", "--parseable")
-	output, err := cmd.Output()
+	output, err := runner.Output("list", "-g", "--depth=0", "--parseable")
 	if err != nil {
 		if len(output) > 0 {
 			// npm list exits non-zero when packages have issues, but still
@@ -140,8 +144,7 @@ func Install(packages []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(toInstall)))
 
 	args := append([]string{"install", "-g"}, toInstall...)
-	cmd := exec.Command("npm", args...)
-	batchOutput, err := cmd.CombinedOutput()
+	batchOutput, err := runner.CombinedOutput(args...)
 
 	var failed []string
 	if err == nil {
@@ -217,8 +220,7 @@ func Uninstall(packages []string, dryRun bool) error {
 
 	var failed []string
 	for _, pkg := range packages {
-		cmd := exec.Command("npm", "uninstall", "-g", pkg)
-		if output, err := cmd.CombinedOutput(); err != nil {
+		if output, err := runner.CombinedOutput("uninstall", "-g", pkg); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to uninstall %s: %s", pkg, strings.TrimSpace(string(output))))
 			failed = append(failed, pkg)
 		} else {
@@ -232,18 +234,22 @@ func Uninstall(packages []string, dryRun bool) error {
 	return nil
 }
 
+// retryBackoff is the multiplier used between install retry attempts.
+// Swappable for tests that want to exercise the retry loop without
+// waiting seconds.
+var retryBackoff = 2 * time.Second
+
 func installNpmPackageWithRetry(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cmd := exec.Command("npm", "install", "-g", pkg)
-		output, err := cmd.CombinedOutput()
+		output, err := runner.CombinedOutput("install", "-g", pkg)
 		if err == nil {
 			return ""
 		}
 
 		errMsg := parseNpmError(string(output))
 		if attempt < maxAttempts && isNpmRetryableError(errMsg) {
-			delay := time.Duration(attempt) * 2 * time.Second
+			delay := time.Duration(attempt) * retryBackoff
 			time.Sleep(delay)
 			continue
 		}
