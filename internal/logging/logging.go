@@ -130,7 +130,10 @@ func Init(version string, verbose bool) (func(), error) {
 	}
 
 	slog.SetDefault(slog.New(handler))
-	slog.Info("session_start",
+	// os.Args is user-provided by design — this is an audit record of how the
+	// CLI was invoked. slog's JSON/text handlers quote attribute values, so
+	// there is no injection path into the surrounding log line.
+	slog.Info("session_start", //nolint:gosec // G706: os.Args is the audit subject, not untrusted taint
 		"version", version,
 		"pid", os.Getpid(),
 		"args", os.Args,
