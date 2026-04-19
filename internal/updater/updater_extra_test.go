@@ -18,16 +18,23 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// GetLatestVersion — mock HTTP server (via fetchLatestVersion injection)
+// GetLatestVersion — mock transport (via fetchLatestVersion injection)
 // ---------------------------------------------------------------------------
 
-// newTestFetcher returns a fetchLatestVersion-compatible func that calls the
-// provided test server and decodes the Release JSON, mimicking the real
-// GetLatestVersion logic without touching the package-level singleton client.
-func newTestFetcher(srv *httptest.Server) func() (string, error) {
-	client := srv.Client()
+type updaterMockRT struct{ handler http.Handler }
+
+func (m *updaterMockRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	m.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+// newTestFetcher returns a fetchLatestVersion-compatible func that uses an
+// in-memory transport — no port binding required.
+func newTestFetcher(handler http.Handler) func() (string, error) {
+	client := &http.Client{Transport: &updaterMockRT{handler: handler}}
 	return func() (string, error) {
-		resp, err := client.Get(srv.URL)
+		resp, err := client.Get("https://api.github.com/repos/openbootdotdev/openboot/releases/latest")
 		if err != nil {
 			return "", err
 		}
@@ -44,14 +51,11 @@ func newTestFetcher(srv *httptest.Server) func() (string, error) {
 }
 
 func TestGetLatestVersion_Success(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = newTestFetcher(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(Release{TagName: "v1.5.0"})
 	}))
-	defer srv.Close()
-
-	origFetch := fetchLatestVersion
-	fetchLatestVersion = newTestFetcher(srv)
 	defer func() { fetchLatestVersion = origFetch }()
 
 	version, err := fetchLatestVersion()
@@ -60,13 +64,10 @@ func TestGetLatestVersion_Success(t *testing.T) {
 }
 
 func TestGetLatestVersion_NonOKResponse(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = newTestFetcher(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
-	defer srv.Close()
-
-	origFetch := fetchLatestVersion
-	fetchLatestVersion = newTestFetcher(srv)
 	defer func() { fetchLatestVersion = origFetch }()
 
 	_, err := fetchLatestVersion()
@@ -75,14 +76,11 @@ func TestGetLatestVersion_NonOKResponse(t *testing.T) {
 }
 
 func TestGetLatestVersion_InvalidJSON(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	origFetch := fetchLatestVersion
+	fetchLatestVersion = newTestFetcher(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte("{not json"))
 	}))
-	defer srv.Close()
-
-	origFetch := fetchLatestVersion
-	fetchLatestVersion = newTestFetcher(srv)
 	defer func() { fetchLatestVersion = origFetch }()
 
 	_, err := fetchLatestVersion()

@@ -21,8 +21,11 @@ import (
 // constant whenever the installer script changes upstream.
 const knownOMZInstallHash = "21043aec5b791ce4835479dc33ba2f92155946aeafd54604a8c83522627cc803"
 
-// omzInstallURL is a var so tests can redirect it to a local httptest server.
+// omzInstallURL is a var so tests can redirect it without a real server.
 var omzInstallURL = "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
+
+// omzHTTPClient is a var so tests can inject a mock transport.
+var omzHTTPClient *http.Client = http.DefaultClient
 
 var shellIdentifierRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
@@ -60,7 +63,7 @@ func InstallOhMyZsh(dryRun bool) error {
 	if err != nil {
 		return fmt.Errorf("create omz install request: %w", err)
 	}
-	resp, err := httputil.Do(http.DefaultClient, req)
+	resp, err := httputil.Do(omzHTTPClient, req)
 	if err != nil {
 		return fmt.Errorf("download omz install script: %w", err)
 	}

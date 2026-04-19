@@ -77,8 +77,11 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 //	curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sha256sum
 const knownBrewInstallHash = "dfd5145fe2aa5956a600e35848765273f5798ce6def01bd08ecec088a1268d91"
 
-// brewInstallURL is a var so tests can redirect it to a local httptest server.
+// brewInstallURL is a var so tests can redirect it without a real server.
 var brewInstallURL = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+
+// brewHTTPClient is a var so tests can inject a mock transport.
+var brewHTTPClient *http.Client = http.DefaultClient
 
 func InstallHomebrew() error {
 	// Download the installer via httputil.Do so rate-limit handling is applied.
@@ -86,7 +89,7 @@ func InstallHomebrew() error {
 	if err != nil {
 		return fmt.Errorf("create homebrew install request: %w", err)
 	}
-	resp, err := httputil.Do(http.DefaultClient, req)
+	resp, err := httputil.Do(brewHTTPClient, req)
 	if err != nil {
 		return fmt.Errorf("download homebrew install script: %w", err)
 	}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type cfgMockRT struct{ handler http.Handler }
+
+func (m *cfgMockRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	m.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+type cfgErrRT struct{ err error }
+
+func (e *cfgErrRT) RoundTrip(*http.Request) (*http.Response, error) { return nil, e.err }
+
+// withMockRemoteClient patches remoteHTTPClient for one test without binding ports.
+func withMockRemoteClient(t *testing.T, handler http.Handler) {
+	t.Helper()
+	orig := remoteHTTPClient
+	remoteHTTPClient = &http.Client{Transport: &cfgMockRT{handler: handler}}
+	t.Cleanup(func() { remoteHTTPClient = orig })
+}
 
 func TestGetPreset(t *testing.T) {
 	tests := []struct {
@@ -77,20 +98,13 @@ func TestFetchRemoteConfig_PublicConfig_NoToken(t *testing.T) {
 		DotfilesRepo: "https://github.com/testuser/dotfiles",
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/myconfig/config", r.URL.Path)
 		assert.Empty(t, r.Header.Get("Authorization"))
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/myconfig", "")
 	require.NoError(t, err)
@@ -101,19 +115,12 @@ func TestFetchRemoteConfig_PublicConfig_NoToken(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_PrivateConfig_NoToken(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/private/config", r.URL.Path)
 		assert.Empty(t, r.Header.Get("Authorization"))
 
 		w.WriteHeader(http.StatusForbidden)
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/private", "")
 	assert.Error(t, err)
@@ -130,20 +137,13 @@ func TestFetchRemoteConfig_PrivateConfig_WithValidToken(t *testing.T) {
 		Preset:   "full",
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/private/config", r.URL.Path)
 		assert.Equal(t, "Bearer obt_valid_token", r.Header.Get("Authorization"))
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/private", "obt_valid_token")
 	require.NoError(t, err)
@@ -153,19 +153,12 @@ func TestFetchRemoteConfig_PrivateConfig_WithValidToken(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_PrivateConfig_WithInvalidToken(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/private/config", r.URL.Path)
 		assert.Equal(t, "Bearer obt_invalid_token", r.Header.Get("Authorization"))
 
 		w.WriteHeader(http.StatusForbidden)
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/private", "obt_invalid_token")
 	assert.Error(t, err)
@@ -175,17 +168,10 @@ func TestFetchRemoteConfig_PrivateConfig_WithInvalidToken(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_ConfigNotFound(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/nonexistent/config", r.URL.Path)
 		w.WriteHeader(http.StatusNotFound)
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/nonexistent", "")
 	assert.Error(t, err)
@@ -200,7 +186,7 @@ func TestFetchRemoteConfig_DefaultSlug(t *testing.T) {
 		Name:     "Default Config",
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusNotFound)
@@ -212,13 +198,6 @@ func TestFetchRemoteConfig_DefaultSlug(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser", "")
 	require.NoError(t, err)
@@ -227,17 +206,10 @@ func TestFetchRemoteConfig_DefaultSlug(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("invalid json"))
+		w.Write([]byte("invalid json")) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/myconfig", "")
 	assert.Error(t, err)
@@ -246,7 +218,9 @@ func TestFetchRemoteConfig_InvalidJSON(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_NetworkError(t *testing.T) {
-	t.Setenv("OPENBOOT_API_URL", "http://localhost:9999")
+	orig := remoteHTTPClient
+	remoteHTTPClient = &http.Client{Transport: &cfgErrRT{err: errors.New("connection refused")}}
+	t.Cleanup(func() { remoteHTTPClient = orig })
 
 	result, err := FetchRemoteConfig("testuser/myconfig", "")
 	assert.Error(t, err)
@@ -262,7 +236,7 @@ func TestFetchRemoteConfig_AliasResolution(t *testing.T) {
 		Preset:   "developer",
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusOK)
@@ -272,13 +246,6 @@ func TestFetchRemoteConfig_AliasResolution(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser", "")
 	require.NoError(t, err)
@@ -295,7 +262,7 @@ func TestFetchRemoteConfig_NoAliasFallsBackToDefault(t *testing.T) {
 		Preset:   "minimal",
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusNotFound)
@@ -307,13 +274,6 @@ func TestFetchRemoteConfig_NoAliasFallsBackToDefault(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser", "")
 	require.NoError(t, err)
@@ -322,7 +282,7 @@ func TestFetchRemoteConfig_NoAliasFallsBackToDefault(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_NoAliasNoDefault(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/configs/alias/testuser":
 			w.WriteHeader(http.StatusNotFound)
@@ -332,13 +292,6 @@ func TestFetchRemoteConfig_NoAliasNoDefault(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser", "")
 	assert.Error(t, err)
@@ -510,17 +463,10 @@ func TestFetchRemoteConfig_ObjectArrayFormat(t *testing.T) {
 		"dotfiles_repo": "https://github.com/testuser/dotfiles",
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/myconfig", "")
 	require.NoError(t, err)
@@ -643,17 +589,10 @@ func TestRemoteConfig_Validate_PostInstall(t *testing.T) {
 }
 
 func TestFetchRemoteConfig_ExplicitSlugNoFallback(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/testuser/default/config", r.URL.Path)
 		w.WriteHeader(http.StatusNotFound)
 	}))
-	defer server.Close()
-
-	originalClient := remoteHTTPClient
-	remoteHTTPClient = server.Client()
-	defer func() { remoteHTTPClient = originalClient }()
-
-	t.Setenv("OPENBOOT_API_URL", server.URL)
 
 	result, err := FetchRemoteConfig("testuser/default", "")
 	assert.Error(t, err)

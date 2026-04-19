@@ -12,6 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type sysMockRT struct{ handler http.Handler }
+
+func (m *sysMockRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	m.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+// withMockBrewClient patches brewHTTPClient without binding any port.
+func withMockBrewClient(t *testing.T, handler http.Handler) {
+	t.Helper()
+	orig := brewHTTPClient
+	brewHTTPClient = &http.Client{Transport: &sysMockRT{handler: handler}}
+	t.Cleanup(func() { brewHTTPClient = orig })
+}
+
 func TestArchitecture(t *testing.T) {
 	arch := Architecture()
 	assert.Equal(t, runtime.GOARCH, arch)
@@ -395,14 +411,9 @@ func TestRunCommandOutput_CommandNotFound(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInstallHomebrew_HTTPError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockBrewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	t.Cleanup(srv.Close)
-
-	orig := brewInstallURL
-	brewInstallURL = srv.URL
-	t.Cleanup(func() { brewInstallURL = orig })
 
 	err := InstallHomebrew()
 	require.Error(t, err)
@@ -410,15 +421,10 @@ func TestInstallHomebrew_HTTPError(t *testing.T) {
 }
 
 func TestInstallHomebrew_SHA256Mismatch(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockBrewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("#!/bin/bash\necho fake-script")) //nolint:errcheck
 	}))
-	t.Cleanup(srv.Close)
-
-	orig := brewInstallURL
-	brewInstallURL = srv.URL
-	t.Cleanup(func() { brewInstallURL = orig })
 
 	err := InstallHomebrew()
 	require.Error(t, err)

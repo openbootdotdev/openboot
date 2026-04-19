@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +14,44 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// ---------------------------------------------------------------------------
+// Transport mocks — no port binding.
+// ---------------------------------------------------------------------------
+
+type authMockRT struct{ handler http.Handler }
+
+func (m *authMockRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	m.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+type authErrRT struct{ err error }
+
+func (e *authErrRT) RoundTrip(*http.Request) (*http.Response, error) { return nil, e.err }
+
+// withMockHTTPClient patches the package-level httpClient for the test.
+func withMockHTTPClient(t *testing.T, handler http.Handler) {
+	t.Helper()
+	orig := httpClient
+	httpClient = &http.Client{Transport: &authMockRT{handler: handler}}
+	t.Cleanup(func() { httpClient = orig })
+}
+
+func withErrHTTPClient(t *testing.T, err error) {
+	t.Helper()
+	orig := httpClient
+	httpClient = &http.Client{Transport: &authErrRT{err: err}}
+	t.Cleanup(func() { httpClient = orig })
+}
+
+// fakeBase is a valid-looking https URL that the mock transport intercepts.
+const fakeBase = "https://openboot.test"
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 func withFastPoll(t *testing.T) {
 	t.Helper()
@@ -29,58 +67,57 @@ func withNoBrowser(t *testing.T) {
 	t.Cleanup(func() { openBrowserFunc = orig })
 }
 
+// ---------------------------------------------------------------------------
+// startAuthSession
+// ---------------------------------------------------------------------------
+
 func TestStartAuthSession_Success(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "/api/auth/cli/start", r.URL.Path)
-
 		resp := cliStartResponse{CodeID: "code_id_12345", Code: "ABCD1234"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	codeID, code, err := startAuthSession(server.URL)
+	codeID, code, err := startAuthSession(fakeBase)
 	require.NoError(t, err)
 	assert.Equal(t, "code_id_12345", codeID)
 	assert.Equal(t, "ABCD1234", code)
 }
 
 func TestStartAuthSession_ReturnsServerCode(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliStartResponse{CodeID: "some_id", Code: "SERVERCODE"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	_, code, err := startAuthSession(server.URL)
+	_, code, err := startAuthSession(fakeBase)
 	require.NoError(t, err)
 	assert.Equal(t, "SERVERCODE", code, "code must come from the server, not be client-generated")
 }
 
 func TestStartAuthSession_NoRequestBody(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		assert.Empty(t, body, "start request must not send a body")
 		resp := cliStartResponse{CodeID: "id", Code: "CODE1234"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	_, _, err := startAuthSession(server.URL)
+	_, _, err := startAuthSession(fakeBase)
 	require.NoError(t, err)
 }
 
 func TestStartAuthSession_HTTPError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("server error"))
+		w.Write([]byte("server error")) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	codeID, code, err := startAuthSession(server.URL)
+	codeID, code, err := startAuthSession(fakeBase)
 	assert.Error(t, err)
 	assert.Equal(t, "", codeID)
 	assert.Equal(t, "", code)
@@ -88,13 +125,12 @@ func TestStartAuthSession_HTTPError(t *testing.T) {
 }
 
 func TestStartAuthSession_InvalidResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("invalid json {"))
+		w.Write([]byte("invalid json {")) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	codeID, code, err := startAuthSession(server.URL)
+	codeID, code, err := startAuthSession(fakeBase)
 	assert.Error(t, err)
 	assert.Equal(t, "", codeID)
 	assert.Equal(t, "", code)
@@ -102,38 +138,33 @@ func TestStartAuthSession_InvalidResponse(t *testing.T) {
 }
 
 func TestStartAuthSession_MissingCodeID(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]interface{}{"code": "ABCD1234"} // missing code_id
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	_, _, err := startAuthSession(server.URL)
+	_, _, err := startAuthSession(fakeBase)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "incomplete")
 }
 
 func TestStartAuthSession_MissingCode(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]interface{}{"code_id": "some_id"} // missing code
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	_, _, err := startAuthSession(server.URL)
+	_, _, err := startAuthSession(fakeBase)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "incomplete")
 }
 
 func TestStartAuthSession_NetworkError(t *testing.T) {
-	// Use a closed server to get an immediate connection-refused error,
-	// instead of waiting ~5s for a DNS lookup of a bogus hostname.
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	server.Close()
+	withErrHTTPClient(t, errors.New("connection refused"))
 
-	_, _, err := startAuthSession(server.URL)
+	_, _, err := startAuthSession(fakeBase)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "start auth session")
 }
@@ -144,21 +175,24 @@ func TestStartAuthSession_BadURL(t *testing.T) {
 }
 
 func TestStartAuthSession_StatusUnauthorized(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
-	defer server.Close()
 
-	_, _, err := startAuthSession(server.URL)
+	_, _, err := startAuthSession(fakeBase)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "status 401")
 }
+
+// ---------------------------------------------------------------------------
+// pollForApproval / pollOnce
+// ---------------------------------------------------------------------------
 
 func TestPollForApproval_Approved(t *testing.T) {
 	withFastPoll(t)
 
 	callCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		resp := cliPollResponse{
 			Status:    "approved",
@@ -169,9 +203,8 @@ func TestPollForApproval_Approved(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, err := pollForApproval(server.URL, "code_id_123")
+	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "approved", result.Status)
@@ -183,14 +216,13 @@ func TestPollForApproval_Approved(t *testing.T) {
 func TestPollForApproval_Expired(t *testing.T) {
 	withFastPoll(t)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{Status: "expired"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, err := pollForApproval(server.URL, "code_id_123")
+	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "authorization code expired")
@@ -200,7 +232,7 @@ func TestPollForApproval_Pending(t *testing.T) {
 	withFastPoll(t)
 
 	callCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		if callCount < 3 {
 			resp := cliPollResponse{Status: "pending"}
@@ -217,9 +249,8 @@ func TestPollForApproval_Pending(t *testing.T) {
 			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 		}
 	}))
-	defer server.Close()
 
-	result, err := pollForApproval(server.URL, "code_id_123")
+	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "approved", result.Status)
@@ -236,15 +267,14 @@ func TestPollForApproval_TimeoutBehavior(t *testing.T) {
 		pollInterval = origInterval
 	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{Status: "pending"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
 	start := time.Now()
-	result, err := pollForApproval(server.URL, "code_id_123")
+	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
 	elapsed := time.Since(start)
 
 	assert.Error(t, err)
@@ -264,20 +294,19 @@ func TestPollForApproval_InvalidResponse(t *testing.T) {
 		pollInterval = origInterval
 	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("invalid json {"))
+		w.Write([]byte("invalid json {")) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, err := pollForApproval(server.URL, "code_id_123")
+	result, err := pollForApproval(fakeBase+"/poll", "code_id_123")
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "timed out")
 }
 
 func TestPollOnce_Approved(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{
 			Status:    "approved",
 			Token:     "obt_token_123",
@@ -287,9 +316,8 @@ func TestPollOnce_Approved(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, done, err := pollOnce(server.URL)
+	result, done, err := pollOnce(fakeBase + "/poll/code_id_123")
 	require.NoError(t, err)
 	assert.True(t, done)
 	assert.NotNil(t, result)
@@ -297,28 +325,26 @@ func TestPollOnce_Approved(t *testing.T) {
 }
 
 func TestPollOnce_Pending(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{Status: "pending"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, done, err := pollOnce(server.URL)
+	result, done, err := pollOnce(fakeBase + "/poll/code_id_123")
 	assert.NoError(t, err)
 	assert.False(t, done)
 	assert.Nil(t, result)
 }
 
 func TestPollOnce_Expired(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := cliPollResponse{Status: "expired"}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, done, err := pollOnce(server.URL)
+	result, done, err := pollOnce(fakeBase + "/poll/code_id_123")
 	assert.Error(t, err)
 	assert.False(t, done)
 	assert.Nil(t, result)
@@ -326,27 +352,30 @@ func TestPollOnce_Expired(t *testing.T) {
 }
 
 func TestPollOnce_NetworkError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	server.Close()
+	// pollOnce swallows transport errors and returns (nil, false, nil).
+	withErrHTTPClient(t, errors.New("connection refused"))
 
-	result, done, err := pollOnce(server.URL)
+	result, done, err := pollOnce(fakeBase + "/poll/code_id_123")
 	assert.NoError(t, err)
 	assert.False(t, done)
 	assert.Nil(t, result)
 }
 
 func TestPollOnce_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("invalid json {"))
+		w.Write([]byte("invalid json {")) //nolint:errcheck // test helper
 	}))
-	defer server.Close()
 
-	result, done, err := pollOnce(server.URL)
+	result, done, err := pollOnce(fakeBase + "/poll/code_id_123")
 	assert.NoError(t, err)
 	assert.False(t, done)
 	assert.Nil(t, result)
 }
+
+// ---------------------------------------------------------------------------
+// LoginInteractive
+// ---------------------------------------------------------------------------
 
 func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
 	withFastPoll(t)
@@ -357,7 +386,7 @@ func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
 	startCalled := false
 	pollCalled := false
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/auth/cli/start":
 			startCalled = true
@@ -376,9 +405,8 @@ func TestLoginInteractive_SuccessRFC3339(t *testing.T) {
 			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 		}
 	}))
-	defer server.Close()
 
-	auth, err := LoginInteractive(server.URL)
+	auth, err := LoginInteractive(fakeBase)
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 	assert.Equal(t, "obt_token_123", auth.Token)
@@ -396,7 +424,7 @@ func TestLoginInteractive_SuccessSQLiteFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/auth/cli/start":
 			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
@@ -413,9 +441,8 @@ func TestLoginInteractive_SuccessSQLiteFormat(t *testing.T) {
 			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 		}
 	}))
-	defer server.Close()
 
-	auth, err := LoginInteractive(server.URL)
+	auth, err := LoginInteractive(fakeBase)
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 	assert.Equal(t, "obt_token_123", auth.Token)
@@ -427,12 +454,11 @@ func TestLoginInteractive_StartAuthSessionError(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	defer server.Close()
 
-	auth, err := LoginInteractive(server.URL)
+	auth, err := LoginInteractive(fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "status 500")
@@ -444,7 +470,7 @@ func TestLoginInteractive_PollForApprovalError(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/auth/cli/start":
 			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
@@ -456,9 +482,8 @@ func TestLoginInteractive_PollForApprovalError(t *testing.T) {
 			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 		}
 	}))
-	defer server.Close()
 
-	auth, err := LoginInteractive(server.URL)
+	auth, err := LoginInteractive(fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "authorization code expired")
@@ -470,7 +495,7 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/auth/cli/start":
 			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
@@ -487,9 +512,8 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 		}
 	}))
-	defer server.Close()
 
-	auth, err := LoginInteractive(server.URL)
+	auth, err := LoginInteractive(fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "parse expiration")
@@ -504,10 +528,9 @@ func TestLoginInteractive_SaveTokenError(t *testing.T) {
 	t.Cleanup(func() {
 		os.Chmod(authDir, 0700) //nolint:errcheck // cleanup restore; failure is non-critical in tests
 	})
-
 	t.Setenv("HOME", tmpDir)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockHTTPClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/auth/cli/start":
 			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
@@ -524,313 +547,9 @@ func TestLoginInteractive_SaveTokenError(t *testing.T) {
 			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
 		}
 	}))
-	defer server.Close()
 
-	auth, err := LoginInteractive(server.URL)
+	auth, err := LoginInteractive(fakeBase)
 	assert.Error(t, err)
 	assert.Nil(t, auth)
 	assert.Contains(t, err.Error(), "save auth token")
-}
-
-func TestLoginInteractive_CreatedAtTimestamp(t *testing.T) {
-	withFastPoll(t)
-	withNoBrowser(t)
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/auth/cli/start":
-			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		case "/api/auth/cli/poll":
-			resp := cliPollResponse{
-				Status:    "approved",
-				Token:     "obt_token_123",
-				Username:  "testuser",
-				ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		}
-	}))
-	defer server.Close()
-
-	before := time.Now()
-	auth, err := LoginInteractive(server.URL)
-	after := time.Now()
-
-	require.NoError(t, err)
-	assert.NotNil(t, auth)
-	assert.True(t, auth.CreatedAt.After(before) || auth.CreatedAt.Equal(before))
-	assert.True(t, auth.CreatedAt.Before(after) || auth.CreatedAt.Equal(after))
-}
-
-func TestLoginInteractive_TokenPersisted(t *testing.T) {
-	withFastPoll(t)
-	withNoBrowser(t)
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/auth/cli/start":
-			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		case "/api/auth/cli/poll":
-			resp := cliPollResponse{
-				Status:    "approved",
-				Token:     "obt_token_123",
-				Username:  "testuser",
-				ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		}
-	}))
-	defer server.Close()
-
-	auth, err := LoginInteractive(server.URL)
-	require.NoError(t, err)
-
-	loaded, err := LoadToken()
-	require.NoError(t, err)
-	assert.NotNil(t, loaded)
-	assert.Equal(t, auth.Token, loaded.Token)
-	assert.Equal(t, auth.Username, loaded.Username)
-}
-
-func TestGetAPIBase_DefaultValue(t *testing.T) {
-	t.Setenv("OPENBOOT_API_URL", "")
-	base := GetAPIBase()
-	assert.Equal(t, DefaultAPIBase, base)
-}
-
-func TestGetAPIBase_EnvOverride(t *testing.T) {
-	t.Setenv("OPENBOOT_API_URL", "https://custom.api.com")
-	base := GetAPIBase()
-	assert.Equal(t, "https://custom.api.com", base)
-}
-
-func TestLoginInteractive_MultiplePolls(t *testing.T) {
-	withFastPoll(t)
-	withNoBrowser(t)
-
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	pollCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/auth/cli/start":
-			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		case "/api/auth/cli/poll":
-			pollCount++
-			if pollCount < 2 {
-				resp := cliPollResponse{Status: "pending"}
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-			} else {
-				resp := cliPollResponse{
-					Status:    "approved",
-					Token:     "obt_token_123",
-					Username:  "testuser",
-					ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-				}
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-			}
-		}
-	}))
-	defer server.Close()
-
-	auth, err := LoginInteractive(server.URL)
-	require.NoError(t, err)
-	assert.NotNil(t, auth)
-	assert.GreaterOrEqual(t, pollCount, 2)
-}
-
-func TestLoginInteractive_BrowserURLUsesServerCode(t *testing.T) {
-	withFastPoll(t)
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	var capturedURL string
-	orig := openBrowserFunc
-	openBrowserFunc = func(url string) error {
-		capturedURL = url
-		return nil
-	}
-	t.Cleanup(func() { openBrowserFunc = orig })
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/auth/cli/start":
-			resp := cliStartResponse{CodeID: "code_id_123", Code: "SERVERCODE"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		case "/api/auth/cli/poll":
-			resp := cliPollResponse{
-				Status:    "approved",
-				Token:     "obt_token_123",
-				Username:  "testuser",
-				ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		}
-	}))
-	defer server.Close()
-
-	_, err := LoginInteractive(server.URL)
-	require.NoError(t, err)
-	assert.Contains(t, capturedURL, "SERVERCODE", "browser URL must use server-returned code, not a client-generated one")
-}
-
-func TestPollForApproval_QueryParameter(t *testing.T) {
-	withFastPoll(t)
-
-	queryReceived := ""
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		queryReceived = r.URL.RawQuery
-		resp := cliPollResponse{
-			Status:    "approved",
-			Token:     "obt_token_123",
-			Username:  "testuser",
-			ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-	}))
-	defer server.Close()
-
-	_, err := pollForApproval(server.URL, "code_id_123")
-	require.NoError(t, err)
-	assert.Contains(t, queryReceived, "code_id=code_id_123")
-}
-
-func TestLoginInteractive_ExpiresAtParsing(t *testing.T) {
-	withFastPoll(t)
-	withNoBrowser(t)
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	expectedExpiry := time.Date(2026, 1, 15, 10, 30, 45, 0, time.UTC)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/auth/cli/start":
-			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		case "/api/auth/cli/poll":
-			resp := cliPollResponse{
-				Status:    "approved",
-				Token:     "obt_token_123",
-				Username:  "testuser",
-				ExpiresAt: expectedExpiry.Format(time.RFC3339),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		}
-	}))
-	defer server.Close()
-
-	auth, err := LoginInteractive(server.URL)
-	require.NoError(t, err)
-	assert.Equal(t, expectedExpiry.Unix(), auth.ExpiresAt.Unix())
-}
-
-func TestPollOnce_Processing(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := cliPollResponse{Status: "processing"}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-	}))
-	defer server.Close()
-
-	result, done, err := pollOnce(server.URL)
-	assert.NoError(t, err)
-	assert.False(t, done)
-	assert.Nil(t, result)
-}
-
-func TestPollOnce_Used(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := cliPollResponse{Status: "used"}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-	}))
-	defer server.Close()
-
-	result, done, err := pollOnce(server.URL)
-	assert.Error(t, err)
-	assert.False(t, done)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "already been used")
-}
-
-func TestPollOnce_UnknownStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := cliPollResponse{Status: "unknown_status"}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-	}))
-	defer server.Close()
-
-	result, done, err := pollOnce(server.URL)
-	assert.Error(t, err)
-	assert.False(t, done)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "unexpected auth status")
-	assert.Contains(t, err.Error(), "unknown_status")
-}
-
-func TestLoginInteractive_EmptyUsername(t *testing.T) {
-	withFastPoll(t)
-	withNoBrowser(t)
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/api/auth/cli/start":
-			resp := cliStartResponse{CodeID: "code_id_123", Code: "ABCD1234"}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		case "/api/auth/cli/poll":
-			resp := cliPollResponse{
-				Status:    "approved",
-				Token:     "obt_token_123",
-				Username:  "",
-				ExpiresAt: time.Now().Add(24 * time.Hour).Format(time.RFC3339),
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-		}
-	}))
-	defer server.Close()
-
-	auth, err := LoginInteractive(server.URL)
-	require.NoError(t, err)
-	assert.NotNil(t, auth)
-	assert.Equal(t, "", auth.Username)
-}
-
-func TestStartAuthSession_LargeCodeID(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		largeCodeID := bytes.Repeat([]byte("x"), 10000)
-		resp := cliStartResponse{CodeID: string(largeCodeID), Code: "ABCD1234"}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck // test helper
-	}))
-	defer server.Close()
-
-	codeID, _, err := startAuthSession(server.URL)
-	require.NoError(t, err)
-	assert.Equal(t, 10000, len(codeID))
 }

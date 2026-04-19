@@ -15,6 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type shellMockRT struct{ handler http.Handler }
+
+func (m *shellMockRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	m.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+// withMockOMZClient patches omzHTTPClient without binding any port.
+func withMockOMZClient(t *testing.T, handler http.Handler) {
+	t.Helper()
+	orig := omzHTTPClient
+	omzHTTPClient = &http.Client{Transport: &shellMockRT{handler: handler}}
+	t.Cleanup(func() { omzHTTPClient = orig })
+}
+
 func TestIsOhMyZshInstalled_NotInstalled(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
@@ -220,19 +236,13 @@ func hashOf(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// serveScript starts an httptest server that returns body as the script payload.
-// It restores omzInstallURL when the test completes.
+// serveScript patches omzHTTPClient to return body with statusCode — no port binding.
 func serveScript(t *testing.T, body []byte, statusCode int) {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	withMockOMZClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(statusCode)
 		_, _ = w.Write(body)
 	}))
-	t.Cleanup(srv.Close)
-
-	orig := omzInstallURL
-	omzInstallURL = srv.URL
-	t.Cleanup(func() { omzInstallURL = orig })
 }
 
 func TestInstallOhMyZsh_HashMismatch(t *testing.T) {
