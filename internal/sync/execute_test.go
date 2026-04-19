@@ -32,6 +32,10 @@ func (f fakeBrewRunner) Run(args ...string) error {
 	return f.err
 }
 
+func (f fakeBrewRunner) RunInteractive(args ...string) error {
+	return f.err
+}
+
 // fakeNpmRunner is a test double for the npm.Runner interface.
 type fakeNpmRunner struct {
 	err    error

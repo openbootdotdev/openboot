@@ -44,6 +44,11 @@ func (f *fakeRunner) Run(args ...string) error {
 	return err
 }
 
+func (f *fakeRunner) RunInteractive(args ...string) error {
+	_, err := f.handler(args)
+	return err
+}
+
 // withFakeBrew installs a fakeRunner for the duration of the test and
 // restores the previous runner on cleanup.
 func withFakeBrew(t *testing.T, handler func(args []string) ([]byte, error)) {
@@ -107,10 +112,15 @@ func TestUpdateAndCleanup_UsesBrew(t *testing.T) {
 		return nil, nil
 	})
 
-	// Update now calls brew upgrade directly via exec.Command (TTY handling).
-	// Here we only verify that runner-routed calls (brew update, brew cleanup)
-	// were made. The brew upgrade path is exercised by integration tests.
-	err := Cleanup()
+	// Update now routes brew update + brew upgrade through the Runner
+	// (RunInteractive for upgrade to keep sudo-prompt TTY behavior). Both
+	// subcommands land in the fake handler.
+	err := Update(false)
+	assert.NoError(t, err)
+	assert.Contains(t, calls, "update")
+	assert.Contains(t, calls, "upgrade")
+
+	err = Cleanup()
 	assert.NoError(t, err)
 	assert.Contains(t, calls, "cleanup")
 }
