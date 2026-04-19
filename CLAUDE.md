@@ -57,7 +57,7 @@ internal/
   state/             # Reminder state in ~/.openboot/state.json
   sync/              # Compute diff + execute plan for remote config
   system/            # RunCommand / RunCommandSilent, arch, git config
-  ui/                # bubbletea Model pattern, lipgloss styling (see .claude/rules/tui.md)
+  ui/                # bubbletea Model pattern, lipgloss styling
   updater/           # Auto-update: check GitHub → download → replace
 test/{integration,e2e}/   # //go:build integration | e2e (+ vm, destructive, smoke)
 testutil/            # shared helpers + Tart VM helpers
@@ -71,18 +71,18 @@ scripts/
 | Task | Location | Notes |
 |------|----------|-------|
 | Add CLI command | `internal/cli/` | Register in `root.go init()`, follow cobra pattern |
-| Change install flow | `internal/installer/installer.go` | See `.claude/rules/installer-flow.md` |
+| Change install flow | `internal/installer/installer.go` | 7-step wizard orchestrator |
 | Change sync behavior | `internal/sync/diff.go`, `internal/sync/plan.go` | Diff → confirm → execute |
 | Add package category | `openboot.dev/src/lib/package-metadata.ts` | Server is source of truth; CLI fetches `/api/packages` and caches 24h in `~/.openboot/packages-cache.json`. `data/packages.yaml` is fallback only. |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |
-| Change brew behavior | `internal/brew/brew.go` | Parallel workers, StickyProgress, Uninstall/UninstallCask |
+| Change brew behavior | `internal/brew/brew.go` + `brew_install.go` | Parallel workers, StickyProgress, Uninstall/UninstallCask |
 | Add snapshot data | `internal/snapshot/capture.go` | Extend `CaptureWithProgress` steps |
 | Update self-update | `internal/updater/updater.go` | `AutoUpgrade()` called from `root.go` RunE |
-| Change publish flow | `internal/cli/snapshot.go` (`publishSnapshot`) | Slug resolution, see P7 in `docs/SPEC.md` |
+| Change publish flow | `internal/cli/snapshot_publish.go` (`publishSnapshot`) | Slug resolution, see P7 in `docs/SPEC.md` |
 | Source resolution (install) | `internal/cli/install.go` (`resolvePositionalArg`) | file / user-slug / preset / alias detection |
 | HTTP with retry | `internal/httputil/ratelimit.go` | Use `httputil.Do()` — handles 429 + Retry-After |
 | Test tier / when to run | `CONTRIBUTING.md` "Test Layering" | L1–L6 table |
-| Release process | `.claude/rules/releasing.md` | Tag-driven, release-notes template |
+| Release process | `.github/workflows/` | Tag-driven, release-notes template |
 
 ## Project-specific conventions
 
@@ -103,10 +103,11 @@ These cannot be inferred from code alone — everything else is enforced by `go 
 
 | Var | Purpose |
 |-----|---------|
-| `OPENBOOT_DRY_RUN` | Enable dry-run |
-| `OPENBOOT_DISABLE_AUTOUPDATE=1` | Skip auto-update |
-| `OPENBOOT_GIT_NAME` / `OPENBOOT_GIT_EMAIL` | Git identity override |
+| `OPENBOOT_DISABLE_AUTOUPDATE=1` | Skip auto-update check |
+| `OPENBOOT_GIT_NAME` / `OPENBOOT_GIT_EMAIL` | Git identity override (silent mode) |
 | `OPENBOOT_PRESET` | Default preset |
 | `OPENBOOT_USER` | Config alias/username |
-| `OPENBOOT_VERSION` | Version for `install.sh` |
-| `OPENBOOT_INSTALL_DIR` | Custom install dir |
+| `OPENBOOT_API_URL` | Override API base URL (testing; https or http://localhost only) |
+| `OPENBOOT_DOTFILES` | Override dotfiles repo URL |
+| `OPENBOOT_DRY_RUN` | Dry-run mode for `scripts/install.sh` (not the CLI) |
+| `OPENBOOT_VERSION` | Pin version in `scripts/install.sh` |

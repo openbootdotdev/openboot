@@ -1,5 +1,5 @@
 .PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
-       test-vm test-vm-short test-vm-run test-vm-quick test-vm-release test-vm-full \
+       test-vm test-vm-run test-vm-quick test-vm-release test-vm-full \
        install-hooks uninstall-hooks \
        quality quality-lint quality-security quality-diff
 

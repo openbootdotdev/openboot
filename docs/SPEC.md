@@ -117,7 +117,7 @@ Contains everything captured from the system. Full fidelity, for local backup.
 ```
 packages (formulae, casks, taps, npm)
 macos_prefs
-shell (oh-my-zsh, theme, plugins)   ← must be added (currently missing)
+shell (oh-my-zsh, theme, plugins)
 dotfiles.repo_url
 git (user, email)                   ← snapshot-only, never in Config
 dev_tools (node/python/ruby versions)  ← snapshot-only
