@@ -83,8 +83,8 @@ func TestIntegration_Updater_LoadUserConfig_Default(t *testing.T) {
 	// When: we load user config
 	cfg := updater.LoadUserConfig()
 
-	// Then: defaults to auto-update enabled
-	assert.Equal(t, updater.AutoUpdateEnabled, cfg.AutoUpdate)
+	// Then: defaults to notify-only (no silent self-upgrades).
+	assert.Equal(t, updater.AutoUpdateNotify, cfg.AutoUpdate)
 }
 
 func TestIntegration_Updater_LoadUserConfig_AllModes(t *testing.T) {

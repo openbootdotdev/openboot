@@ -250,13 +250,13 @@ func TestIsNewerVersion_ExtendedCases(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// LoadUserConfig — AutoUpdate empty field defaults to Enabled
+// LoadUserConfig — AutoUpdate empty field defaults to Notify
 // ---------------------------------------------------------------------------
 
 func TestLoadUserConfig_DefaultWhenMissing(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cfg := LoadUserConfig()
-	assert.Equal(t, AutoUpdateEnabled, cfg.AutoUpdate)
+	assert.Equal(t, AutoUpdateNotify, cfg.AutoUpdate)
 }
 
 // ---------------------------------------------------------------------------

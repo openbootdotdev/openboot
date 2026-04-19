@@ -52,8 +52,13 @@ type UserConfig struct {
 	AutoUpdate AutoUpdateMode `json:"autoupdate"`
 }
 
+// LoadUserConfig returns the user's update preference from
+// ~/.openboot/config.json. The default is AutoUpdateNotify: we surface a
+// one-line "new version available" message but never auto-upgrade the binary
+// during a normal command. Users who want silent upgrades can opt in by
+// setting "autoupdate": "true"; users who want silence can set "false".
 func LoadUserConfig() UserConfig {
-	cfg := UserConfig{AutoUpdate: AutoUpdateEnabled}
+	cfg := UserConfig{AutoUpdate: AutoUpdateNotify}
 	path, err := getUserConfigPath()
 	if err != nil {
 		return cfg
@@ -66,7 +71,7 @@ func LoadUserConfig() UserConfig {
 		return cfg
 	}
 	if cfg.AutoUpdate == "" {
-		cfg.AutoUpdate = AutoUpdateEnabled
+		cfg.AutoUpdate = AutoUpdateNotify
 	}
 	return cfg
 }
@@ -98,15 +103,16 @@ func IsHomebrewInstall() bool {
 	return isHomebrewPath(exe)
 }
 
-// AutoUpgrade checks for a newer version and upgrades if appropriate.
+// AutoUpgrade checks for a newer version and, by default, only prints a notice.
+// Silent self-upgrades are opt-in via ~/.openboot/config.json.
 //
 // Flow:
 //  1. Kill switch: OPENBOOT_DISABLE_AUTOUPDATE=1
 //  2. Dev guard: currentVersion == "dev"
 //  3. UserConfig (applies to ALL install methods):
-//     disabled → exit, notify → show message, enabled → upgrade
+//     disabled → exit, notify (default) → show message, enabled → upgrade
 //  4. resolveLatestVersion: uses 24h cache, falls back to sync GitHub API
-//  5. Upgrade method: Homebrew → brew upgrade, Direct → download binary
+//  5. Upgrade method (enabled mode only): Homebrew → brew upgrade, Direct → download binary
 func AutoUpgrade(currentVersion string) {
 	if os.Getenv("OPENBOOT_DISABLE_AUTOUPDATE") == "1" {
 		return

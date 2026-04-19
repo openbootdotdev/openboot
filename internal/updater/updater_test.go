@@ -212,7 +212,7 @@ func TestGetUserConfigPath(t *testing.T) {
 func TestLoadUserConfig_Default_NoFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	cfg := LoadUserConfig()
-	assert.Equal(t, AutoUpdateEnabled, cfg.AutoUpdate)
+	assert.Equal(t, AutoUpdateNotify, cfg.AutoUpdate)
 }
 
 func TestLoadUserConfig_FromFile(t *testing.T) {
@@ -236,7 +236,7 @@ func TestLoadUserConfig_InvalidJSON(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte("{bad json"), 0644))
 
 	cfg := LoadUserConfig()
-	assert.Equal(t, AutoUpdateEnabled, cfg.AutoUpdate)
+	assert.Equal(t, AutoUpdateNotify, cfg.AutoUpdate)
 }
 
 func TestLoadUserConfig_EmptyAutoUpdate(t *testing.T) {
@@ -247,7 +247,7 @@ func TestLoadUserConfig_EmptyAutoUpdate(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(cfgDir, "config.json"), []byte(`{"autoupdate":""}`), 0644))
 
 	cfg := LoadUserConfig()
-	assert.Equal(t, AutoUpdateEnabled, cfg.AutoUpdate)
+	assert.Equal(t, AutoUpdateNotify, cfg.AutoUpdate)
 }
 
 func TestLoadUserConfig_DisabledMode(t *testing.T) {
