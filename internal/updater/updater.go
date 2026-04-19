@@ -183,7 +183,7 @@ func notifyUpdate(currentVersion, latestVersion string) {
 	if IsHomebrewInstall() {
 		ui.Muted("Run 'brew upgrade openboot' to upgrade")
 	} else {
-		ui.Muted("Run 'openboot update --self' to upgrade")
+		ui.Muted("Run 'openboot update' to upgrade")
 	}
 	fmt.Println()
 }
@@ -239,7 +239,7 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s...", currentClean, latestClean))
 	if err := DownloadAndReplace(latestVersion, currentVersion); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
-		ui.Muted("Run 'openboot update --self' to update manually")
+		ui.Muted("Run 'openboot update' to update manually")
 		fmt.Println()
 		return
 	}
