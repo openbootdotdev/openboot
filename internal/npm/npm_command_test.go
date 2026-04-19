@@ -52,7 +52,7 @@ func TestGetNodeVersion_ParsesVersion(t *testing.T) {
 	t.Cleanup(func() { nodeVersionOutput = orig })
 	nodeVersionOutput = func() ([]byte, error) { return []byte("v22.1.0\n"), nil }
 
-	version, err := GetNodeVersion()
+	version, err := getNodeVersion()
 	require.NoError(t, err)
 	assert.Equal(t, 22, version)
 }

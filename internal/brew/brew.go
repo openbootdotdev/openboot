@@ -176,38 +176,6 @@ func UninstallCask(packages []string, dryRun bool) error {
 	return nil
 }
 
-// GetInstalledLeaves returns top-level formulae (not dependencies) as a set.
-// This matches what `brew leaves` reports and is consistent with snapshot captures.
-func GetInstalledLeaves() (map[string]bool, error) {
-	output, err := currentRunner().Output("leaves")
-	if err != nil {
-		return nil, fmt.Errorf("brew leaves: %w", err)
-	}
-
-	leaves := make(map[string]bool)
-	for _, name := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		if name != "" {
-			leaves[name] = true
-		}
-	}
-	return leaves, nil
-}
-
-func GetInstalledTaps() ([]string, error) {
-	output, err := currentRunner().Output("tap")
-	if err != nil {
-		return nil, fmt.Errorf("brew tap: %w", err)
-	}
-	var taps []string
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			taps = append(taps, line)
-		}
-	}
-	return taps, nil
-}
-
 func Untap(taps []string, dryRun bool) error {
 	if len(taps) == 0 {
 		return nil

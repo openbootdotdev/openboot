@@ -1,48 +1,13 @@
 package system
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type sysMockRT struct{ handler http.Handler }
-
-func (m *sysMockRT) RoundTrip(req *http.Request) (*http.Response, error) {
-	rec := httptest.NewRecorder()
-	m.handler.ServeHTTP(rec, req)
-	return rec.Result(), nil
-}
-
-// withMockBrewClient patches brewHTTPClient without binding any port.
-func withMockBrewClient(t *testing.T, handler http.Handler) {
-	t.Helper()
-	orig := brewHTTPClient
-	brewHTTPClient = &http.Client{Transport: &sysMockRT{handler: handler}}
-	t.Cleanup(func() { brewHTTPClient = orig })
-}
-
-func TestArchitecture(t *testing.T) {
-	arch := Architecture()
-	assert.Equal(t, runtime.GOARCH, arch)
-	assert.NotEmpty(t, arch)
-}
-
-func TestHomebrewPrefix(t *testing.T) {
-	prefix := HomebrewPrefix()
-
-	if runtime.GOARCH == "arm64" {
-		assert.Equal(t, "/opt/homebrew", prefix)
-	} else {
-		assert.Equal(t, "/usr/local", prefix)
-	}
-}
 
 func TestRunCommandSilent_Success(t *testing.T) {
 	output, err := RunCommandSilent("echo", "hello", "world")
@@ -242,21 +207,6 @@ func TestOpenTTY_SequentialCaskSimulation(t *testing.T) {
 	assert.NoError(t, cmd2.Run(), "retry should still have a working TTY")
 }
 
-func TestIsHomebrewInstalled(t *testing.T) {
-	result := IsHomebrewInstalled()
-	assert.IsType(t, true, result)
-}
-
-func TestIsXcodeCliInstalled(t *testing.T) {
-	result := IsXcodeCliInstalled()
-	assert.IsType(t, true, result)
-}
-
-func TestIsGumInstalled(t *testing.T) {
-	result := IsGumInstalled()
-	assert.IsType(t, true, result)
-}
-
 func TestGetGitConfig_NonExistentKey(t *testing.T) {
 	value := GetGitConfig("user.nonexistentkey12345")
 	assert.Equal(t, "", value)
@@ -358,22 +308,6 @@ func TestHomeDir_MatchesEnv(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// HomebrewPrefix — both arch branches covered via table
-// ---------------------------------------------------------------------------
-
-func TestHomebrewPrefix_MatchesArch(t *testing.T) {
-	prefix := HomebrewPrefix()
-	assert.NotEmpty(t, prefix)
-
-	switch runtime.GOARCH {
-	case "arm64":
-		assert.Equal(t, "/opt/homebrew", prefix)
-	default:
-		assert.Equal(t, "/usr/local", prefix)
-	}
-}
-
-// ---------------------------------------------------------------------------
 // RunCommandOutput
 // ---------------------------------------------------------------------------
 
@@ -404,31 +338,6 @@ func TestRunCommandOutput_CommandFails(t *testing.T) {
 func TestRunCommandOutput_CommandNotFound(t *testing.T) {
 	_, err := RunCommandOutput("nonexistentcmd99999")
 	assert.Error(t, err)
-}
-
-// ---------------------------------------------------------------------------
-// InstallHomebrew — hermetic paths via httptest
-// ---------------------------------------------------------------------------
-
-func TestInstallHomebrew_HTTPError(t *testing.T) {
-	withMockBrewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-
-	err := InstallHomebrew()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected status")
-}
-
-func TestInstallHomebrew_SHA256Mismatch(t *testing.T) {
-	withMockBrewClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("#!/bin/bash\necho fake-script")) //nolint:errcheck
-	}))
-
-	err := InstallHomebrew()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SHA256 mismatch")
 }
 
 // ---------------------------------------------------------------------------

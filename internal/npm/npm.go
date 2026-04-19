@@ -21,7 +21,7 @@ var nodeVersionOutput = func() ([]byte, error) {
 	return exec.Command("node", "--version").Output()
 }
 
-func GetNodeVersion() (int, error) {
+func getNodeVersion() (int, error) {
 	output, err := nodeVersionOutput()
 	if err != nil {
 		return 0, err
@@ -142,7 +142,7 @@ func Install(packages []string, dryRun bool) error {
 // warnIfNodeVersionTooLow prints a warning when packages that require Node.js
 // v22+ are requested but the installed version is older.
 func warnIfNodeVersionTooLow(packages []string) {
-	nodeVersion, err := GetNodeVersion()
+	nodeVersion, err := getNodeVersion()
 	if err != nil || nodeVersion <= 0 {
 		return
 	}

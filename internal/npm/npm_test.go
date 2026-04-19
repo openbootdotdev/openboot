@@ -100,7 +100,7 @@ func TestGetNodeVersion(t *testing.T) {
 	if !IsAvailable() {
 		t.Skip("node not available")
 	}
-	ver, err := GetNodeVersion()
+	ver, err := getNodeVersion()
 	assert.NoError(t, err)
 	assert.Greater(t, ver, 0)
 }

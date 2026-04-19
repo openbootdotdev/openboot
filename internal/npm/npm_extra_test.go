@@ -11,7 +11,7 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// GetNodeVersion — error paths
+// getNodeVersion — error paths
 // ---------------------------------------------------------------------------
 
 func TestGetNodeVersion_ExecError(t *testing.T) {
@@ -21,7 +21,7 @@ func TestGetNodeVersion_ExecError(t *testing.T) {
 		return nil, errors.New("node not found")
 	}
 
-	_, err := GetNodeVersion()
+	_, err := getNodeVersion()
 	require.Error(t, err)
 }
 
@@ -32,7 +32,7 @@ func TestGetNodeVersion_InvalidFormat(t *testing.T) {
 		return []byte("not-a-version\n"), nil
 	}
 
-	_, err := GetNodeVersion()
+	_, err := getNodeVersion()
 	require.Error(t, err)
 }
 
@@ -43,7 +43,7 @@ func TestGetNodeVersion_EmptyOutput(t *testing.T) {
 		return []byte(""), nil
 	}
 
-	_, err := GetNodeVersion()
+	_, err := getNodeVersion()
 	require.Error(t, err)
 }
 
@@ -340,7 +340,7 @@ func TestGetInstalledPackages_EmptyOutput(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// GetNodeVersion — major-only version string edge case
+// getNodeVersion — major-only version string edge case
 // ---------------------------------------------------------------------------
 
 func TestGetNodeVersion_MajorOnly(t *testing.T) {
@@ -348,7 +348,7 @@ func TestGetNodeVersion_MajorOnly(t *testing.T) {
 	t.Cleanup(func() { nodeVersionOutput = orig })
 	nodeVersionOutput = func() ([]byte, error) { return []byte("v20\n"), nil }
 
-	ver, err := GetNodeVersion()
+	ver, err := getNodeVersion()
 	require.NoError(t, err)
 	assert.Equal(t, 20, ver)
 }
