@@ -94,6 +94,7 @@ func init() {
 	rootCmd.AddCommand(snapshotCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
+	rootCmd.AddCommand(updateCmd)
 
 	rootCmd.SetUsageTemplate(usageTemplate)
 }

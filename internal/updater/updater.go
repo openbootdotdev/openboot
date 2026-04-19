@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -229,7 +231,11 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 	latestClean := trimVersionPrefix(latestVersion)
 	currentClean := trimVersionPrefix(currentVersion)
 	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s...", currentClean, latestClean))
-	if err := DownloadAndReplace(); err != nil {
+	// Record the running version so backupCurrentBinary can label the backup.
+	prevFn := currentBinaryVersionFn
+	currentBinaryVersionFn = func() string { return currentVersion }
+	defer func() { currentBinaryVersionFn = prevFn }()
+	if err := DownloadAndReplace(latestVersion); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
 		ui.Muted("Run 'openboot update --self' to update manually")
 		fmt.Println()
@@ -322,10 +328,11 @@ func verifyChecksum(path, filename string, checksums map[string]string) error {
 }
 
 // fetchChecksums downloads and parses the checksums.txt file published
-// alongside a GitHub release. Uses the /latest/ redirect so it matches the
-// binary downloaded in DownloadAndReplace.
-func fetchChecksums(client *http.Client) (map[string]string, error) {
-	url := "https://github.com/openbootdotdev/openboot/releases/latest/download/checksums.txt"
+// alongside a GitHub release. If version is empty, the /latest/ redirect is
+// used (back-compat with AutoUpgrade); otherwise the exact release path
+// /releases/download/v<version>/ is used.
+func fetchChecksums(client *http.Client, version string) (map[string]string, error) {
+	url := checksumsURL(version)
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("download checksums: %w", err)
@@ -338,7 +345,34 @@ func fetchChecksums(client *http.Client) (map[string]string, error) {
 	return parseChecksumsFile(io.LimitReader(resp.Body, 1<<20))
 }
 
-func DownloadAndReplace() error {
+// checksumsURL returns the correct checksums.txt URL for the given version.
+// Empty version means use /latest/.
+func checksumsURL(version string) string {
+	if version == "" {
+		return "https://github.com/openbootdotdev/openboot/releases/latest/download/checksums.txt"
+	}
+	return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/download/v%s/checksums.txt", trimVersionPrefix(version))
+}
+
+// binaryURL returns the correct binary download URL for the given version and
+// filename. Empty version means use /latest/.
+func binaryURL(version, filename string) string {
+	if version == "" {
+		return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/%s", filename)
+	}
+	return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/download/v%s/%s", trimVersionPrefix(version), filename)
+}
+
+// DownloadAndReplace downloads the openboot binary for the given version and
+// atomically replaces the currently-running binary.
+//
+// If version is empty, the GitHub /latest/ redirect is used (back-compat with
+// AutoUpgrade). If version is non-empty, the exact release URL is used.
+//
+// Before the atomic rename, the current binary is copied to the backup
+// directory (see GetBackupDir) for rollback via Rollback(). The newest
+// backupRetention backups are kept; older ones are pruned.
+func DownloadAndReplace(version string) error {
 	if IsHomebrewInstall() {
 		return fmt.Errorf("openboot is managed by Homebrew — run 'brew upgrade openboot' instead")
 	}
@@ -354,15 +388,12 @@ func DownloadAndReplace() error {
 
 	// Fetch checksums first so we can verify integrity before overwriting the
 	// running binary. If the checksums file is missing or malformed, abort.
-	checksums, err := fetchChecksums(client)
+	checksums, err := fetchChecksums(client, version)
 	if err != nil {
 		return fmt.Errorf("verify update integrity: %w", err)
 	}
 
-	// Uses /latest/ redirect — always downloads whatever GitHub considers the
-	// current latest release. The displayed version (from resolveLatestVersion)
-	// may differ by one patch if a release lands between the check and download.
-	url := fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/%s", filename)
+	url := binaryURL(version, filename)
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -417,11 +448,246 @@ func DownloadAndReplace() error {
 		return fmt.Errorf("chmod: %w", err)
 	}
 
+	// Back up the currently-running binary before we overwrite it. If backup
+	// fails, we still proceed — the user asked to update and integrity is
+	// already verified. Warn via UI so the user knows rollback is unavailable
+	// for this upgrade.
+	if err := backupCurrentBinary(binPath); err != nil {
+		ui.Warn(fmt.Sprintf("could not create backup (rollback unavailable for this upgrade): %v", err))
+	}
+
 	if err := os.Rename(tmpPath, binPath); err != nil {
 		return fmt.Errorf("replace binary: %w", err)
 	}
 
 	needsCleanup = false
+	return nil
+}
+
+// --- Backup & rollback ---
+
+// backupDirOverride is set by tests to redirect the backup directory.
+// When empty, GetBackupDir returns ~/.openboot/backup.
+var backupDirOverride string
+
+// backupRetention is the maximum number of backups to keep. Older ones are
+// pruned after each successful backup.
+const backupRetention = 5
+
+// currentBinaryVersion returns a version string to embed in backup filenames.
+// Tests can override via currentBinaryVersionFn.
+var currentBinaryVersionFn = func() string { return "" }
+
+// GetBackupDir returns the directory where pre-upgrade binary backups are
+// stored. Defaults to ~/.openboot/backup; tests may override via
+// SetBackupDirForTesting.
+func GetBackupDir() (string, error) {
+	if backupDirOverride != "" {
+		return backupDirOverride, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("home dir: %w", err)
+	}
+	return filepath.Join(home, ".openboot", "backup"), nil
+}
+
+// SetBackupDirForTesting overrides the backup directory. Tests should defer a
+// reset to "". It is exported for use by the cli package tests.
+func SetBackupDirForTesting(dir string) {
+	backupDirOverride = dir
+}
+
+// SetCurrentVersionForTesting overrides the value used in backup filenames.
+// When unset, backups use "unknown" as the version tag.
+func SetCurrentVersionForTesting(fn func() string) {
+	currentBinaryVersionFn = fn
+}
+
+// backupCurrentBinary copies the binary at binPath into the backup directory
+// with a timestamped filename and prunes old backups beyond backupRetention.
+func backupCurrentBinary(binPath string) error {
+	dir, err := GetBackupDir()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("mkdir backup dir: %w", err)
+	}
+
+	version := currentBinaryVersionFn()
+	if version == "" {
+		version = "unknown"
+	}
+	version = trimVersionPrefix(version)
+
+	ts := time.Now().UTC().Format("20060102T150405Z")
+	dst := filepath.Join(dir, fmt.Sprintf("openboot-%s-%s", version, ts))
+
+	if err := copyFile(binPath, dst, 0755); err != nil {
+		return fmt.Errorf("copy binary: %w", err)
+	}
+
+	if err := pruneBackups(dir, backupRetention); err != nil {
+		// Pruning failure is not fatal — backup succeeded.
+		ui.Muted(fmt.Sprintf("Warning: could not prune old backups: %v", err))
+	}
+	return nil
+}
+
+// copyFile copies src to dst, preserving the given permission mode on dst.
+func copyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open src: %w", err)
+	}
+	defer in.Close() //nolint:errcheck // read-only
+
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode) //nolint:gosec // backup files must be executable
+	if err != nil {
+		return fmt.Errorf("create dst: %w", err)
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close() //nolint:errcheck,gosec // returning the more descriptive error
+		return fmt.Errorf("copy: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close dst: %w", err)
+	}
+	return nil
+}
+
+// listBackupsSorted returns backup file entries sorted by modification time,
+// newest first.
+func listBackupsSorted(dir string) ([]os.DirEntry, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	// Filter to files only and sort by modtime descending.
+	files := entries[:0]
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		files = append(files, e)
+	}
+	sort.Slice(files, func(i, j int) bool {
+		ii, _ := files[i].Info()
+		jj, _ := files[j].Info()
+		if ii == nil || jj == nil {
+			return files[i].Name() > files[j].Name()
+		}
+		return ii.ModTime().After(jj.ModTime())
+	})
+	return files, nil
+}
+
+// pruneBackups deletes the oldest backup files in dir so that at most keep
+// files remain.
+func pruneBackups(dir string, keep int) error {
+	files, err := listBackupsSorted(dir)
+	if err != nil {
+		return err
+	}
+	if len(files) <= keep {
+		return nil
+	}
+	for _, f := range files[keep:] {
+		if err := os.Remove(filepath.Join(dir, f.Name())); err != nil {
+			return fmt.Errorf("remove %s: %w", f.Name(), err)
+		}
+	}
+	return nil
+}
+
+// ListBackups returns the names of backup files in the backup directory,
+// newest first. Returns an empty slice (not an error) if the directory does
+// not exist.
+func ListBackups() ([]string, error) {
+	dir, err := GetBackupDir()
+	if err != nil {
+		return nil, err
+	}
+	files, err := listBackupsSorted(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read backup dir: %w", err)
+	}
+	names := make([]string, 0, len(files))
+	for _, f := range files {
+		names = append(names, f.Name())
+	}
+	return names, nil
+}
+
+// Rollback restores the most recent backup over the currently-running
+// binary. Fails if no backup exists or openboot is managed by Homebrew.
+func Rollback() error {
+	if IsHomebrewInstall() {
+		return fmt.Errorf("openboot is managed by Homebrew — rollback is not supported (use 'brew' commands)")
+	}
+	dir, err := GetBackupDir()
+	if err != nil {
+		return err
+	}
+	files, err := listBackupsSorted(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("no backups found in %s", dir)
+		}
+		return fmt.Errorf("read backup dir: %w", err)
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no backups found in %s", dir)
+	}
+
+	binPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("binary path: %w", err)
+	}
+	binPath, err = filepath.EvalSymlinks(binPath)
+	if err != nil {
+		return fmt.Errorf("resolve binary path: %w", err)
+	}
+
+	src := filepath.Join(dir, files[0].Name())
+	tmpPath := binPath + ".rollback.tmp"
+	if err := copyFile(src, tmpPath, 0755); err != nil {
+		return fmt.Errorf("stage rollback: %w", err)
+	}
+	needsCleanup := true
+	defer func() {
+		if needsCleanup {
+			os.Remove(tmpPath) //nolint:errcheck,gosec // best-effort cleanup
+		}
+	}()
+
+	if err := os.Rename(tmpPath, binPath); err != nil {
+		return fmt.Errorf("replace binary: %w", err)
+	}
+	needsCleanup = false
+	return nil
+}
+
+// --- Semver validation ---
+
+// semverRe accepts plain X.Y.Z form (with optional leading v). Pre-release and
+// build metadata are intentionally not supported here — the releases this
+// tool pins to use plain semver.
+var semverRe = regexp.MustCompile(`^v?\d+\.\d+\.\d+$`)
+
+// ValidateSemver returns nil if v is a valid X.Y.Z version (with or without a
+// leading v) and an error otherwise.
+func ValidateSemver(v string) error {
+	if v == "" {
+		return fmt.Errorf("version is empty")
+	}
+	if !semverRe.MatchString(v) {
+		return fmt.Errorf("invalid version %q: must be X.Y.Z (e.g. 0.25.0)", v)
+	}
 	return nil
 }
 
