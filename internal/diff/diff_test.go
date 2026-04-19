@@ -285,6 +285,7 @@ func TestPluginsEqual(t *testing.T) {
 		{"different order", []string{"z", "git"}, []string{"git", "z"}, true},
 		{"different length", []string{"a"}, []string{"a", "b"}, false},
 		{"different elements", []string{"a", "b"}, []string{"a", "c"}, false},
+		// len guard (2==2) passes, but the set built from ["a","a"] lacks "b" → false.
 		{"duplicates in a", []string{"a", "a"}, []string{"a", "b"}, false},
 	}
 
