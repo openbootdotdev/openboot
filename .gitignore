@@ -30,7 +30,10 @@ __pycache__/
 
 # Work tracking (internal)
 .sisyphus/
-.claude/
+.claude/*
+!.claude/hooks/
+!.claude/settings.json
+.claude/settings.local.json
 
 # Go vendor (deps downloaded at build time)
 vendor/
