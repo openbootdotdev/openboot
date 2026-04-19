@@ -3,6 +3,7 @@ package installer
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
@@ -37,6 +38,13 @@ func Run(cfg *config.Config) error {
 }
 
 func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
+	slog.Info("install_started",
+		"version", opts.Version,
+		"preset", opts.Preset,
+		"user", opts.User,
+		"dry_run", opts.DryRun,
+		"silent", opts.Silent,
+	)
 	fmt.Println()
 	ui.Header(fmt.Sprintf("OpenBoot Installer v%s", opts.Version))
 	fmt.Println()
@@ -127,8 +135,10 @@ func Apply(plan InstallPlan, r Reporter) error {
 	showCompletionFromPlan(plan, r, len(softErrs))
 
 	if len(softErrs) > 0 {
+		slog.Info("install_completed", "soft_errors", len(softErrs))
 		return errors.Join(softErrs...)
 	}
+	slog.Info("install_completed", "soft_errors", 0)
 	return nil
 }
 
