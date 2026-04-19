@@ -17,7 +17,7 @@ func TestVM_Interactive_InstallScript(t *testing.T) {
 		t.Skip("skipping VM interactive test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallViaBrewTap(t, vm) // Install first
 
 	t.Run("reinstall_answer_no", func(t *testing.T) {

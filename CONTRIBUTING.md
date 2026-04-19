@@ -38,14 +38,14 @@ Tests are split across six tiers. Which one runs where:
 | **L2 Integration** | Real `brew` / `git` / `npm` against temp dirs; real `httptest` servers | `make test-integration` (~75s) | CI on push/PR |
 | **L3 Contract schema** | JSON schema validation against [openboot-contract](https://github.com/openbootdotdev/openboot-contract) | (runs in CI only) | CI on push/PR |
 | **L4 E2E binary** | Compiled binary driven by scripts; `-tags=e2e` | `make test-e2e` | CI on release |
-| **L5 E2E VM** | [Tart](https://github.com/cirruslabs/tart) macOS VMs (install Homebrew, run real flows) | `make test-vm-quick` (2 min) / `test-vm-release` (20 min) / `test-vm-full` (60 min) | Manual, before tagging a release |
+| **L5 Destructive macOS** | Runs against a real macOS host (installs packages, modifies `~/.zshrc`, writes `defaults`) | `make test-vm-quick` / `test-vm-release` / `test-vm-full` — requires `CI=true` or `OPENBOOT_E2E_DESTRUCTIVE=1` | GH Actions `macos-latest` on release tags + manual dispatch |
 | **L6 Destructive** | Actually installs real packages into a real system | `make test-destructive` / `test-smoke` | CI on release, plus manual `workflow_dispatch` |
 
 Rules of thumb:
 
 - **Local dev:** run nothing manually if hooks are installed. `make test-unit` on demand when you want a sanity check. Skip L2+ unless you're touching code that interacts with real brew/git/npm.
 - **Before pushing:** `make test-unit` (the pre-push hook does this automatically).
-- **Before tagging a release:** `make test-vm-release` locally (needs Tart).
+- **Before tagging a release:** trigger the `macos-e2e` job via GitHub Actions (manual dispatch or tag push). To run locally on a throwaway macOS machine: `OPENBOOT_E2E_DESTRUCTIVE=1 make test-vm-release`.
 
 ## Git Hooks
 

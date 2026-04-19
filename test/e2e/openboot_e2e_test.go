@@ -17,7 +17,7 @@ func TestE2E_DryRunMinimal(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -35,7 +35,7 @@ func TestE2E_DryRunDeveloper(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -53,7 +53,7 @@ func TestE2E_SnapshotCapture(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -71,7 +71,7 @@ func TestE2E_InvalidPreset(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -91,7 +91,7 @@ func TestE2E_MissingGitConfig(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -108,7 +108,7 @@ func TestE2E_SnapshotWithOutput(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -127,7 +127,7 @@ func TestE2E_Diff_ThenClean_DryRun_SameSnapshot(t *testing.T) {
 	}
 
 	// Verify diff and clean produce consistent results from the same snapshot
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 

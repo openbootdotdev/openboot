@@ -14,7 +14,7 @@ func TestE2E_FullPreset_DryRun(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 

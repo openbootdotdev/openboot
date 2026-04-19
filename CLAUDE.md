@@ -21,7 +21,7 @@ make build-release VERSION=0.25.0    # optimized + UPX
 make test-unit                       # L1 (~15s) — pre-push hook
 make test-integration                # L2 (~75s) — real brew/git/npm in temp dirs
 make test-e2e                        # L4 compiled binary
-make test-vm-release                 # L5 VM (~20m) — before tagging
+make test-vm-release                 # L5 destructive macOS (~20m) — before tagging
 make test-destructive                # L6 — actually installs
 make test-coverage                   # coverage.out + coverage.html
 
@@ -60,7 +60,7 @@ internal/
   ui/                # bubbletea Model pattern, lipgloss styling
   updater/           # Auto-update: check GitHub → download → replace
 test/{integration,e2e}/   # //go:build integration | e2e (+ vm, destructive, smoke)
-testutil/            # shared helpers + Tart VM helpers
+testutil/            # shared helpers + MacHost (destructive E2E on real macOS)
 scripts/
   install.sh         # curl|bash installer
   hooks/             # pre-commit, pre-push (install via `make install-hooks`)
