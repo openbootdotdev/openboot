@@ -1,7 +1,6 @@
 .PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
        test-vm test-vm-run test-vm-quick test-vm-release test-vm-full \
-       install-hooks uninstall-hooks \
-       quality-lint quality-security
+       install-hooks uninstall-hooks
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
@@ -118,13 +117,3 @@ uninstall-hooks:
 		rm -f .git/hooks/$$hook; \
 		echo "✓ removed .git/hooks/$$hook"; \
 	done
-
-# =============================================================================
-# Code quality
-# =============================================================================
-
-quality-lint: ## Run golangci-lint
-	golangci-lint run ./...
-
-quality-security: ## Run gosec
-	gosec ./...
