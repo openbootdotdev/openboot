@@ -176,6 +176,9 @@ func TestRoundTrip_DefaultState(t *testing.T) {
 }
 
 func TestLoadState_ReadError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses filesystem permission checks")
+	}
 	tmpDir := t.TempDir()
 	statePath := filepath.Join(tmpDir, "state.json")
 

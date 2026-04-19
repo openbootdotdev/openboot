@@ -521,6 +521,9 @@ func TestLoginInteractive_InvalidExpirationFormat(t *testing.T) {
 }
 
 func TestLoginInteractive_SaveTokenError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses filesystem permission checks")
+	}
 	withFastPoll(t)
 	withNoBrowser(t)
 	tmpDir := t.TempDir()

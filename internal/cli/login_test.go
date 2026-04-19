@@ -90,6 +90,9 @@ func TestLogoutCmd_WhenNotAuthenticated(t *testing.T) {
 }
 
 func TestLogoutCmd_DeleteError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses filesystem permission checks")
+	}
 	tmpDir := setupTestAuth(t, true)
 	authDir := filepath.Join(tmpDir, ".openboot")
 

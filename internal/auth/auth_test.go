@@ -258,6 +258,10 @@ func TestDeleteToken_FileNotExist(t *testing.T) {
 }
 
 func TestDeleteToken_PermissionError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses filesystem permission checks")
+	}
+
 	tmpDir := t.TempDir()
 	authDir := filepath.Join(tmpDir, ".openboot")
 	authFile := filepath.Join(authDir, "auth.json")
@@ -378,6 +382,10 @@ func TestStoredAuth_JSONMarshaling(t *testing.T) {
 }
 
 func TestLoadToken_ReadPermissionError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses filesystem permission checks")
+	}
+
 	tmpDir := t.TempDir()
 	authDir := filepath.Join(tmpDir, ".openboot")
 	authFile := filepath.Join(authDir, "auth.json")
