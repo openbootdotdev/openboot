@@ -1,5 +1,5 @@
-// NOTE: tests in this file must NOT use t.Parallel() due to shared
-// package-level variables (backupDirOverride, currentBinaryVersionFn).
+// NOTE: tests in this file must NOT use t.Parallel() due to the shared
+// package-level backupDirOverride variable.
 package updater
 
 import (
@@ -105,14 +105,10 @@ func TestBackupCurrentBinary_CreatesFile(t *testing.T) {
 	SetBackupDirForTesting(backupDir)
 	defer SetBackupDirForTesting("")
 
-	origFn := currentBinaryVersionFn
-	currentBinaryVersionFn = func() string { return "1.2.3" }
-	defer func() { currentBinaryVersionFn = origFn }()
-
 	bin := filepath.Join(tmp, "openboot")
 	require.NoError(t, os.WriteFile(bin, []byte("fake binary"), 0755))
 
-	require.NoError(t, backupCurrentBinary(bin))
+	require.NoError(t, backupCurrentBinary(bin, "1.2.3"))
 
 	entries, err := os.ReadDir(backupDir)
 	require.NoError(t, err)
@@ -137,13 +133,9 @@ func TestBackupCurrentBinary_UnknownVersionWhenBlank(t *testing.T) {
 	SetBackupDirForTesting(backupDir)
 	defer SetBackupDirForTesting("")
 
-	origFn := currentBinaryVersionFn
-	currentBinaryVersionFn = func() string { return "" }
-	defer func() { currentBinaryVersionFn = origFn }()
-
 	bin := filepath.Join(tmp, "openboot")
 	require.NoError(t, os.WriteFile(bin, []byte("x"), 0755))
-	require.NoError(t, backupCurrentBinary(bin))
+	require.NoError(t, backupCurrentBinary(bin, ""))
 
 	entries, err := os.ReadDir(backupDir)
 	require.NoError(t, err)
@@ -217,16 +209,13 @@ func TestBackupCurrentBinary_PrunesAfterLimit(t *testing.T) {
 	backupDir := filepath.Join(tmp, "backup")
 	SetBackupDirForTesting(backupDir)
 	defer SetBackupDirForTesting("")
-	origFn := currentBinaryVersionFn
-	currentBinaryVersionFn = func() string { return "1.0.0" }
-	defer func() { currentBinaryVersionFn = origFn }()
 
 	// Seed one-less-than-limit backups with old mtimes.
 	seedBackups(t, backupDir, backupRetention)
 
 	bin := filepath.Join(tmp, "openboot")
 	require.NoError(t, os.WriteFile(bin, []byte("new"), 0755))
-	require.NoError(t, backupCurrentBinary(bin))
+	require.NoError(t, backupCurrentBinary(bin, "1.0.0"))
 
 	entries, err := os.ReadDir(backupDir)
 	require.NoError(t, err)

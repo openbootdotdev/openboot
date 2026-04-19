@@ -17,6 +17,16 @@ var (
 	updateDryRun      bool
 )
 
+// Test seams — real implementations by default; tests replace via t.Cleanup.
+var (
+	updateIsHomebrewInstall  = updater.IsHomebrewInstall
+	updateGetLatestVersion   = updater.GetLatestVersion
+	updateDownloadAndReplace = updater.DownloadAndReplace
+	updateRollbackFn         = updater.Rollback
+	updateListBackupsFn      = updater.ListBackups
+	updateGetBackupDir       = updater.GetBackupDir
+)
+
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Update OpenBoot, pin to a specific version, or roll back",
@@ -76,11 +86,11 @@ func runUpdateCmd(_ *cobra.Command, _ []string) error {
 }
 
 func runListBackups() error {
-	dir, err := updater.GetBackupDir()
+	dir, err := updateGetBackupDir()
 	if err != nil {
 		return fmt.Errorf("resolve backup dir: %w", err)
 	}
-	names, err := updater.ListBackups()
+	names, err := updateListBackupsFn()
 	if err != nil {
 		return fmt.Errorf("list backups: %w", err)
 	}
@@ -96,13 +106,13 @@ func runListBackups() error {
 }
 
 func runRollback() error {
-	if updater.IsHomebrewInstall() {
+	if updateIsHomebrewInstall() {
 		ui.Warn("OpenBoot is managed by Homebrew — rollback is not supported.")
 		ui.Muted("Use 'brew' commands to change versions.")
 		return fmt.Errorf("rollback refused: Homebrew-managed install")
 	}
 	if updateDryRun {
-		names, err := updater.ListBackups()
+		names, err := updateListBackupsFn()
 		if err != nil {
 			return fmt.Errorf("list backups: %w", err)
 		}
@@ -113,7 +123,7 @@ func runRollback() error {
 		ui.Info(fmt.Sprintf("Dry-run: would restore backup %s", names[0]))
 		return nil
 	}
-	if err := updater.Rollback(); err != nil {
+	if err := updateRollbackFn(); err != nil {
 		return fmt.Errorf("rollback: %w", err)
 	}
 	ui.Success("Rollback complete.")
@@ -124,29 +134,26 @@ func runPinnedUpgrade(v string) error {
 	if err := updater.ValidateSemver(v); err != nil {
 		return err
 	}
-	if updater.IsHomebrewInstall() {
+	if updateIsHomebrewInstall() {
 		ui.Warn("OpenBoot is managed by Homebrew — --version is not supported.")
 		ui.Muted("Run 'brew upgrade openboot' to update via Homebrew.")
 		return fmt.Errorf("version pin refused: Homebrew-managed install")
 	}
 	if updateDryRun {
-		ui.Info(fmt.Sprintf("Dry-run: would download and install OpenBoot v%s", trimV(v)))
+		ui.Info(fmt.Sprintf("Dry-run: would download and install OpenBoot v%s", updater.TrimVersionPrefix(v)))
 		return nil
 	}
-	ui.Info(fmt.Sprintf("Installing OpenBoot v%s...", trimV(v)))
-	// Let the backup record the running version.
-	updater.SetCurrentVersionForTesting(func() string { return version })
-	defer updater.SetCurrentVersionForTesting(func() string { return "" })
+	ui.Info(fmt.Sprintf("Installing OpenBoot v%s...", updater.TrimVersionPrefix(v)))
 
-	if err := updater.DownloadAndReplace(v); err != nil {
+	if err := updateDownloadAndReplace(v, version); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
-	ui.Success(fmt.Sprintf("Installed OpenBoot v%s.", trimV(v)))
+	ui.Success(fmt.Sprintf("Installed OpenBoot v%s.", updater.TrimVersionPrefix(v)))
 	return nil
 }
 
 func runLatestUpgrade() error {
-	if updater.IsHomebrewInstall() {
+	if updateIsHomebrewInstall() {
 		ui.Warn("OpenBoot is managed by Homebrew.")
 		ui.Muted("Run 'brew upgrade openboot' to update.")
 		return fmt.Errorf("use 'brew upgrade openboot'")
@@ -155,25 +162,15 @@ func runLatestUpgrade() error {
 		ui.Info("Dry-run: would check GitHub for the latest release and upgrade.")
 		return nil
 	}
-	latest, err := updater.GetLatestVersion()
+	latest, err := updateGetLatestVersion()
 	if err != nil {
 		return fmt.Errorf("look up latest version: %w", err)
 	}
 	ui.Info(fmt.Sprintf("Installing OpenBoot %s...", latest))
-	updater.SetCurrentVersionForTesting(func() string { return version })
-	defer updater.SetCurrentVersionForTesting(func() string { return "" })
 
-	if err := updater.DownloadAndReplace(latest); err != nil {
+	if err := updateDownloadAndReplace(latest, version); err != nil {
 		return fmt.Errorf("update failed: %w", err)
 	}
 	ui.Success(fmt.Sprintf("Installed OpenBoot %s.", latest))
 	return nil
-}
-
-// trimV strips an optional leading "v" for display.
-func trimV(v string) string {
-	if len(v) > 0 && v[0] == 'v' {
-		return v[1:]
-	}
-	return v
 }

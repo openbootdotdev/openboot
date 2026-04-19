@@ -214,7 +214,7 @@ func TestNotifyUpdate_DirectInstall(t *testing.T) {
 
 func TestNotifyUpdate_VersionPrefix_Stripped(t *testing.T) {
 	// Verify that both "v"-prefixed and bare versions produce the same
-	// display string (regression guard for trimVersionPrefix).
+	// display string (regression guard for TrimVersionPrefix).
 	// We just exercise the code path without network.
 	notifyUpdate("v1.0.0", "v2.0.0")
 	notifyUpdate("1.0.0", "2.0.0")

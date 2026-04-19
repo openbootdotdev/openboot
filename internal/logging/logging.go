@@ -136,7 +136,7 @@ func Init(version string, verbose bool) (func(), error) {
 	slog.Info("session_start", //nolint:gosec // G706: os.Args is the audit subject, not untrusted taint
 		"version", version,
 		"pid", os.Getpid(),
-		"args", os.Args,
+		"args", RedactArgs(os.Args),
 	)
 
 	if openErr == nil && file != nil {
@@ -202,6 +202,44 @@ func pruneOldLogs(dir string, ref time.Time) {
 			_ = os.Remove(full)
 		}
 	}
+}
+
+// sensitiveFlagFragments are substrings that, when found in a flag name,
+// cause the flag's value to be redacted in the session_start audit record.
+// Matching is case-insensitive and done on the flag name only (the part
+// before '='); values of positional args are never redacted here.
+var sensitiveFlagFragments = []string{"token", "password", "secret", "key", "credential"}
+
+// RedactArgs returns a copy of args with values of sensitive-looking flags
+// replaced by "<redacted>". Only the "--flag=value" inline form is redacted;
+// the space-separated form ("--flag value") is left alone because the value
+// at position i+1 has no flag context at this layer. This is a best-effort
+// hedge, not a guarantee.
+func RedactArgs(args []string) []string {
+	out := make([]string, len(args))
+	for i, a := range args {
+		eq := strings.IndexByte(a, '=')
+		if eq <= 0 {
+			out[i] = a
+			continue
+		}
+		name := strings.ToLower(a[:eq])
+		if isSensitiveFlagName(name) {
+			out[i] = a[:eq] + "=<redacted>"
+			continue
+		}
+		out[i] = a
+	}
+	return out
+}
+
+func isSensitiveFlagName(name string) bool {
+	for _, frag := range sensitiveFlagFragments {
+		if strings.Contains(name, frag) {
+			return true
+		}
+	}
+	return false
 }
 
 func reportFallback(err error) {

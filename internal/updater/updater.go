@@ -171,8 +171,8 @@ func resolveLatestVersion(currentVersion string) string {
 }
 
 func notifyUpdate(currentVersion, latestVersion string) {
-	latestClean := trimVersionPrefix(latestVersion)
-	currentClean := trimVersionPrefix(currentVersion)
+	latestClean := TrimVersionPrefix(latestVersion)
+	currentClean := TrimVersionPrefix(currentVersion)
 	ui.Warn(fmt.Sprintf("New version available: v%s (current: v%s)", latestClean, currentClean))
 	if IsHomebrewInstall() {
 		ui.Muted("Run 'brew upgrade openboot' to upgrade")
@@ -211,8 +211,8 @@ var execBrewUpgrade = func(formula string) error {
 }
 
 func doBrewUpgrade(currentVersion, latestVersion string) {
-	latestClean := trimVersionPrefix(latestVersion)
-	currentClean := trimVersionPrefix(currentVersion)
+	latestClean := TrimVersionPrefix(latestVersion)
+	currentClean := TrimVersionPrefix(currentVersion)
 	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s via Homebrew...", currentClean, latestClean))
 	if err := execBrewUpgrade(brewFormula); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
@@ -228,14 +228,10 @@ func doBrewUpgrade(currentVersion, latestVersion string) {
 }
 
 func doDirectUpgrade(currentVersion, latestVersion string) {
-	latestClean := trimVersionPrefix(latestVersion)
-	currentClean := trimVersionPrefix(currentVersion)
+	latestClean := TrimVersionPrefix(latestVersion)
+	currentClean := TrimVersionPrefix(currentVersion)
 	ui.Info(fmt.Sprintf("Updating OpenBoot v%s → v%s...", currentClean, latestClean))
-	// Record the running version so backupCurrentBinary can label the backup.
-	prevFn := currentBinaryVersionFn
-	currentBinaryVersionFn = func() string { return currentVersion }
-	defer func() { currentBinaryVersionFn = prevFn }()
-	if err := DownloadAndReplace(latestVersion); err != nil {
+	if err := DownloadAndReplace(latestVersion, currentVersion); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
 		ui.Muted("Run 'openboot update --self' to update manually")
 		fmt.Println()
@@ -351,7 +347,7 @@ func checksumsURL(version string) string {
 	if version == "" {
 		return "https://github.com/openbootdotdev/openboot/releases/latest/download/checksums.txt"
 	}
-	return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/download/v%s/checksums.txt", trimVersionPrefix(version))
+	return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/download/v%s/checksums.txt", TrimVersionPrefix(version))
 }
 
 // binaryURL returns the correct binary download URL for the given version and
@@ -360,19 +356,21 @@ func binaryURL(version, filename string) string {
 	if version == "" {
 		return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/latest/download/%s", filename)
 	}
-	return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/download/v%s/%s", trimVersionPrefix(version), filename)
+	return fmt.Sprintf("https://github.com/openbootdotdev/openboot/releases/download/v%s/%s", TrimVersionPrefix(version), filename)
 }
 
-// DownloadAndReplace downloads the openboot binary for the given version and
-// atomically replaces the currently-running binary.
+// DownloadAndReplace downloads the openboot binary for the given target
+// version and atomically replaces the currently-running binary.
 //
-// If version is empty, the GitHub /latest/ redirect is used (back-compat with
-// AutoUpgrade). If version is non-empty, the exact release URL is used.
+// targetVersion controls which release to fetch: empty → GitHub /latest/
+// redirect (back-compat with AutoUpgrade), non-empty → exact release URL.
+// currentVersion is recorded in the backup filename for rollback UX; it may
+// be empty (renders as "unknown").
 //
 // Before the atomic rename, the current binary is copied to the backup
 // directory (see GetBackupDir) for rollback via Rollback(). The newest
 // backupRetention backups are kept; older ones are pruned.
-func DownloadAndReplace(version string) error {
+func DownloadAndReplace(targetVersion, currentVersion string) error {
 	if IsHomebrewInstall() {
 		return fmt.Errorf("openboot is managed by Homebrew — run 'brew upgrade openboot' instead")
 	}
@@ -388,12 +386,12 @@ func DownloadAndReplace(version string) error {
 
 	// Fetch checksums first so we can verify integrity before overwriting the
 	// running binary. If the checksums file is missing or malformed, abort.
-	checksums, err := fetchChecksums(client, version)
+	checksums, err := fetchChecksums(client, targetVersion)
 	if err != nil {
 		return fmt.Errorf("verify update integrity: %w", err)
 	}
 
-	url := binaryURL(version, filename)
+	url := binaryURL(targetVersion, filename)
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -452,7 +450,7 @@ func DownloadAndReplace(version string) error {
 	// fails, we still proceed — the user asked to update and integrity is
 	// already verified. Warn via UI so the user knows rollback is unavailable
 	// for this upgrade.
-	if err := backupCurrentBinary(binPath); err != nil {
+	if err := backupCurrentBinary(binPath, currentVersion); err != nil {
 		ui.Warn(fmt.Sprintf("could not create backup (rollback unavailable for this upgrade): %v", err))
 	}
 
@@ -474,10 +472,6 @@ var backupDirOverride string
 // pruned after each successful backup.
 const backupRetention = 5
 
-// currentBinaryVersion returns a version string to embed in backup filenames.
-// Tests can override via currentBinaryVersionFn.
-var currentBinaryVersionFn = func() string { return "" }
-
 // GetBackupDir returns the directory where pre-upgrade binary backups are
 // stored. Defaults to ~/.openboot/backup; tests may override via
 // SetBackupDirForTesting.
@@ -498,15 +492,10 @@ func SetBackupDirForTesting(dir string) {
 	backupDirOverride = dir
 }
 
-// SetCurrentVersionForTesting overrides the value used in backup filenames.
-// When unset, backups use "unknown" as the version tag.
-func SetCurrentVersionForTesting(fn func() string) {
-	currentBinaryVersionFn = fn
-}
-
 // backupCurrentBinary copies the binary at binPath into the backup directory
-// with a timestamped filename and prunes old backups beyond backupRetention.
-func backupCurrentBinary(binPath string) error {
+// with a timestamped filename labeled by currentVersion (or "unknown" if
+// empty), and prunes old backups beyond backupRetention.
+func backupCurrentBinary(binPath, currentVersion string) error {
 	dir, err := GetBackupDir()
 	if err != nil {
 		return err
@@ -515,11 +504,11 @@ func backupCurrentBinary(binPath string) error {
 		return fmt.Errorf("mkdir backup dir: %w", err)
 	}
 
-	version := currentBinaryVersionFn()
+	version := currentVersion
 	if version == "" {
 		version = "unknown"
 	}
-	version = trimVersionPrefix(version)
+	version = TrimVersionPrefix(version)
 
 	ts := time.Now().UTC().Format("20060102T150405Z")
 	dst := filepath.Join(dir, fmt.Sprintf("openboot-%s-%s", version, ts))
@@ -700,8 +689,8 @@ func isNewerVersion(latest, current string) bool {
 	if current == "dev" {
 		return false
 	}
-	latestClean := trimVersionPrefix(latest)
-	currentClean := trimVersionPrefix(current)
+	latestClean := TrimVersionPrefix(latest)
+	currentClean := TrimVersionPrefix(current)
 	return compareSemver(latestClean, currentClean) > 0
 }
 
@@ -734,7 +723,7 @@ func parseSemver(v string) [3]int {
 	return result
 }
 
-func trimVersionPrefix(v string) string {
+func TrimVersionPrefix(v string) string {
 	if len(v) > 0 && v[0] == 'v' {
 		return v[1:]
 	}

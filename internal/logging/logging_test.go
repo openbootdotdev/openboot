@@ -226,3 +226,88 @@ func mustChtimes(t *testing.T, path string, mtime time.Time) {
 	t.Helper()
 	require.NoError(t, os.Chtimes(path, mtime, mtime))
 }
+
+func TestRedactArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "plain args untouched",
+			in:   []string{"openboot", "install", "--preset=developer", "--dry-run"},
+			want: []string{"openboot", "install", "--preset=developer", "--dry-run"},
+		},
+		{
+			name: "token flag redacted",
+			in:   []string{"openboot", "--token=abc123"},
+			want: []string{"openboot", "--token=<redacted>"},
+		},
+		{
+			name: "password flag redacted",
+			in:   []string{"openboot", "--password=hunter2"},
+			want: []string{"openboot", "--password=<redacted>"},
+		},
+		{
+			name: "case-insensitive match on fragment",
+			in:   []string{"openboot", "--API-KEY=xyz", "--Secret-Token=abc"},
+			want: []string{"openboot", "--API-KEY=<redacted>", "--Secret-Token=<redacted>"},
+		},
+		{
+			name: "space-separated form is NOT redacted (known limitation)",
+			in:   []string{"openboot", "--token", "abc123"},
+			want: []string{"openboot", "--token", "abc123"},
+		},
+		{
+			name: "positional arg with = passes through when name has no sensitive fragment",
+			in:   []string{"openboot", "package=latest"},
+			want: []string{"openboot", "package=latest"},
+		},
+		{
+			name: "empty args",
+			in:   []string{},
+			want: []string{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := RedactArgs(tc.in)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestMultiHandler_WithAttrsAndWithGroup(t *testing.T) {
+	tmp := t.TempDir()
+	dir := filepath.Join(tmp, "logs")
+	clock := time.Date(2026, 4, 19, 10, 30, 0, 0, time.UTC)
+	withStubs(t, dir, clock)
+
+	closer, err := Init("1.0.0", false)
+	require.NoError(t, err)
+	defer closer()
+	WaitForCleanup()
+
+	// Exercise both WithAttrs and WithGroup — they must return a handler
+	// that still writes to every child sink (file + stderr in this case).
+	logger := slog.Default().With("component", "test").WithGroup("sub")
+	logger.Info("grouped_event", "k", "v")
+	// Also call a direct slog fn to make sure Enabled gate works across the
+	// fanned-out tree.
+	slog.Default().Debug("debug_should_reach_file_not_stderr")
+
+	// Force any buffered writes to flush before we read the file.
+	closer()
+
+	path := filepath.Join(dir, "openboot-2026-04-19.log")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	text := string(data)
+	// The grouped record must appear with both the With attr and a grouped
+	// key. JSONHandler renders groups as nested objects; assert by substring
+	// so we don't need to unmarshal every line.
+	assert.Contains(t, text, `"component":"test"`, "WithAttrs attribute must reach file sink")
+	assert.Contains(t, text, `grouped_event`, "grouped record must appear in file")
+	assert.Contains(t, text, `"sub":{`, "WithGroup must namespace attributes")
+	assert.Contains(t, text, `debug_should_reach_file_not_stderr`, "file sink must accept Debug")
+}
