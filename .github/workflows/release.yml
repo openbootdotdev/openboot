@@ -181,6 +181,24 @@ jobs:
           sha256sum "openboot-${VERSION_CLEAN}.tar.gz" >> checksums.txt
           cat checksums.txt
 
+      - name: Write release notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## Installation
+
+          ```bash
+          brew install openbootdotdev/tap/openboot
+          ```
+
+          ## Binaries
+
+          | Platform | Architecture | Download |
+          |----------|--------------|----------|
+          | macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
+          | macOS | Intel | `openboot-darwin-amd64` |
+          EOF
+          sed -i 's/^          //' release_notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -193,19 +211,7 @@ jobs:
             artifacts/openboot-darwin-arm64/openboot-darwin-arm64
             openboot-*.tar.gz
             checksums.txt
-          body: |
-            ## Installation
-
-            ```bash
-            brew install openbootdotdev/tap/openboot
-            ```
-
-            ## Binaries
-
-            | Platform | Architecture | Download |
-            |----------|--------------|----------|
-            | macOS | Apple Silicon (M1/M2/M3) | `openboot-darwin-arm64` |
-            | macOS | Intel | `openboot-darwin-amd64` |
+          body_path: release_notes.md
 
   update-homebrew-tap:
     needs: [detect-release-type, release]
