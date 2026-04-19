@@ -50,8 +50,3 @@ coverage.out
 coverage.html
 *.coverprofile
 
-# Quality scorecard — ignore generated coverage artifact, track the rest
-quality/coverage.out
-# quality/score.json      — tracked (committed score snapshots)
-# quality/scorecard.yaml  — tracked (config)
-# quality/findings.md     — tracked (human-readable report)

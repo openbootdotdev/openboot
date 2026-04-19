@@ -1,7 +1,7 @@
 .PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
        test-vm test-vm-run test-vm-quick test-vm-release test-vm-full \
        install-hooks uninstall-hooks \
-       quality quality-lint quality-security quality-diff
+       quality-lint quality-security
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
@@ -116,23 +116,11 @@ uninstall-hooks:
 	done
 
 # =============================================================================
-# Quality scorecard
+# Code quality
 # =============================================================================
 
-quality: ## Run full quality scorecard
-	@bash scripts/quality-score.sh
-
-quality-lint: ## Run golangci-lint only
+quality-lint: ## Run golangci-lint
 	golangci-lint run ./...
 
-quality-security: ## Run gosec only
+quality-security: ## Run gosec
 	gosec ./...
-
-quality-diff: ## Show score change vs last run then re-run scorecard
-	@if [ -f quality/score.json ]; then \
-		echo "Last recorded score:"; \
-		python3 -c "import json,sys; d=json.load(open('quality/score.json')); print('  total_score:', d['total_score'], '  (', d['timestamp'], '  sha:', d['git_sha'], ')')" 2>/dev/null || \
-		grep -E '"total_score"|"timestamp"|"git_sha"' quality/score.json | sed 's/^/  /'; \
-		echo; \
-	fi
-	@bash scripts/quality-score.sh
