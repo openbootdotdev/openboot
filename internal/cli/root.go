@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/logging"
 	"github.com/openbootdotdev/openboot/internal/updater"
 )
 
@@ -38,9 +38,13 @@ shell configuration, and macOS preferences.`,
   # Capture your current environment
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if verbose {
-			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+		// Install always-on file logging; --verbose controls stderr level.
+		// Failure here is never fatal — Init falls back to stderr internally.
+		closer, err := logging.Init(version, verbose)
+		if err != nil {
+			return fmt.Errorf("init logging: %w", err)
 		}
+		logCloser = closer
 
 		config.SetClientVersion(version)
 		installCfg.Version = version
@@ -94,6 +98,7 @@ func init() {
 	rootCmd.AddCommand(snapshotCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
+	rootCmd.AddCommand(updateCmd)
 
 	rootCmd.SetUsageTemplate(usageTemplate)
 }
@@ -138,8 +143,16 @@ Learn more:
 // verbose is set by the --verbose persistent flag.
 var verbose bool
 
+// logCloser is set by PersistentPreRunE and flushed by Execute on return.
+var logCloser func()
+
 func Execute() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	defer func() {
+		if logCloser != nil {
+			logCloser()
+		}
+	}()
 	return rootCmd.ExecuteContext(ctx)
 }
