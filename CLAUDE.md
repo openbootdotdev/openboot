@@ -8,7 +8,6 @@ Entry point: `cmd/openboot/main.go` → `internal/cli.Execute()`.
 Core flow: `openboot install` runs a 7-step wizard in `internal/installer/installer.go`.
 
 For full contribution guide (test layering L1–L6, Runner interface, hook setup) see @CONTRIBUTING.md.
-For protocol / data model / P1–P7 invariants see @docs/SPEC.md.
 
 ## Commands
 
@@ -78,7 +77,7 @@ scripts/
 | Change brew behavior | `internal/brew/brew.go` + `brew_install.go` | Parallel workers, StickyProgress, Uninstall/UninstallCask |
 | Add snapshot data | `internal/snapshot/capture.go` | Extend `CaptureWithProgress` steps |
 | Update self-update | `internal/updater/updater.go` | `AutoUpgrade()` called from `root.go` RunE |
-| Change publish flow | `internal/cli/snapshot_publish.go` (`publishSnapshot`) | Slug resolution, see P7 in `docs/SPEC.md` |
+| Change publish flow | `internal/cli/snapshot_publish.go` (`publishSnapshot`) | Slug resolution |
 | Source resolution (install) | `internal/cli/install.go` (`resolvePositionalArg`) | file / user-slug / preset / alias detection |
 | HTTP with retry | `internal/httputil/ratelimit.go` | Use `httputil.Do()` — handles 429 + Retry-After |
 | Test tier / when to run | `CONTRIBUTING.md` "Test Layering" | L1–L6 table |

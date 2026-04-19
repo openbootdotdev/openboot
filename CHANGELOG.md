@@ -2,7 +2,7 @@
 
 ## v1.0 (unreleased)
 
-OpenBoot v1.0 narrows the product to two verbs: **`install`** (add things to your Mac) and **`snapshot`** (save your current state somewhere). Everything else is either cloud-config CRUD or independent tooling. See [`docs/SPEC.md`](docs/SPEC.md) for the full spec.
+OpenBoot v1.0 narrows the product to two verbs: **`install`** (add things to your Mac) and **`snapshot`** (save your current state somewhere). Everything else is either cloud-config CRUD or independent tooling.
 
 ### Breaking changes
 

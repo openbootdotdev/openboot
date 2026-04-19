@@ -76,7 +76,7 @@ Integration tests (L2) *may* touch the real filesystem but only inside temp dirs
 
 ## Architecture
 
-See [CLAUDE.md](CLAUDE.md) for how everything fits together and [docs/SPEC.md](docs/SPEC.md) for the v1.0 CLI surface.
+See [CLAUDE.md](CLAUDE.md) for how everything fits together.
 
 ## Questions
 
