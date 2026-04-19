@@ -1,24 +1,40 @@
 catalog:
-  - internal/config/data/packages.yaml
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/config/data/packages.yaml
 
 brew:
-  - internal/brew/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/brew/**
 
 installer:
-  - internal/installer/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/installer/**
 
 ci:
-  - .github/workflows/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
 
 docs:
-  - "*.md"
-  - docs/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.md"
+          - docs/**
 
 tests:
-  - "**/*_test.go"
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*_test.go"
 
 snapshot:
-  - internal/snapshot/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/snapshot/**
 
 ui:
-  - internal/ui/**
+  - changed-files:
+      - any-glob-to-any-file:
+          - internal/ui/**
