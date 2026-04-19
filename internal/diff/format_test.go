@@ -194,3 +194,170 @@ func TestFormatTerminal_PackagesOnly(t *testing.T) {
 		FormatTerminal(result, true)
 	})
 }
+
+func TestFormatTerminal_DotfilesSection(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *DiffResult
+	}{
+		{
+			name: "repo changed",
+			result: &DiffResult{
+				Source:   Source{Kind: "remote", Path: "user/slug"},
+				Dotfiles: &DotfilesDiff{RepoChanged: &ValueChange{System: "old-repo", Reference: "new-repo"}},
+			},
+		},
+		{
+			name: "dirty",
+			result: &DiffResult{
+				Source:   Source{Kind: "local", Path: "test.json"},
+				Dotfiles: &DotfilesDiff{Dirty: true},
+			},
+		},
+		{
+			name: "unpushed",
+			result: &DiffResult{
+				Source:   Source{Kind: "local", Path: "test.json"},
+				Dotfiles: &DotfilesDiff{Unpushed: true},
+			},
+		},
+		{
+			name: "all dotfiles conditions",
+			result: &DiffResult{
+				Source: Source{Kind: "file", Path: "snap.json"},
+				Dotfiles: &DotfilesDiff{
+					RepoChanged: &ValueChange{System: "a", Reference: "b"},
+					Dirty:       true,
+					Unpushed:    true,
+				},
+			},
+		},
+		{
+			name: "empty dotfiles skips section",
+			result: &DiffResult{
+				Source:   Source{Kind: "local", Path: "test.json"},
+				Dotfiles: &DotfilesDiff{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				FormatTerminal(tt.result, false)
+			})
+		})
+	}
+}
+
+func TestFormatTerminal_ShellSection(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *DiffResult
+	}{
+		{
+			name: "theme changed",
+			result: &DiffResult{
+				Source: Source{Kind: "remote", Path: "user/slug"},
+				Shell: &ShellDiff{
+					ThemeChanged:   true,
+					LocalTheme:     "robbyrussell",
+					ReferenceTheme: "agnoster",
+				},
+			},
+		},
+		{
+			name: "plugins changed",
+			result: &DiffResult{
+				Source: Source{Kind: "remote", Path: "user/slug"},
+				Shell: &ShellDiff{
+					PluginsChanged:   true,
+					LocalPlugins:     []string{"git"},
+					ReferencePlugins: []string{"git", "z"},
+				},
+			},
+		},
+		{
+			name: "theme and plugins changed",
+			result: &DiffResult{
+				Source: Source{Kind: "remote", Path: "user/slug"},
+				Shell: &ShellDiff{
+					ThemeChanged:     true,
+					LocalTheme:       "",
+					ReferenceTheme:   "agnoster",
+					PluginsChanged:   true,
+					LocalPlugins:     nil,
+					ReferencePlugins: []string{"git"},
+				},
+			},
+		},
+		{
+			name: "shell diff with no changes skips section",
+			result: &DiffResult{
+				Source: Source{Kind: "remote", Path: "user/slug"},
+				Shell:  &ShellDiff{ThemeChanged: false, PluginsChanged: false},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotPanics(t, func() {
+				FormatTerminal(tt.result, false)
+			})
+		})
+	}
+}
+
+func TestFormatJSON_WithShellAndDotfiles(t *testing.T) {
+	result := &DiffResult{
+		Source: Source{Kind: "remote", Path: "user/cfg"},
+		Shell: &ShellDiff{
+			ThemeChanged:   true,
+			LocalTheme:     "robbyrussell",
+			ReferenceTheme: "agnoster",
+		},
+		Dotfiles: &DotfilesDiff{
+			RepoChanged: &ValueChange{System: "old", Reference: "new"},
+		},
+	}
+
+	data, err := FormatJSON(result)
+	require.NoError(t, err)
+
+	var parsed map[string]interface{}
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+
+	assert.Contains(t, parsed, "shell")
+	assert.Contains(t, parsed, "dotfiles")
+
+	// Shell adds 1 to TotalChanged; dotfiles.RepoChanged adds 1 → total 2
+	summary := parsed["summary"].(map[string]interface{})
+	assert.Equal(t, float64(2), summary["changed"])
+}
+
+func TestFormatJSON_WithDevToolsSection(t *testing.T) {
+	result := &DiffResult{
+		Source: Source{Kind: "local", Path: "snap.json"},
+		DevTools: &DevToolDiff{
+			Missing: []string{"rust"},
+			Extra:   []string{"python"},
+			Changed: []DevToolDelta{{Name: "go", System: "1.22", Reference: "1.24"}},
+			Common:  2,
+		},
+	}
+
+	data, err := FormatJSON(result)
+	require.NoError(t, err)
+
+	var parsed map[string]interface{}
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
+
+	assert.Contains(t, parsed, "dev_tools")
+	summary := parsed["summary"].(map[string]interface{})
+	assert.Equal(t, float64(1), summary["missing"])
+	assert.Equal(t, float64(1), summary["extra"])
+	assert.Equal(t, float64(1), summary["changed"])
+}
