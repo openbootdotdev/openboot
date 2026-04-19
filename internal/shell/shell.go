@@ -119,7 +119,7 @@ func EnsureBrewShellenv(dryRun bool) error {
 
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("ensure brew shellenv: %w", err)
 	}
 	zshrcPath := filepath.Join(home, ".zshrc")
 
@@ -129,7 +129,10 @@ func EnsureBrewShellenv(dryRun bool) error {
 			fmt.Printf("[DRY-RUN] Would create %s with Homebrew shellenv\n", zshrcPath)
 			return nil
 		}
-		return os.WriteFile(zshrcPath, []byte(brewShellenvLine+"\n"), 0600)
+		if err := os.WriteFile(zshrcPath, []byte(brewShellenvLine+"\n"), 0600); err != nil {
+			return fmt.Errorf("create .zshrc: %w", err)
+		}
+		return nil
 	}
 
 	raw, err := os.ReadFile(zshrcPath)
@@ -262,7 +265,7 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("configure zshrc: %w", err)
 	}
 	zshrcPath := filepath.Join(home, ".zshrc")
 
@@ -272,11 +275,11 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 			return nil
 		}
 		if err := validateShellIdentifier(theme, "ZSH_THEME"); err != nil {
-			return err
+			return fmt.Errorf("validate theme: %w", err)
 		}
 		for _, p := range plugins {
 			if err := validateShellIdentifier(p, "plugin"); err != nil {
-				return err
+				return fmt.Errorf("validate plugin: %w", err)
 			}
 		}
 		template := fmt.Sprintf(`export ZSH="$HOME/.oh-my-zsh"

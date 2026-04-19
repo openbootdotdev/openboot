@@ -124,7 +124,7 @@ func Install(packages []string, dryRun bool) error {
 
 	failed, err := installBatch(toInstall)
 	if err != nil {
-		return err
+		return fmt.Errorf("install npm packages: %w", err)
 	}
 
 	if len(failed) > 0 {

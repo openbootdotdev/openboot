@@ -43,15 +43,18 @@ func Clone(repoURL string, dryRun bool) error {
 
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("clone dotfiles: %w", err)
 	}
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
 	if _, err := os.Stat(dotfilesPath); err == nil {
 		// Dotfiles directory already exists — sync or re-clone as appropriate.
 		needsClone, err := handleExistingDotfiles(dotfilesPath, repoURL, dryRun)
-		if err != nil || !needsClone {
-			return err
+		if err != nil {
+			return fmt.Errorf("handle existing dotfiles: %w", err)
+		}
+		if !needsClone {
+			return nil
 		}
 	}
 
@@ -210,7 +213,7 @@ func confirmResetIfDirty(dotfilesPath, branch string) bool {
 func Link(dryRun bool) error {
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("link dotfiles: %w", err)
 	}
 	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
 
@@ -332,17 +335,17 @@ func backupConflicts(pkgDir, targetDir string) ([][2]string, error) {
 
 func linkWithStow(dotfilesPath string, dryRun bool) error {
 	if err := ensureStow(dryRun); err != nil {
-		return err
+		return fmt.Errorf("ensure stow: %w", err)
 	}
 
 	entries, err := os.ReadDir(dotfilesPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read dotfiles dir: %w", err)
 	}
 
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("link with stow: %w", err)
 	}
 
 	var errs []error
@@ -399,12 +402,12 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 func linkDirect(dotfilesPath string, dryRun bool) error {
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("link direct: %w", err)
 	}
 
 	entries, err := os.ReadDir(dotfilesPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read dotfiles dir: %w", err)
 	}
 
 	for _, entry := range entries {

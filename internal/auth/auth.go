@@ -26,7 +26,7 @@ func TokenPath() (string, error) {
 func LoadToken() (*StoredAuth, error) {
 	path, err := TokenPath()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load token: %w", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -51,7 +51,7 @@ func LoadToken() (*StoredAuth, error) {
 func SaveToken(auth *StoredAuth) error {
 	path, err := TokenPath()
 	if err != nil {
-		return err
+		return fmt.Errorf("save token: %w", err)
 	}
 
 	dir := filepath.Dir(path)
@@ -74,7 +74,7 @@ func SaveToken(auth *StoredAuth) error {
 func DeleteToken() error {
 	path, err := TokenPath()
 	if err != nil {
-		return err
+		return fmt.Errorf("delete token: %w", err)
 	}
 	err = os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
