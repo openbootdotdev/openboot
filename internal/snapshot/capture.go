@@ -183,7 +183,7 @@ func CaptureNpm() ([]string, error) {
 	if len(lines) <= 1 {
 		return []string{}, nil
 	}
-	var packages []string
+	packages := []string{}
 	for _, line := range lines[1:] {
 		line = strings.TrimSpace(line)
 		if line == "" {

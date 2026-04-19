@@ -289,7 +289,9 @@ func CheckDiskSpace() (float64, error) {
 	if err := syscall.Statfs(home, &stat); err != nil {
 		return 0, err
 	}
-	availableGB := float64(stat.Bavail*uint64(stat.Bsize)) / (1024 * 1024 * 1024)
+	// stat.Bsize is uint32 on darwin and int64 on linux; the kernel always
+	// reports a non-negative block size so the conversion is safe.
+	availableGB := float64(stat.Bavail*uint64(stat.Bsize)) / (1024 * 1024 * 1024) //nolint:gosec // see comment above
 	return availableGB, nil
 }
 

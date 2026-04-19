@@ -2,9 +2,6 @@ version: "2"
 
 run:
   timeout: 5m
-  exclude-dirs:
-    - vendor
-    - testutil
 
 formatters:
   enable:
@@ -46,13 +43,11 @@ linters:
       excludes:
         - G304 # File path provided as taint input — acceptable for CLI tools
   exclusions:
+    paths:
+      - vendor
+      - testutil
     rules:
       - path: "_test\\.go"
         linters:
           - errcheck
           - gosec
-      - path: "testutil/"
-        linters:
-          - gosec
-          - errcheck
-          - unused

@@ -159,6 +159,19 @@ func resolveBranch(dotfilesPath string) string {
 			branch = strings.TrimPrefix(ref, "refs/remotes/origin/")
 		}
 	}
+	// origin/HEAD may not be configured locally — ask the remote what its default branch is.
+	if branch == "" || branch == "HEAD" {
+		if out, err := gitOutputFunc([]string{"-C", dotfilesPath, "ls-remote", "--symref", "origin", "HEAD"}); err == nil {
+			for _, line := range strings.Split(string(out), "\n") {
+				if rest, ok := strings.CutPrefix(line, "ref: "); ok {
+					if fields := strings.Fields(rest); len(fields) >= 1 {
+						branch = strings.TrimPrefix(fields[0], "refs/heads/")
+						break
+					}
+				}
+			}
+		}
+	}
 	if branch == "" || branch == "HEAD" {
 		return "main"
 	}
