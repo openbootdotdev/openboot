@@ -210,3 +210,66 @@ func TestCompareSnapshots_EmptySnapshots(t *testing.T) {
 	assert.Equal(t, 0, result.TotalExtra())
 	assert.Equal(t, 0, result.TotalChanged())
 }
+
+func TestCompareSnapshotToRemote_WithMacOSPrefs(t *testing.T) {
+	isolateHome(t)
+	system := &snapshot.Snapshot{
+		MacOSPrefs: []snapshot.MacOSPref{
+			{Domain: "com.apple.dock", Key: "autohide", Value: "false"},
+		},
+	}
+	remote := &config.RemoteConfig{
+		MacOSPrefs: []config.RemoteMacOSPref{
+			{Domain: "com.apple.dock", Key: "autohide", Value: "true"},
+			{Domain: "com.apple.dock", Key: "tilesize", Value: "48"},
+		},
+	}
+
+	result := CompareSnapshotToRemote(system, remote, Source{Kind: "remote", Path: "user/cfg"})
+
+	require.NotNil(t, result.MacOS)
+	assert.Len(t, result.MacOS.Changed, 1)
+	assert.Equal(t, "autohide", result.MacOS.Changed[0].Key)
+	assert.Equal(t, "false", result.MacOS.Changed[0].System)
+	assert.Equal(t, "true", result.MacOS.Changed[0].Reference)
+	assert.Len(t, result.MacOS.Missing, 1)
+	assert.Equal(t, "tilesize", result.MacOS.Missing[0].Key)
+}
+
+func TestDiffDotfiles_GitSuffixNormalization(t *testing.T) {
+	isolateHome(t)
+
+	// Same repo, one with .git suffix and one without — should not report a change.
+	result := diffDotfiles(
+		"https://github.com/user/dotfiles.git",
+		"https://github.com/user/dotfiles",
+	)
+	assert.Nil(t, result.RepoChanged, "trailing .git suffix should be normalized away")
+}
+
+func TestDiffDotfiles_DifferentRepos(t *testing.T) {
+	isolateHome(t)
+
+	result := diffDotfiles(
+		"https://github.com/user/dotfiles-old",
+		"https://github.com/user/dotfiles-new",
+	)
+	require.NotNil(t, result.RepoChanged)
+	assert.Equal(t, "https://github.com/user/dotfiles-old", result.RepoChanged.System)
+	assert.Equal(t, "https://github.com/user/dotfiles-new", result.RepoChanged.Reference)
+}
+
+func TestDiffDotfiles_BothEmpty(t *testing.T) {
+	isolateHome(t)
+	result := diffDotfiles("", "")
+	assert.Nil(t, result.RepoChanged)
+	assert.False(t, result.Dirty)
+	assert.False(t, result.Unpushed)
+}
+
+func TestDiffDotfiles_EmptyReference(t *testing.T) {
+	isolateHome(t)
+	// Reference is empty → no change reported even if system has one.
+	result := diffDotfiles("https://github.com/user/dotfiles", "")
+	assert.Nil(t, result.RepoChanged)
+}

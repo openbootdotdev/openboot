@@ -200,3 +200,98 @@ func TestDiffResult_NilSections(t *testing.T) {
 	assert.Equal(t, 0, r.TotalChanged())
 	assert.False(t, r.HasChanges())
 }
+
+func TestDiffResult_HasChanges_DotfilesDirty(t *testing.T) {
+	r := &DiffResult{Dotfiles: &DotfilesDiff{Dirty: true}}
+	assert.True(t, r.HasChanges())
+}
+
+func TestDiffResult_HasChanges_DotfilesUnpushed(t *testing.T) {
+	r := &DiffResult{Dotfiles: &DotfilesDiff{Unpushed: true}}
+	assert.True(t, r.HasChanges())
+}
+
+func TestDiffResult_HasChanges_DotfilesRepoChanged(t *testing.T) {
+	r := &DiffResult{Dotfiles: &DotfilesDiff{RepoChanged: &ValueChange{System: "a", Reference: "b"}}}
+	assert.True(t, r.HasChanges())
+}
+
+func TestDiffResult_HasChanges_DotfilesEmptyNoChange(t *testing.T) {
+	r := &DiffResult{Dotfiles: &DotfilesDiff{}}
+	assert.False(t, r.HasChanges())
+}
+
+func TestDiffResult_HasChanges_Shell(t *testing.T) {
+	r := &DiffResult{Shell: &ShellDiff{ThemeChanged: true}}
+	assert.True(t, r.HasChanges())
+}
+
+func TestDiffResult_TotalChanged_DotfilesRepoChanged(t *testing.T) {
+	r := &DiffResult{Dotfiles: &DotfilesDiff{RepoChanged: &ValueChange{System: "old", Reference: "new"}}}
+	assert.Equal(t, 1, r.TotalChanged())
+}
+
+func TestDiffResult_TotalChanged_DotfilesNilRepoChanged(t *testing.T) {
+	r := &DiffResult{Dotfiles: &DotfilesDiff{Dirty: true}}
+	assert.Equal(t, 0, r.TotalChanged())
+}
+
+func TestDiffResult_TotalChanged_Shell(t *testing.T) {
+	r := &DiffResult{Shell: &ShellDiff{PluginsChanged: true}}
+	assert.Equal(t, 1, r.TotalChanged())
+}
+
+func TestDiffResult_TotalChanged_DotfilesAndShell(t *testing.T) {
+	r := &DiffResult{
+		Dotfiles: &DotfilesDiff{RepoChanged: &ValueChange{System: "a", Reference: "b"}},
+		Shell:    &ShellDiff{ThemeChanged: true},
+	}
+	assert.Equal(t, 2, r.TotalChanged())
+}
+
+func TestToSet(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		wantKeys []string
+	}{
+		{"nil input", nil, nil},
+		{"empty input", []string{}, nil},
+		{"single item", []string{"a"}, []string{"a"}},
+		{"multiple items", []string{"a", "b", "c"}, []string{"a", "b", "c"}},
+		{"duplicates collapse", []string{"a", "a", "b"}, []string{"a", "b"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ToSet(tt.input)
+			assert.Equal(t, len(tt.wantKeys), len(got))
+			for _, k := range tt.wantKeys {
+				assert.True(t, got[k], "expected key %q in set", k)
+			}
+		})
+	}
+}
+
+func TestPluginsEqual(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b []string
+		want bool
+	}{
+		{"both nil", nil, nil, true},
+		{"both empty", []string{}, []string{}, true},
+		{"identical order", []string{"git", "z"}, []string{"git", "z"}, true},
+		{"different order", []string{"z", "git"}, []string{"git", "z"}, true},
+		{"different length", []string{"a"}, []string{"a", "b"}, false},
+		{"different elements", []string{"a", "b"}, []string{"a", "c"}, false},
+		// len guard (2==2) passes, but the set built from ["a","a"] lacks "b" → false.
+		{"duplicates in a", []string{"a", "a"}, []string{"a", "b"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, PluginsEqual(tt.a, tt.b))
+		})
+	}
+}

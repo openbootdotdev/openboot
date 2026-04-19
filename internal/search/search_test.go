@@ -218,6 +218,35 @@ func TestQueryAPI_CaskAndNpmFlags(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// getAPIBase env var handling
+// ---------------------------------------------------------------------------
+
+func TestGetAPIBase_DefaultURL(t *testing.T) {
+	t.Setenv("OPENBOOT_API_URL", "")
+	base := getAPIBase()
+	assert.Equal(t, "https://openboot.dev/api", base)
+}
+
+func TestGetAPIBase_ValidHTTPSOverride(t *testing.T) {
+	t.Setenv("OPENBOOT_API_URL", "https://staging.openboot.dev")
+	base := getAPIBase()
+	assert.Equal(t, "https://staging.openboot.dev/api", base)
+}
+
+func TestGetAPIBase_ValidLocalhostOverride(t *testing.T) {
+	t.Setenv("OPENBOOT_API_URL", "http://localhost:8080")
+	base := getAPIBase()
+	assert.Equal(t, "http://localhost:8080/api", base)
+}
+
+func TestGetAPIBase_DisallowedURLFallsBack(t *testing.T) {
+	// Plain HTTP to a non-loopback host must not be accepted.
+	t.Setenv("OPENBOOT_API_URL", "http://evil.example.com")
+	base := getAPIBase()
+	assert.Equal(t, "https://openboot.dev/api", base)
+}
+
+// ---------------------------------------------------------------------------
 // Package field mapping
 // ---------------------------------------------------------------------------
 
