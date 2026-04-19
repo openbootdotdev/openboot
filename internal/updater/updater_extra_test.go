@@ -119,7 +119,7 @@ func TestFetchChecksums_NonOKResponse(t *testing.T) {
 		}, nil
 	}))
 
-	_, err := fetchChecksums(client)
+	_, err := fetchChecksums(client, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HTTP 500")
 }
