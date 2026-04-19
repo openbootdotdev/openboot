@@ -160,7 +160,7 @@ func openLogFile(dir string) (*os.File, error) {
 		return nil, fmt.Errorf("create log dir: %w", err)
 	}
 	// Tighten permissions in case dir already existed with a wider mode.
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // log dir needs owner-exec bit to be traversable
 		return nil, fmt.Errorf("chmod log dir: %w", err)
 	}
 
