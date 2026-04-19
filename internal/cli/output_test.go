@@ -22,6 +22,19 @@ import (
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 )
 
+// mockRoundTripper lets tests intercept HTTP calls without binding to any port.
+type mockRoundTripper struct{ handler http.Handler }
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	m.handler.ServeHTTP(rec, req)
+	return rec.Result(), nil
+}
+
+func mockHTTPClient(handler http.Handler) *http.Client {
+	return &http.Client{Transport: &mockRoundTripper{handler: handler}}
+}
+
 // captureStdout redirects os.Stdout, runs f, then restores it and returns
 // everything that was written.
 func captureStdout(t *testing.T, f func()) string {
@@ -713,24 +726,22 @@ func TestShowRestoreInfo_NoGitInfo_NoGitLine(t *testing.T) {
 
 func TestDownloadSnapshotBytes_Success(t *testing.T) {
 	payload := []byte(`{"version":1,"captured_at":"2025-01-01T00:00:00Z"}`)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := mockHTTPClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(payload)
 	}))
-	defer srv.Close()
 
-	data, err := downloadSnapshotBytes(srv.URL, &http.Client{})
+	data, err := downloadSnapshotBytes("https://openboot.dev/snap.json", client)
 	require.NoError(t, err)
 	assert.Equal(t, payload, data)
 }
 
 func TestDownloadSnapshotBytes_Non200_ReturnsError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := mockHTTPClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
-	defer srv.Close()
 
-	_, err := downloadSnapshotBytes(srv.URL, &http.Client{})
+	_, err := downloadSnapshotBytes("https://openboot.dev/snap.json", client)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HTTP 404")
 }
