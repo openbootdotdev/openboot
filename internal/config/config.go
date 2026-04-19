@@ -9,5 +9,4 @@
 //   - remote.go     — HTTP client, FetchRemoteConfig, UnmarshalRemoteConfigFlexible, LoadRemoteConfigFromFile, GetScreenRecordingPackages
 //   - packages.go   — embedded packages.yaml, Categories, package lookup helpers
 //   - packages_remote.go — remote package refresh and cache
-//   - project.go    — ProjectConfig (.openboot.yml) loading and validation
 package config

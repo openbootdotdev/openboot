@@ -178,25 +178,6 @@ func TestPatchZshrcBlock_InvalidIdentifierReturnsError(t *testing.T) {
 // EnsureBrewShellenv
 // ---------------------------------------------------------------------------
 
-// ensureBrewBinary creates a stub /opt/homebrew/bin/brew if the real one
-// doesn't exist, so that EnsureBrewShellenv sees it and proceeds.
-// It returns a cleanup func (already registered with t.Cleanup) that does
-// nothing when brew was already present, and removes the stub directory
-// otherwise.
-func stubBrewBinary(t *testing.T) (brewPresent bool) {
-	t.Helper()
-	if _, err := os.Stat("/opt/homebrew/bin/brew"); err == nil {
-		return true // real brew exists — no stub needed
-	}
-	// Create a minimal stub directory structure inside TempDir so we don't
-	// touch the real filesystem outside the test environment.  We can't
-	// create /opt/homebrew in CI, so we patch the stat check by symlinking
-	// the binary inside the test's tmp dir and overriding HOME only.
-	// For the purpose of coverage we use the "brew not present" branch:
-	// stat returns os.ErrNotExist and EnsureBrewShellenv returns nil early.
-	return false
-}
-
 func TestEnsureBrewShellenv_NoBrew_ReturnsNil(t *testing.T) {
 	// On machines without /opt/homebrew/bin/brew the function should be a no-op.
 	if _, err := os.Stat("/opt/homebrew/bin/brew"); err == nil {

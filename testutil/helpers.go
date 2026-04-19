@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -49,42 +48,6 @@ func findProjectRoot(t *testing.T) string {
 	}
 }
 
-type MockExecCommand struct {
-	Called bool
-	Args   []string
-	Err    error
-}
-
-func NewMockExecCommand() *MockExecCommand {
-	return &MockExecCommand{
-		Called: false,
-		Args:   []string{},
-		Err:    nil,
-	}
-}
-
-type CommandResult struct {
-	ExitCode int
-	Stdout   string
-	Stderr   string
-	Err      error
-}
-
-func AssertCommandSuccess(t *testing.T, result CommandResult) {
-	if result.Err != nil {
-		t.Errorf("expected command to succeed, got error: %v", result.Err)
-	}
-	if result.ExitCode != 0 {
-		t.Errorf("expected exit code 0, got %d", result.ExitCode)
-	}
-}
-
-func AssertCommandFailure(t *testing.T, result CommandResult) {
-	if result.ExitCode == 0 {
-		t.Errorf("expected command to fail, but exit code was 0")
-	}
-}
-
 func IsPackageInstalled(packageName string) bool {
 	cmd := exec.Command("which", packageName)
 	err := cmd.Run()
@@ -108,22 +71,3 @@ func EnsurePackageNotInstalled(t *testing.T, packageName string) {
 	}
 }
 
-func GetInstalledBrewPackages() ([]string, error) {
-	cmd := exec.Command("brew", "list", "--formula", "-1")
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-
-	outStr := string(output)
-	lines := strings.Split(strings.TrimSpace(outStr), "\n")
-
-	result := []string{}
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result, nil
-}

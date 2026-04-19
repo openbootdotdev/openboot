@@ -1,25 +1,16 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/openbootdotdev/openboot/internal/auth"
-	"github.com/openbootdotdev/openboot/internal/config"
-	"github.com/openbootdotdev/openboot/internal/httputil"
-	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
-	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -28,63 +19,13 @@ var openBrowser = func(url string) error {
 	return exec.Command("open", url).Run()
 }
 
-func promptPushDetails(defaultName string) (string, string, string, error) {
-	var (
-		name string
-		err  error
-	)
-
-	fmt.Fprintln(os.Stderr)
-	if defaultName != "" {
-		name, err = ui.InputWithDefault("Config name", "My Mac Setup", defaultName)
-	} else {
-		name, err = ui.Input("Config name", "My Mac Setup")
-	}
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", "", "", huh.ErrUserAborted
-		}
-		return "", "", "", fmt.Errorf("get config name: %w", err)
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		name = "My Mac Setup"
-	}
-
-	fmt.Fprintln(os.Stderr)
-	desc, err := ui.Input("Description (optional)", "")
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", "", "", huh.ErrUserAborted
-		}
-		return "", "", "", fmt.Errorf("get description: %w", err)
-	}
-	desc = strings.TrimSpace(desc)
-
-	fmt.Fprintln(os.Stderr)
-	options := []string{
-		"Public - Anyone can discover and use this config",
-		"Unlisted - Only people with the link can access",
-		"Private - Only you can see this config",
-	}
-	choice, err := ui.SelectOption("Who can see this config?", options)
-	if err != nil {
-		if errors.Is(err, huh.ErrUserAborted) {
-			return "", "", "", huh.ErrUserAborted
-		}
-		return "", "", "", fmt.Errorf("select visibility: %w", err)
-	}
-
-	visibility := "unlisted"
-	switch {
-	case strings.HasPrefix(choice, "Public"):
-		visibility = "public"
-	case strings.HasPrefix(choice, "Private"):
-		visibility = "private"
-	}
-
-	return name, desc, visibility, nil
-}
+// stderr-only styles so stdout stays clean for --json piping
+var (
+	snapTitleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Bold(true)
+	snapSuccessStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e"))
+	snapMutedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	snapBoldStyle    = lipgloss.NewStyle().Bold(true)
+)
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
@@ -113,14 +54,6 @@ func init() {
 	snapshotCmd.Flags().Bool("dry-run", false, "preview without modifying anything")
 	snapshotCmd.Flags().String("import", "", "restore from a snapshot file or URL")
 }
-
-// stderr-only styles so stdout stays clean for --json piping
-var (
-	snapTitleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e")).Bold(true)
-	snapSuccessStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#22c55e"))
-	snapMutedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
-	snapBoldStyle    = lipgloss.NewStyle().Bold(true)
-)
 
 func runSnapshot(cmd *cobra.Command) error {
 	importFile, _ := cmd.Flags().GetString("import")
@@ -197,6 +130,15 @@ func runSnapshot(cmd *cobra.Command) error {
 	return interactiveSaveOrPublish(edited)
 }
 
+// isStdoutTTY returns true when stdout is an interactive terminal.
+func isStdoutTTY() bool {
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
+
 // interactiveSaveOrPublish asks the user where to send the captured snapshot.
 // This is the TTY-interactive path; explicit flags bypass it.
 func interactiveSaveOrPublish(snap *snapshot.Snapshot) error {
@@ -236,13 +178,62 @@ func interactiveSaveOrPublish(snap *snapshot.Snapshot) error {
 	return nil
 }
 
-// isStdoutTTY returns true when stdout is an interactive terminal.
-func isStdoutTTY() bool {
-	fi, err := os.Stdout.Stat()
-	if err != nil {
-		return false
+func promptPushDetails(defaultName string) (string, string, string, error) {
+	var (
+		name string
+		err  error
+	)
+
+	fmt.Fprintln(os.Stderr)
+	if defaultName != "" {
+		name, err = ui.InputWithDefault("Config name", "My Mac Setup", defaultName)
+	} else {
+		name, err = ui.Input("Config name", "My Mac Setup")
 	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
+		return "", "", "", fmt.Errorf("get config name: %w", err)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = "My Mac Setup"
+	}
+
+	fmt.Fprintln(os.Stderr)
+	desc, err := ui.Input("Description (optional)", "")
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
+		return "", "", "", fmt.Errorf("get description: %w", err)
+	}
+	desc = strings.TrimSpace(desc)
+
+	fmt.Fprintln(os.Stderr)
+	options := []string{
+		"Public - Anyone can discover and use this config",
+		"Unlisted - Only people with the link can access",
+		"Private - Only you can see this config",
+	}
+	choice, err := ui.SelectOption("Who can see this config?", options)
+	if err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return "", "", "", huh.ErrUserAborted
+		}
+		return "", "", "", fmt.Errorf("select visibility: %w", err)
+	}
+
+	visibility := "unlisted"
+	switch {
+	case strings.HasPrefix(choice, "Public"):
+		visibility = "public"
+	case strings.HasPrefix(choice, "Private"):
+		visibility = "private"
+	}
+
+	return name, desc, visibility, nil
 }
 
 func captureJSONSnapshot() error {
@@ -315,186 +306,6 @@ func reviewSnapshot(snap *snapshot.Snapshot) (*snapshot.Snapshot, bool, error) {
 	}
 	showSnapshotSummary(edited)
 	return edited, true, nil
-}
-
-// publishSnapshot uploads a captured snapshot to openboot.dev. Slug resolution
-// follows the v1.0 spec (P7):
-//   - explicit --slug X → update X (error if X does not exist)
-//   - no --slug, sync source exists → update the sync source's config
-//   - otherwise → create new (prompts for name/description/visibility)
-//
-// Updating an existing config does not prompt for metadata; visibility is
-// preserved from the existing config.
-func publishSnapshot(snap *snapshot.Snapshot, explicitSlug string) error {
-	apiBase := auth.GetAPIBase()
-
-	if !auth.IsAuthenticated() {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, "  You need to log in to publish your snapshot.")
-		fmt.Fprintln(os.Stderr)
-		if _, err := auth.LoginInteractive(apiBase); err != nil {
-			return fmt.Errorf("authentication failed: %w", err)
-		}
-	}
-
-	stored, err := auth.LoadToken()
-	if err != nil {
-		return fmt.Errorf("load auth token: %w", err)
-	}
-	if stored == nil {
-		return fmt.Errorf("no valid auth token found — please log in again")
-	}
-
-	targetSlug := resolveTargetSlug(explicitSlug)
-
-	var configName, configDesc, visibility string
-	if targetSlug != "" {
-		fmt.Fprintln(os.Stderr)
-		ui.Info(fmt.Sprintf("Publishing to @%s/%s (updating)", stored.Username, targetSlug))
-	} else {
-		fmt.Fprintln(os.Stderr)
-		ui.Info("Publishing as a new config on openboot.dev")
-		configName, configDesc, visibility, err = promptPushDetails("")
-		if err != nil {
-			return err
-		}
-	}
-
-	resultSlug, err := postSnapshotToAPI(snap, configName, configDesc, visibility, stored.Token, apiBase, targetSlug)
-	if err != nil {
-		return err
-	}
-
-	recordPublishResult(stored.Username, resultSlug, targetSlug, visibility, apiBase)
-	return nil
-}
-
-// resolveTargetSlug returns the slug to update: explicit arg takes precedence,
-// then the current machine's sync source, then empty (create new).
-func resolveTargetSlug(explicit string) string {
-	if explicit != "" {
-		return explicit
-	}
-	if source, _ := syncpkg.LoadSource(); source != nil && source.Slug != "" {
-		return source.Slug
-	}
-	return ""
-}
-
-// recordPublishResult saves the new config as the machine's sync source (on
-// first publish) and prints the success output.
-func recordPublishResult(username, resultSlug, targetSlug, visibility, apiBase string) {
-	if targetSlug == "" && resultSlug != "" {
-		src := &syncpkg.SyncSource{
-			UserSlug:    fmt.Sprintf("%s/%s", username, resultSlug),
-			Username:    username,
-			Slug:        resultSlug,
-			InstalledAt: time.Now(),
-			SyncedAt:    time.Now(),
-		}
-		if err := syncpkg.SaveSource(src); err != nil {
-			ui.Warn(fmt.Sprintf("Failed to save sync source: %v", err))
-		}
-	}
-
-	configURL := fmt.Sprintf("%s/%s/%s", apiBase, username, resultSlug)
-	installURL := fmt.Sprintf("openboot install %s/%s", username, resultSlug)
-
-	fmt.Fprintln(os.Stderr)
-	if targetSlug != "" {
-		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config updated successfully!"))
-	} else {
-		fmt.Fprintln(os.Stderr, snapSuccessStyle.Render("✓ Config published successfully!"))
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Future 'openboot snapshot --publish' will update this config."))
-	}
-	fmt.Fprintln(os.Stderr)
-	showUploadedConfigInfo(visibility, configURL, installURL)
-	fmt.Fprintln(os.Stderr)
-}
-
-func postSnapshotToAPI(snap *snapshot.Snapshot, configName, configDesc, visibility, token, apiBase, slug string) (string, error) {
-	method := "POST"
-	reqBody := map[string]interface{}{
-		"name":        configName,
-		"description": configDesc,
-		"snapshot":    snap,
-		"visibility":  visibility,
-	}
-	if slug != "" {
-		method = "PUT"
-		reqBody["config_slug"] = slug
-	}
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return "", fmt.Errorf("marshal request: %w", err)
-	}
-
-	uploadURL := fmt.Sprintf("%s/api/configs/from-snapshot", apiBase)
-	req, err := http.NewRequest(method, uploadURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", fmt.Errorf("create upload request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: apiRequestTimeout}
-	resp, err := httputil.Do(client, req)
-	if err != nil {
-		return "", fmt.Errorf("upload snapshot: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		if readErr != nil {
-			return "", fmt.Errorf("upload failed (status %d): read response: %w", resp.StatusCode, readErr)
-		}
-		if resp.StatusCode == http.StatusConflict {
-			return "", parseConflictError(respBody)
-		}
-		return "", fmt.Errorf("upload failed (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var result struct {
-		Slug string `json:"slug"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("parse upload response: %w", err)
-	}
-	resultSlug := result.Slug
-	if resultSlug == "" {
-		resultSlug = slug
-	}
-	return resultSlug, nil
-}
-
-func showUploadedConfigInfo(visibility, configURL, installURL string) {
-	switch visibility {
-	case "public":
-		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  View your config:"))
-		fmt.Fprintf(os.Stderr, "    %s\n", configURL)
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with others:"))
-		fmt.Fprintf(os.Stderr, "    %s\n", installURL)
-		fmt.Fprintln(os.Stderr)
-		if err := openBrowser(configURL); err != nil {
-			ui.Warn(fmt.Sprintf("Could not open browser: %v", err))
-		}
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Opening in browser..."))
-	case "unlisted":
-		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  View your config:"))
-		fmt.Fprintf(os.Stderr, "    %s\n", configURL)
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Share with people who have the link:"))
-		fmt.Fprintf(os.Stderr, "    %s\n", installURL)
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  (This config is unlisted - only people with the link can access it)"))
-	default:
-		fmt.Fprintln(os.Stderr, snapBoldStyle.Render("  Manage your config:"))
-		fmt.Fprintf(os.Stderr, "    %s\n", configURL)
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  (This config is private - only you can see it)"))
-	}
 }
 
 func showLocalSaveSummary(snap *snapshot.Snapshot, path string) {
@@ -617,7 +428,6 @@ func showSnapshotPreview(snap *snapshot.Snapshot) {
 	for _, tool := range snap.DevTools {
 		fmt.Fprintf(os.Stderr, "    %s %s\n", tool.Name, tool.Version)
 	}
-
 }
 
 func printSnapshotList(items []string, max int) {
@@ -628,212 +438,4 @@ func printSnapshotList(items []string, max int) {
 		}
 		fmt.Fprintf(os.Stderr, "    %s\n", item)
 	}
-}
-
-func runSnapshotImport(importPath string, dryRun bool) error {
-	snap, err := loadSnapshot(importPath)
-	if err != nil {
-		return err
-	}
-
-	if snap.Health.Partial {
-		fmt.Fprintln(os.Stderr)
-		ui.Warn(fmt.Sprintf("This snapshot is incomplete — %d capture step(s) failed: %s",
-			len(snap.Health.FailedSteps),
-			strings.Join(snap.Health.FailedSteps, ", ")))
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("  Some data may be missing. The restore will proceed with what was captured."))
-		fmt.Fprintln(os.Stderr)
-		proceed, err := ui.Confirm("Continue with partial snapshot?", false)
-		if err != nil {
-			return err
-		}
-		if !proceed {
-			fmt.Fprintln(os.Stderr)
-			fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Restore cancelled."))
-			fmt.Fprintln(os.Stderr)
-			return nil
-		}
-	}
-
-	showRestoreInfo(snap, importPath)
-
-	edited, confirmed, err := ui.RunSnapshotEditor(snap)
-	if err != nil {
-		return err
-	}
-	if !confirmed {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Restore cancelled."))
-		fmt.Fprintln(os.Stderr)
-		return nil
-	}
-
-	ok, err := confirmInstallation(edited, dryRun)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, snapMutedStyle.Render("Installation cancelled."))
-		fmt.Fprintln(os.Stderr)
-		return nil
-	}
-
-	return installer.RunFromSnapshot(buildImportConfig(edited, dryRun))
-}
-
-func downloadSnapshotBytes(url string, client *http.Client) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("download snapshot request: %w", err)
-	}
-	resp, err := httputil.Do(client, req)
-	if err != nil {
-		return nil, fmt.Errorf("download snapshot: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download snapshot: HTTP %d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		return nil, fmt.Errorf("read snapshot response: %w", err)
-	}
-	return data, nil
-}
-
-func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
-	var snap *snapshot.Snapshot
-
-	switch {
-	case strings.HasPrefix(importPath, "http://"):
-		return nil, fmt.Errorf("insecure HTTP not allowed for snapshot import — use https:// instead")
-	case strings.HasPrefix(importPath, "https://"):
-		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
-		data, err := downloadSnapshotBytes(importPath, &http.Client{Timeout: apiRequestTimeout})
-		if err != nil {
-			return nil, err
-		}
-		s, err := snapshot.ParseBytes(data)
-		if err != nil {
-			return nil, err
-		}
-		snap = s
-	default:
-		s, err := snapshot.LoadFile(importPath)
-		if err != nil {
-			return nil, err
-		}
-		snap = s
-	}
-
-	catalogMatch := snapshot.MatchPackages(snap)
-	snap.CatalogMatch = *catalogMatch
-	snap.MatchedPreset = snapshot.DetectBestPreset(snap)
-	return snap, nil
-}
-
-func showRestoreInfo(snap *snapshot.Snapshot, source string) {
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Restoring from Snapshot ==="))
-	fmt.Fprintf(os.Stderr, "  %s %s\n", snapBoldStyle.Render("Source:"), source)
-	fmt.Fprintf(os.Stderr, "  %s %d formulae, %d casks, %d npm, %d taps\n",
-		snapBoldStyle.Render("Packages:"),
-		len(snap.Packages.Formulae), len(snap.Packages.Casks),
-		len(snap.Packages.Npm), len(snap.Packages.Taps))
-	if snap.Git.UserName != "" || snap.Git.UserEmail != "" {
-		fmt.Fprintf(os.Stderr, "  %s %s <%s>\n",
-			snapBoldStyle.Render("Git:"), snap.Git.UserName, snap.Git.UserEmail)
-	}
-	fmt.Fprintln(os.Stderr)
-}
-
-func confirmInstallation(edited *snapshot.Snapshot, dryRun bool) (bool, error) {
-	totalFormulae := len(edited.Packages.Formulae)
-	totalCasks := len(edited.Packages.Casks)
-	totalNpm := len(edited.Packages.Npm)
-	totalTaps := len(edited.Packages.Taps)
-	totalPkgs := totalFormulae + totalCasks + totalNpm + totalTaps
-
-	fmt.Fprintln(os.Stderr)
-	if dryRun {
-		fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Confirm Installation (DRY-RUN) ==="))
-	} else {
-		fmt.Fprintln(os.Stderr, snapTitleStyle.Render("=== Confirm Installation ==="))
-	}
-	fmt.Fprintf(os.Stderr, "  %s %d formulae, %d casks, %d npm, %d taps\n",
-		snapBoldStyle.Render("About to install:"),
-		totalFormulae, totalCasks, totalNpm, totalTaps)
-	fmt.Fprintf(os.Stderr, "  %s %d total packages\n", snapBoldStyle.Render("Total:"), totalPkgs)
-	fmt.Fprintln(os.Stderr)
-	if dryRun {
-		return true, nil
-	}
-	return ui.Confirm("Proceed with installation?", false)
-}
-
-func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
-	catalogSet := make(map[string]bool)
-	for _, cat := range config.GetCategories() {
-		for _, pkg := range cat.Packages {
-			catalogSet[pkg.Name] = true
-		}
-	}
-
-	cfg := &config.Config{DryRun: dryRun}
-	cfg.SelectedPkgs = make(map[string]bool)
-
-	for _, name := range edited.Packages.Formulae {
-		if catalogSet[name] {
-			cfg.SelectedPkgs[name] = true
-		} else {
-			cfg.OnlinePkgs = append(cfg.OnlinePkgs, config.Package{Name: name})
-		}
-	}
-	for _, name := range edited.Packages.Casks {
-		if catalogSet[name] {
-			cfg.SelectedPkgs[name] = true
-		} else {
-			cfg.OnlinePkgs = append(cfg.OnlinePkgs, config.Package{Name: name, IsCask: true})
-		}
-	}
-	for _, name := range edited.Packages.Npm {
-		if catalogSet[name] {
-			cfg.SelectedPkgs[name] = true
-		} else {
-			cfg.OnlinePkgs = append(cfg.OnlinePkgs, config.Package{Name: name, IsNpm: true})
-		}
-	}
-
-	cfg.SnapshotTaps = edited.Packages.Taps
-
-	cfg.SnapshotGit = &config.SnapshotGitConfig{
-		UserName:  edited.Git.UserName,
-		UserEmail: edited.Git.UserEmail,
-	}
-
-	if edited.Dotfiles.RepoURL != "" {
-		if err := config.ValidateDotfilesURL(edited.Dotfiles.RepoURL); err == nil {
-			cfg.SnapshotDotfiles = edited.Dotfiles.RepoURL
-			cfg.DotfilesURL = edited.Dotfiles.RepoURL
-		}
-		// Invalid URLs are silently skipped — validation at push time will catch them.
-	}
-
-	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, len(edited.MacOSPrefs))
-	for i, p := range edited.MacOSPrefs {
-		cfg.SnapshotMacOS[i] = config.RemoteMacOSPref{
-			Domain: p.Domain,
-			Key:    p.Key,
-			Type:   p.Type,
-			Value:  p.Value,
-			Desc:   p.Desc,
-		}
-	}
-
-	cfg.SnapshotShellOhMyZsh = edited.Shell.OhMyZsh
-	cfg.SnapshotShellTheme = edited.Shell.Theme
-	cfg.SnapshotShellPlugins = edited.Shell.Plugins
-
-	return cfg
 }

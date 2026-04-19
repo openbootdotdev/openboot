@@ -4,9 +4,59 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestApplyEnvOverrides_SilentMode(t *testing.T) {
+	cfg := &config.Config{Silent: true}
+
+	t.Setenv("OPENBOOT_GIT_NAME", "Test User")
+	t.Setenv("OPENBOOT_GIT_EMAIL", "test@example.com")
+	t.Setenv("OPENBOOT_PRESET", "developer")
+
+	applyEnvOverrides(cfg)
+
+	assert.Equal(t, "Test User", cfg.GitName)
+	assert.Equal(t, "test@example.com", cfg.GitEmail)
+	assert.Equal(t, "developer", cfg.Preset)
+}
+
+func TestApplyEnvOverrides_GitEnvIgnoredWhenNotSilent(t *testing.T) {
+	cfg := &config.Config{Silent: false}
+
+	t.Setenv("OPENBOOT_GIT_NAME", "Test User")
+	t.Setenv("OPENBOOT_GIT_EMAIL", "test@example.com")
+
+	applyEnvOverrides(cfg)
+
+	assert.Empty(t, cfg.GitName)
+	assert.Empty(t, cfg.GitEmail)
+}
+
+func TestApplyEnvOverrides_UserFromEnv(t *testing.T) {
+	cfg := &config.Config{}
+
+	t.Setenv("OPENBOOT_USER", "alice")
+
+	applyEnvOverrides(cfg)
+
+	assert.Equal(t, "alice", cfg.User)
+}
+
+func TestApplyEnvOverrides_FlagTakesPrecedenceOverEnv(t *testing.T) {
+	cfg := &config.Config{Preset: "minimal", User: "bob"}
+
+	t.Setenv("OPENBOOT_PRESET", "full")
+	t.Setenv("OPENBOOT_USER", "alice")
+
+	applyEnvOverrides(cfg)
+
+	// Flags set before env override; env must not overwrite explicit flag values.
+	assert.Equal(t, "minimal", cfg.Preset)
+	assert.Equal(t, "bob", cfg.User)
+}
 
 func TestLooksLikeFilePath(t *testing.T) {
 	tests := []struct {

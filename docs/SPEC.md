@@ -19,7 +19,7 @@ Two directions, two verbs:
 - **`install`** — add only. Never uninstalls.
 - **`snapshot`** — output only. Captures current state.
 
-Everything else is cloud-config CRUD (`config list/edit/delete`) or auth/version.
+Everything else is auth/version infrastructure.
 
 ---
 
@@ -32,14 +32,6 @@ Everything else is cloud-config CRUD (`config list/edit/delete`) or auth/version
 | `openboot install [source]` | Add packages / settings from source to this Mac. |
 | `openboot snapshot` | Capture current state (local, cloud, or stdout). |
 
-### Cloud config CRUD
-
-| Command | Purpose |
-|---------|---------|
-| `openboot config list` | List your configs on openboot.dev. |
-| `openboot config edit [slug]` | Open a config in the browser for editing. |
-| `openboot config delete <slug>` | Delete a config. |
-
 ### Infrastructure
 
 | Command | Purpose |
@@ -47,7 +39,7 @@ Everything else is cloud-config CRUD (`config list/edit/delete`) or auth/version
 | `openboot login` / `logout` | Authenticate with openboot.dev. |
 | `openboot version` | Print version. Self-update happens on launch automatically. |
 
-**Total: 8 commands.** (plus `help`, `completion` from Cobra)
+**Total: 5 commands.** (plus `help`, `completion` from Cobra)
 
 ---
 
@@ -163,9 +155,9 @@ preset                               ← Config-only
 | `clean` | **No replacement.** OpenBoot no longer manages removals. |
 | `log` | **No replacement.** Version history dropped. |
 | `restore` | **No replacement.** Version history dropped. |
-| `list` | `config list` |
-| `edit` | `config edit` |
-| `delete` | `config delete` |
+| `list` | **No replacement.** Manage configs at openboot.dev directly. |
+| `edit` | **No replacement.** Manage configs at openboot.dev directly. |
+| `delete` | **No replacement.** Manage configs at openboot.dev directly. |
 | `init` | **No replacement.** Project deps are each ecosystem's own job (npm/pip/go/cargo). |
 | `setup-agent` | **No replacement.** Existed only to service `init`. |
 | `doctor` | **No replacement.** Use `brew doctor` and `git config --list` directly. |

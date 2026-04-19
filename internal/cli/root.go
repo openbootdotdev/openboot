@@ -2,18 +2,13 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/spf13/cobra"
 )
 
-var (
-	version = "dev"
-	cfg     = &config.Config{}
-)
+var version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "openboot",
@@ -38,7 +33,7 @@ shell configuration, and macOS preferences.`,
   openboot snapshot --json > my-setup.json`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		config.SetClientVersion(version)
-		cfg.Version = version
+		installCfg.Version = version
 
 		// Only the install flow needs the package catalog and auto-update.
 		// All other commands (snapshot, login, logout, etc.) run without
@@ -52,42 +47,11 @@ shell configuration, and macOS preferences.`,
 			config.RefreshPackagesFromRemote()
 		}
 
-		if cfg.Silent {
-			if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
-				cfg.GitName = name
-			}
-			if email := os.Getenv("OPENBOOT_GIT_EMAIL"); email != "" {
-				cfg.GitEmail = email
-			}
-		}
-
-		if preset := os.Getenv("OPENBOOT_PRESET"); preset != "" && cfg.Preset == "" {
-			cfg.Preset = preset
-		}
-
-		if user := os.Getenv("OPENBOOT_USER"); user != "" && cfg.User == "" {
-			cfg.User = user
-		}
-
-		if cfg.User != "" {
-			var token string
-			if stored, err := auth.LoadToken(); err == nil && stored != nil {
-				token = stored.Token
-			}
-			rc, err := config.FetchRemoteConfig(cfg.User, token)
-			if err != nil {
-				return fmt.Errorf("fetch remote config: %w", err)
-			}
-			cfg.RemoteConfig = rc
-			if cfg.Preset == "" {
-				cfg.Preset = rc.Preset
-			}
-		}
-
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// `openboot` (no subcommand) is equivalent to `openboot install`.
+		// `openboot` with no subcommand is equivalent to `openboot install`.
+		// Root flags bind directly to installCfg, so no bridging is needed.
 		return runInstallCmd(cmd, args)
 	},
 }
@@ -95,20 +59,24 @@ shell configuration, and macOS preferences.`,
 func init() {
 	rootCmd.Flags().SortFlags = false
 
-	rootCmd.Flags().StringVarP(&cfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
-	rootCmd.Flags().StringVarP(&cfg.User, "user", "u", "", "install from openboot.dev/username config")
+	// Root is an alias for `openboot install`, so its flags bind directly to
+	// installCfg — the same struct used by the install subcommand. This ensures
+	// `openboot -p developer` and `openboot install -p developer` are identical
+	// code paths with no config divergence.
+	rootCmd.Flags().StringVarP(&installCfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
+	rootCmd.Flags().StringVarP(&installCfg.User, "user", "u", "", "install from openboot.dev/username config")
 	rootCmd.Flags().String("from", "", "install from a local config or snapshot JSON file")
-	rootCmd.Flags().BoolVarP(&cfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
-	rootCmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "preview changes without installing")
-	rootCmd.Flags().BoolVar(&cfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
+	rootCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
+	rootCmd.Flags().BoolVar(&installCfg.DryRun, "dry-run", false, "preview changes without installing")
+	rootCmd.Flags().BoolVar(&installCfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
 
-	rootCmd.Flags().StringVar(&cfg.Shell, "shell", "", "shell setup: install, skip")
-	rootCmd.Flags().StringVar(&cfg.Macos, "macos", "", "macOS preferences: configure, skip")
-	rootCmd.Flags().StringVar(&cfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
-	rootCmd.Flags().StringVar(&cfg.PostInstall, "post-install", "", "post-install script: skip")
-	rootCmd.Flags().BoolVar(&cfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
+	rootCmd.Flags().StringVar(&installCfg.Shell, "shell", "", "shell setup: install, skip")
+	rootCmd.Flags().StringVar(&installCfg.Macos, "macos", "", "macOS preferences: configure, skip")
+	rootCmd.Flags().StringVar(&installCfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
+	rootCmd.Flags().StringVar(&installCfg.PostInstall, "post-install", "", "post-install script: skip")
+	rootCmd.Flags().BoolVar(&installCfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
 
-	rootCmd.Flags().BoolVar(&cfg.Update, "update", false, "update Homebrew before installing")
+	rootCmd.Flags().BoolVar(&installCfg.Update, "update", false, "update Homebrew before installing")
 
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(versionCmd)

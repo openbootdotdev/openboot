@@ -42,8 +42,7 @@ cmd/openboot/        # main.go → cli.Execute()
 internal/
   auth/              # OAuth-like login, token in ~/.openboot/auth.json (0600)
   brew/              # Homebrew ops, parallel workers (4 max), retry, uninstall
-  cleaner/           # Diff current vs desired, remove extras
-  cli/               # Cobra cmds: install, snapshot, push, pull, config, login/logout, version, deprecated
+  cli/               # Cobra cmds: install, snapshot, login, logout, version
   config/            # Package catalog + presets + remote fetch (embed fallback in data/)
   diff/              # Pure-logic system-vs-config comparison
   dotfiles/          # Clone + stow with .openboot.bak backup

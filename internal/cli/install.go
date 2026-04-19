@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -15,9 +16,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// installCfg holds flag values for the install subcommand.
-// It is separate from the root command's cfg so that each command
-// owns its own config state and does not share mutable globals.
+// installCfg is the single config instance shared by the root command (openboot)
+// and the install subcommand (openboot install). Both bind their flags here so
+// that `openboot -p developer` and `openboot install -p developer` are identical.
 var installCfg = &config.Config{}
 
 var installCmd = &cobra.Command{
@@ -71,7 +72,29 @@ func init() {
 	installCmd.Flags().BoolVar(&installCfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
 }
 
+// applyEnvOverrides applies environment variable overrides to cfg.
+// Called at the start of runInstallCmd so env vars are respected on both
+// the `openboot` root path and the `openboot install` subcommand path.
+func applyEnvOverrides(cfg *config.Config) {
+	if cfg.Silent {
+		if name := os.Getenv("OPENBOOT_GIT_NAME"); name != "" {
+			cfg.GitName = name
+		}
+		if email := os.Getenv("OPENBOOT_GIT_EMAIL"); email != "" {
+			cfg.GitEmail = email
+		}
+	}
+	if preset := os.Getenv("OPENBOOT_PRESET"); preset != "" && cfg.Preset == "" {
+		cfg.Preset = preset
+	}
+	if user := os.Getenv("OPENBOOT_USER"); user != "" && cfg.User == "" {
+		cfg.User = user
+	}
+}
+
 func runInstallCmd(cmd *cobra.Command, args []string) error {
+	applyEnvOverrides(installCfg)
+
 	if installCfg.RemoteConfig == nil {
 		src, err := resolveInstallSource(cmd, args)
 		if err != nil {

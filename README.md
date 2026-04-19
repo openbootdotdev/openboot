@@ -166,10 +166,6 @@ openboot snapshot --local           # Save to ~/.openboot/snapshot.json
 openboot snapshot --publish         # Upload to openboot.dev
 openboot snapshot --import FILE     # Restore from a snapshot file
 
-openboot config list                # List your openboot.dev configs
-openboot config edit                # Open a config in the browser
-openboot config delete SLUG         # Remove a config
-
 openboot login / logout             # openboot.dev auth
 openboot version                    # Print version
 ```
