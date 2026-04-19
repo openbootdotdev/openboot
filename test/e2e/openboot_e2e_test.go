@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/testutil"
 )
 
 func TestE2E_DryRunMinimal(t *testing.T) {

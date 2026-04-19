@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openbootdotdev/openboot/internal/auth"
-	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/auth"
+	"github.com/openbootdotdev/openboot/testutil"
 )
 
 // =============================================================================

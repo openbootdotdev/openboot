@@ -22,11 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/openbootdotdev/openboot/internal/auth"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================

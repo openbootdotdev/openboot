@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/testutil"
 )
 
 const brewPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -74,13 +75,6 @@ func vmCopyDevBinary(t *testing.T, vm *testutil.MacHost) string {
 	require.NoError(t, err)
 
 	return remotePath
-}
-
-// vmRunOpenboot runs an openboot command inside the VM with standard PATH and env.
-func vmRunOpenboot(t *testing.T, vm *testutil.MacHost, args string) (string, error) {
-	t.Helper()
-	cmd := fmt.Sprintf("export PATH=%q && openboot %s", brewPath, args)
-	return vm.Run(cmd)
 }
 
 // vmRunDevBinary runs the dev binary inside the VM with standard PATH and env.
@@ -155,13 +149,6 @@ func vmBrewCaskList(t *testing.T, vm *testutil.MacHost) []string {
 		}
 	}
 	return result
-}
-
-// vmIsInstalled checks if a command is available in the VM's PATH.
-func vmIsInstalled(t *testing.T, vm *testutil.MacHost, cmd string) bool {
-	t.Helper()
-	_, err := vm.Run(fmt.Sprintf("export PATH=%q && which %s", brewPath, cmd))
-	return err == nil
 }
 
 // writeFile is a helper to write a string to a file.

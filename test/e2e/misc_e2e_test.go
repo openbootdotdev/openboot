@@ -5,8 +5,9 @@ package e2e
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/openbootdotdev/openboot/testutil"
 )
 
 func TestE2E_FullPreset_DryRun(t *testing.T) {

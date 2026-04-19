@@ -7,9 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
 // ---------------------------------------------------------------------------
