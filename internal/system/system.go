@@ -77,8 +77,7 @@ func RunCommandOutput(name string, args ...string) (string, error) {
 //	curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | sha256sum
 const knownBrewInstallHash = "dfd5145fe2aa5956a600e35848765273f5798ce6def01bd08ecec088a1268d91"
 
-// brewInstallURL is a var so tests can redirect it without a real server.
-var brewInstallURL = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+const brewInstallURL = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
 
 // brewHTTPClient is a var so tests can inject a mock transport.
 var brewHTTPClient *http.Client = http.DefaultClient
