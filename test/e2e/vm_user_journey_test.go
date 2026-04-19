@@ -17,9 +17,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/testutil"
 )
 
 // =============================================================================
@@ -62,14 +63,14 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 
 		// User expectation: every tool should be USABLE, not just "in PATH"
 		toolChecks := map[string]string{
-			"jq":   `echo '{"a":1}' | jq '.a'`,         // Can it parse JSON?
+			"jq":   `echo '{"a":1}' | jq '.a'`,          // Can it parse JSON?
 			"rg":   `echo 'hello world' | rg 'hello'`,   // Can it search?
-			"fd":   `fd --version`,                       // Does it run?
-			"bat":  `echo 'test' | bat --plain`,          // Can it display?
+			"fd":   `fd --version`,                      // Does it run?
+			"bat":  `echo 'test' | bat --plain`,         // Can it display?
 			"fzf":  `echo 'a\nb\nc' | fzf --filter 'b'`, // Can it filter?
-			"htop": `htop --version`,                     // Does it run?
-			"tree": `tree --version`,                     // Does it run?
-			"gh":   `gh --version`,                       // Does it run?
+			"htop": `htop --version`,                    // Does it run?
+			"tree": `tree --version`,                    // Does it run?
+			"gh":   `gh --version`,                      // Does it run?
 		}
 
 		for name, cmd := range toolChecks {

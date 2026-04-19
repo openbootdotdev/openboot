@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/openbootdotdev/openboot/testutil"
 )
 
 // TestVM_Interactive_InstallScript tests install.sh interactive prompts.
