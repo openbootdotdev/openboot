@@ -27,7 +27,7 @@ func TestVM_Edge_ShellActuallyWorks(t *testing.T) {
 		t.Skip("skipping VM edge case in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 

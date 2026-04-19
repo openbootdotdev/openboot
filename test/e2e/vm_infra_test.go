@@ -11,16 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestVM_Infra validates the VM infrastructure pipeline:
-// clone OCI image → boot → SSH → run commands → destroy.
-// This must pass before any other VM test can be trusted.
+// TestVM_Infra sanity-checks the host the E2E suite runs on: we can shell
+// out, we're on darwin/arm64, openboot isn't leaking in from a prior run,
+// and the tools install.sh depends on (curl, git) are available.
 func TestVM_Infra(t *testing.T) {
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 
 	t.Run("echo", func(t *testing.T) {
-		output, err := vm.Run("echo hello-from-vm")
+		output, err := vm.Run("echo hello-from-host")
 		require.NoError(t, err)
-		assert.Contains(t, strings.TrimSpace(output), "hello-from-vm")
+		assert.Contains(t, strings.TrimSpace(output), "hello-from-host")
 	})
 
 	t.Run("macos_version", func(t *testing.T) {
@@ -35,12 +35,6 @@ func TestVM_Infra(t *testing.T) {
 		output, err := vm.Run("uname -m")
 		require.NoError(t, err)
 		assert.Contains(t, output, "arm64")
-	})
-
-	t.Run("no_brew_preinstalled", func(t *testing.T) {
-		output, err := vm.Run("which brew 2>/dev/null || echo no-brew")
-		require.NoError(t, err)
-		assert.Contains(t, output, "no-brew", "fresh VM should not have Homebrew")
 	})
 
 	t.Run("no_openboot_preinstalled", func(t *testing.T) {

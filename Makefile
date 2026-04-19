@@ -44,31 +44,35 @@ test-all:
 	$(MAKE) test-coverage
 
 # =============================================================================
-# VM-based E2E tests (Tart VMs) — three levels
+# Destructive macOS E2E tests — three levels
 # =============================================================================
+#
+# These tests install real packages and modify ~/.zshrc / macOS defaults on
+# the host they run on. They are intended for ephemeral macOS CI runners
+# (GitHub Actions macos-latest) or a throwaway VM.
+#
+# On a developer machine `go test -tags="e2e,vm"` will skip unless you set
+# OPENBOOT_E2E_DESTRUCTIVE=1 (see testutil/machost.go). Don't set that
+# unless you mean it.
 
-# L1: Quick validation (~2min) — run after code changes
-#     Runs TestVM_Infra only: boots a VM and checks SSH/arch/tools, no package installs
+# L1: Quick sanity (~1min) — host/arch checks only, no package installs
 test-vm-quick: build
 	go test -v -timeout 5m -tags="e2e,vm" -run "TestVM_Infra" ./test/e2e/...
 
-# L2: Release validation (~20min) — run before tagging a release
-#     Core user journeys: dry-run safety, install + verify, diff/clean cycle,
-#     manual uninstall recovery, full setup, error messages
+# L2: Release validation (~20min) — core user journeys
 test-vm-release: build
 	go test -v -timeout 30m -tags="e2e,vm" \
-	  -run "TestVM_Infra|TestVM_Journey_DryRun|TestVM_Journey_FirstTimeUser|TestVM_Journey_ManualUninstall|TestVM_Journey_DiffConsistency|TestVM_Journey_FullSetup|TestVM_Journey_ErrorMessages" \
+	  -run "TestVM_Infra|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Journey_FirstTimeUser|TestVM_Journey_FullSetupConfiguresEverything|TestE2E_DryRunMinimal|TestE2E_SnapshotCapture" \
 	  ./test/e2e/...
 
-# L3: Full validation (~60min) — run for major releases or CI
-#     All 48 tests: journeys + edge cases + commands + interactive
+# L3: Full validation (~60min) — everything under -tags="e2e,vm"
 test-vm-full: build
 	go test -v -timeout 90m -tags="e2e,vm" ./test/e2e/...
 
 # Aliases
 test-vm: test-vm-release
 
-# Single VM test by name (e.g. make test-vm-run TEST=TestVM_Journey_DryRun)
+# Single test by name (e.g. make test-vm-run TEST=TestVM_Journey_DryRunIsCompletelySafe)
 test-vm-run: build
 	go test -v -timeout 45m -tags="e2e,vm" -run $(TEST) ./test/e2e/...
 

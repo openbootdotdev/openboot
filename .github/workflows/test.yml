@@ -158,6 +158,24 @@ jobs:
         if: always()
         run: kill $(cat /tmp/mock-pid) 2>/dev/null || true
 
+  macos-e2e:
+    name: macos e2e (L5)
+    runs-on: macos-latest
+    # Only on release tags or manual dispatch — these are slow and destructive.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run macOS E2E (release tier)
+        run: make test-vm-release
+
   cli-compat:
     name: old-cli compat
     runs-on: macos-latest

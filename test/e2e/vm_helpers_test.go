@@ -17,7 +17,7 @@ const brewPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/
 // vmInstallViaBrewTap installs Homebrew and openboot via brew tap in the VM.
 // This mirrors the real `curl | bash` user journey.
 // Returns the installed openboot version string.
-func vmInstallViaBrewTap(t *testing.T, vm *testutil.TartVM) string {
+func vmInstallViaBrewTap(t *testing.T, vm *testutil.MacHost) string {
 	t.Helper()
 
 	script := strings.Join([]string{
@@ -36,9 +36,16 @@ func vmInstallViaBrewTap(t *testing.T, vm *testutil.TartVM) string {
 	return strings.TrimSpace(version)
 }
 
-// vmInstallHomebrew installs only Homebrew in the VM (no openboot).
-func vmInstallHomebrew(t *testing.T, vm *testutil.TartVM) {
+// vmInstallHomebrew ensures Homebrew is installed on the host.
+// GitHub Actions macOS runners ship with Homebrew preinstalled, so this
+// skips the install when brew is already on PATH and only bootstraps it
+// on a genuinely bare host.
+func vmInstallHomebrew(t *testing.T, vm *testutil.MacHost) {
 	t.Helper()
+
+	if _, err := vm.Run("command -v brew >/dev/null 2>&1"); err == nil {
+		return
+	}
 
 	script := strings.Join([]string{
 		"export NONINTERACTIVE=1",
@@ -54,7 +61,7 @@ func vmInstallHomebrew(t *testing.T, vm *testutil.TartVM) {
 
 // vmCopyDevBinary builds the openboot binary on the host and copies it to the VM.
 // Returns the remote binary path.
-func vmCopyDevBinary(t *testing.T, vm *testutil.TartVM) string {
+func vmCopyDevBinary(t *testing.T, vm *testutil.MacHost) string {
 	t.Helper()
 
 	binary := testutil.BuildTestBinary(t)
@@ -70,21 +77,21 @@ func vmCopyDevBinary(t *testing.T, vm *testutil.TartVM) string {
 }
 
 // vmRunOpenboot runs an openboot command inside the VM with standard PATH and env.
-func vmRunOpenboot(t *testing.T, vm *testutil.TartVM, args string) (string, error) {
+func vmRunOpenboot(t *testing.T, vm *testutil.MacHost, args string) (string, error) {
 	t.Helper()
 	cmd := fmt.Sprintf("export PATH=%q && openboot %s", brewPath, args)
 	return vm.Run(cmd)
 }
 
 // vmRunDevBinary runs the dev binary inside the VM with standard PATH and env.
-func vmRunDevBinary(t *testing.T, vm *testutil.TartVM, binaryPath, args string) (string, error) {
+func vmRunDevBinary(t *testing.T, vm *testutil.MacHost, binaryPath, args string) (string, error) {
 	t.Helper()
 	cmd := fmt.Sprintf("export PATH=%q && %s %s", brewPath, binaryPath, args)
 	return vm.Run(cmd)
 }
 
 // vmRunOpenbootWithGit runs openboot with git identity env vars set.
-func vmRunOpenbootWithGit(t *testing.T, vm *testutil.TartVM, args string) (string, error) {
+func vmRunOpenbootWithGit(t *testing.T, vm *testutil.MacHost, args string) (string, error) {
 	t.Helper()
 	env := map[string]string{
 		"PATH":               brewPath,
@@ -95,7 +102,7 @@ func vmRunOpenbootWithGit(t *testing.T, vm *testutil.TartVM, args string) (strin
 }
 
 // vmRunDevBinaryWithGit runs the dev binary with git identity env vars set.
-func vmRunDevBinaryWithGit(t *testing.T, vm *testutil.TartVM, binaryPath, args string) (string, error) {
+func vmRunDevBinaryWithGit(t *testing.T, vm *testutil.MacHost, binaryPath, args string) (string, error) {
 	t.Helper()
 	env := map[string]string{
 		"PATH":               brewPath,
@@ -106,7 +113,7 @@ func vmRunDevBinaryWithGit(t *testing.T, vm *testutil.TartVM, binaryPath, args s
 }
 
 // installOhMyZsh installs Oh-My-Zsh non-interactively in the VM.
-func installOhMyZsh(t *testing.T, vm *testutil.TartVM) {
+func installOhMyZsh(t *testing.T, vm *testutil.MacHost) {
 	t.Helper()
 	script := `sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended`
 	output, err := vm.Run(script)
@@ -115,7 +122,7 @@ func installOhMyZsh(t *testing.T, vm *testutil.TartVM) {
 }
 
 // vmBrewList returns the list of installed Homebrew formulae in the VM.
-func vmBrewList(t *testing.T, vm *testutil.TartVM) []string {
+func vmBrewList(t *testing.T, vm *testutil.MacHost) []string {
 	t.Helper()
 	output, err := vm.Run(fmt.Sprintf("export PATH=%q && brew list --formula -1 2>/dev/null", brewPath))
 	if err != nil {
@@ -133,7 +140,7 @@ func vmBrewList(t *testing.T, vm *testutil.TartVM) []string {
 }
 
 // vmBrewCaskList returns the list of installed Homebrew casks in the VM.
-func vmBrewCaskList(t *testing.T, vm *testutil.TartVM) []string {
+func vmBrewCaskList(t *testing.T, vm *testutil.MacHost) []string {
 	t.Helper()
 	output, err := vm.Run(fmt.Sprintf("export PATH=%q && brew list --cask -1 2>/dev/null", brewPath))
 	if err != nil {
@@ -151,7 +158,7 @@ func vmBrewCaskList(t *testing.T, vm *testutil.TartVM) []string {
 }
 
 // vmIsInstalled checks if a command is available in the VM's PATH.
-func vmIsInstalled(t *testing.T, vm *testutil.TartVM, cmd string) bool {
+func vmIsInstalled(t *testing.T, vm *testutil.MacHost, cmd string) bool {
 	t.Helper()
 	_, err := vm.Run(fmt.Sprintf("export PATH=%q && which %s", brewPath, cmd))
 	return err == nil
@@ -163,7 +170,7 @@ func writeFile(path, content string) error {
 }
 
 // vmWriteTestSnapshot writes a minimal valid snapshot JSON to a path on the VM.
-func vmWriteTestSnapshot(t *testing.T, vm *testutil.TartVM, remotePath string, formulae, casks, npm []string) {
+func vmWriteTestSnapshot(t *testing.T, vm *testutil.MacHost, remotePath string, formulae, casks, npm []string) {
 	t.Helper()
 
 	toJSON := func(ss []string) string {

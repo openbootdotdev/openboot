@@ -18,7 +18,7 @@ func TestE2E_Sync_Shell_CaptureShell(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	installOhMyZsh(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -49,7 +49,7 @@ func TestE2E_Sync_Shell_NoPanic(t *testing.T) {
 		t.Skip("skipping VM test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	installOhMyZsh(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 

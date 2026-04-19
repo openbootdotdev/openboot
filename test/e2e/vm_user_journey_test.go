@@ -37,15 +37,15 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 		t.Skip("skipping full journey test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 
-	// Step 1: Bare system — openboot and brew should not be there
-	// Note: base image may have some tools preinstalled (e.g., jq in /usr/bin)
+	// Step 1: openboot shouldn't leak in from a prior step. We don't assert on
+	// rg/fd/bat/fzf absence anymore — GitHub Actions runners vary in what
+	// ships preinstalled, and the post-install checks below are the
+	// load-bearing assertion.
 	t.Run("bare_system_has_no_openboot", func(t *testing.T) {
-		for _, tool := range []string{"openboot", "rg", "fd", "bat", "fzf"} {
-			out, _ := vm.Run("which " + tool + " 2>/dev/null || echo not-found")
-			assert.Contains(t, out, "not-found", "%s should not exist on bare VM", tool)
-		}
+		out, _ := vm.Run("which openboot 2>/dev/null || echo not-found")
+		assert.Contains(t, out, "not-found", "openboot should not exist before install")
 	})
 
 	// Step 2: Install via curl | bash (the real user journey)
@@ -96,7 +96,7 @@ func TestVM_Journey_DryRunIsCompletelySafe(t *testing.T) {
 		t.Skip("skipping dry-run safety test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -165,7 +165,7 @@ func TestVM_Journey_FullSetupConfiguresEverything(t *testing.T) {
 		t.Skip("skipping full setup test in short mode")
 	}
 
-	vm := testutil.NewTartVM(t)
+	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
