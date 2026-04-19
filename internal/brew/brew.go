@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -217,16 +216,11 @@ func Update(dryRun bool) error {
 	}
 
 	ui.Info("Upgrading packages...")
-	// Upgrade may prompt for sudo; keep direct exec.Command so we can wire in a TTY.
-	cmd := exec.Command("brew", "upgrade")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	tty, opened := system.OpenTTY()
-	if opened {
-		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
+	// Upgrade may prompt for sudo; RunInteractive wires the current TTY.
+	if err := currentRunner().RunInteractive("upgrade"); err != nil {
+		return fmt.Errorf("brew upgrade: %w", err)
 	}
-	cmd.Stdin = tty
-	return cmd.Run()
+	return nil
 }
 
 func Cleanup() error {
@@ -334,10 +328,7 @@ func PreInstallChecks(packageCount int) error {
 	}
 
 	ui.Info("Updating Homebrew index...")
-	updateCmd := exec.Command("brew", "update")
-	updateCmd.Stdout = nil
-	updateCmd.Stderr = nil
-	if err := updateCmd.Run(); err != nil {
+	if err := currentRunner().RunInteractive("update"); err != nil {
 		ui.Warn("brew update failed, continuing anyway...")
 	}
 

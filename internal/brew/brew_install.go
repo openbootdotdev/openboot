@@ -328,6 +328,12 @@ func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 	return ""
 }
 
+// Runner-exempt: this helper sets HOMEBREW_NO_AUTO_UPDATE=1 and returns a raw
+// *exec.Cmd so callers can wire custom stdout pipes (StickyProgress streaming)
+// and TTY stdin (sudo prompts for cask installs). The Runner interface cannot
+// express either of those cleanly, so Install / InstallCask /
+// installCaskWithProgress / brewCombinedOutputWithTTY / installFormulaWithError
+// / installSmartCaskWithError continue to use this helper directly.
 func brewInstallCmd(args ...string) *exec.Cmd {
 	cmd := exec.Command("brew", args...) //nolint:gosec // "brew" is a hardcoded binary; args are package names validated by caller
 	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
@@ -473,8 +479,7 @@ func ResolveFormulaNames(names []string) map[string]string {
 	}
 
 	args := append([]string{"info", "--json"}, names...)
-	cmd := exec.Command("brew", args...) //nolint:gosec // "brew" is a hardcoded binary; args are package names
-	output, err := cmd.Output()
+	output, err := currentRunner().Output(args...)
 	if err != nil {
 		return identityMap(names)
 	}
