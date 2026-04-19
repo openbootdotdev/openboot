@@ -17,7 +17,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -109,10 +108,9 @@ func TestE2E_Login_AlreadyAuthenticated(t *testing.T) {
 	output, err := vm.Run(cmd)
 	t.Logf("login output:\n%s", output)
 	require.NoError(t, err, "login should succeed when already authenticated")
-	assert.True(t,
-		strings.Contains(output, "Already") || strings.Contains(output, "already") ||
-			strings.Contains(output, "existinguser"),
-		"output should mention already logged in, got: %s", output)
+	// loginCmd prints: ui.Success(fmt.Sprintf("Already logged in as %s", stored.Username))
+	assert.Contains(t, output, "Already logged in as existinguser",
+		"output should say already logged in with the username")
 }
 
 // TestE2E_Login_ServerUnavailable verifies that `openboot login` returns a
@@ -134,10 +132,9 @@ func TestE2E_Login_ServerUnavailable(t *testing.T) {
 	output, err := vm.Run(cmd)
 	t.Logf("login output:\n%s", output)
 	assert.Error(t, err, "login should fail when server is unreachable")
-	assert.True(t,
-		strings.Contains(output, "failed") || strings.Contains(output, "error") ||
-			strings.Contains(output, "refused") || strings.Contains(output, "connect"),
-		"error output should indicate connection failure, got: %s", output)
+	// loginCmd returns: fmt.Errorf("login failed: %w", err)
+	assert.Contains(t, output, "login failed",
+		"error output should say 'login failed', got: %s", output)
 }
 
 // TestE2E_Login_ExpiredCodeRejected verifies that the binary surfaces the
@@ -177,9 +174,9 @@ func TestE2E_Login_ExpiredCodeRejected(t *testing.T) {
 	output, err := vm.Run(cmd)
 	t.Logf("login output:\n%s", output)
 	assert.Error(t, err, "login should fail when code is expired")
-	assert.True(t,
-		strings.Contains(output, "expired") || strings.Contains(output, "login"),
-		"error output should mention expired code, got: %s", output)
+	// pollOnce returns: fmt.Errorf("authorization code expired; please run 'openboot login' again")
+	assert.Contains(t, output, "expired",
+		"error output should mention the expired code, got: %s", output)
 
 	// auth.json must NOT have been written after a failed login.
 	authFile := filepath.Join(tmpHome, ".openboot", "auth.json")
@@ -209,9 +206,9 @@ func TestE2E_Logout_WhenAuthenticated(t *testing.T) {
 	output, err := vm.Run(cmd)
 	t.Logf("logout output:\n%s", output)
 	require.NoError(t, err, "logout should succeed")
-	assert.True(t,
-		strings.Contains(output, "Logged out") || strings.Contains(output, "logoutuser"),
-		"output should confirm logout, got: %s", output)
+	// logoutCmd prints: ui.Success(fmt.Sprintf("Logged out of %s", stored.Username))
+	assert.Contains(t, output, "Logged out of logoutuser",
+		"output should confirm logout with username")
 
 	authFile := filepath.Join(tmpHome, ".openboot", "auth.json")
 	assert.NoFileExists(t, authFile, "auth.json should be deleted after logout")
@@ -235,9 +232,9 @@ func TestE2E_Logout_WhenNotAuthenticated(t *testing.T) {
 	output, err := vm.Run(cmd)
 	t.Logf("logout output:\n%s", output)
 	require.NoError(t, err, "logout should not fail when not logged in")
-	assert.True(t,
-		strings.Contains(output, "Not logged") || strings.Contains(output, "not logged"),
-		"output should indicate not logged in, got: %s", output)
+	// logoutCmd prints: ui.Info("Not logged in.")
+	assert.Contains(t, output, "Not logged in",
+		"output should say 'Not logged in', got: %s", output)
 }
 
 // =============================================================================

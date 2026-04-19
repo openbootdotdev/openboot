@@ -177,12 +177,17 @@ func TestVM_Journey_MacOSDefaults_DryRunWritesNothing(t *testing.T) {
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
-	// Record the current value of one preference before dry-run.
+	// Force a known value that differs from what --macos configure would write
+	// ("Always"). This makes the assertion non-vacuous: if dry-run accidentally
+	// applies the preference, the value changes to "Always" and the test fails.
+	_, err := vm.Run(`defaults write "NSGlobalDomain" "AppleShowScrollBars" -string "WhenScrolling"`)
+	require.NoError(t, err, "should be able to force a known test value before dry-run")
+
 	before, _ := vm.Run(
 		`defaults read "NSGlobalDomain" "AppleShowScrollBars" 2>/dev/null || echo UNSET`,
 	)
 
-	_, err := vmRunDevBinaryWithGit(t, vm, bin,
+	_, err = vmRunDevBinaryWithGit(t, vm, bin,
 		"--preset minimal --silent --shell skip --dotfiles skip --macos configure --dry-run")
 	require.NoError(t, err, "dry-run should succeed")
 

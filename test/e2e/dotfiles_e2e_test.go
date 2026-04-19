@@ -31,6 +31,20 @@ import (
 // This is the scenario a user experiences when they run openboot and choose
 // to set up dotfiles: they expect their dotfiles to be cloned *and* linked,
 // not merely downloaded.
+// countDotfileSymlinksCmd counts symlinks in HOME that resolve into ~/.dotfiles.
+const countDotfileSymlinksCmd = `
+count=0
+for f in ~/.*; do
+    if [ -L "$f" ]; then
+        target=$(readlink "$f" 2>/dev/null || true)
+        if echo "$target" | grep -q "\.dotfiles"; then
+            count=$((count + 1))
+        fi
+    fi
+done
+echo "$count"
+`
+
 func TestVM_Journey_DotfilesClonedAndLinked(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping dotfiles journey test in short mode")
@@ -39,6 +53,11 @@ func TestVM_Journey_DotfilesClonedAndLinked(t *testing.T) {
 	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
 	bin := vmCopyDevBinary(t, vm)
+
+	// Capture symlink count BEFORE install so we can detect new symlinks created
+	// by the link step (avoids false positives from pre-existing dotfile symlinks).
+	beforeOut, _ := vm.Run(countDotfileSymlinksCmd)
+	symsBefore := strings.TrimSpace(beforeOut)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
 		"--preset minimal --silent --dotfiles clone --shell skip --macos skip")
@@ -64,28 +83,17 @@ func TestVM_Journey_DotfilesClonedAndLinked(t *testing.T) {
 	//
 	// After the clone the installer calls dotfiles.Link() which either runs
 	// `stow` (if the repo has stow packages) or creates direct symlinks from
-	// files starting with "." in the repo root.  We check for at least one
-	// symlink in HOME that resolves into ~/.dotfiles, which confirms that the
-	// link step ran rather than silently no-oping.
+	// files starting with "." in the repo root.  We compare symlink counts
+	// BEFORE vs AFTER to avoid a false positive from pre-existing symlinks
+	// that were already present on the CI runner.
 
-	t.Run("at_least_one_dotfile_linked_in_home", func(t *testing.T) {
-		// Count symlinks anywhere in HOME's immediate children that point
-		// into the ~/.dotfiles tree.
-		out, _ := vm.Run(`
-			count=0
-			for f in ~/.*; do
-				if [ -L "$f" ]; then
-					target=$(readlink "$f" 2>/dev/null || true)
-					if echo "$target" | grep -q "\.dotfiles"; then
-						count=$((count + 1))
-					fi
-				fi
-			done
-			echo "$count"
-		`)
-		count := strings.TrimSpace(out)
-		assert.NotEqual(t, "0", count,
-			"at least one symlink in HOME should point into ~/.dotfiles after 'dotfiles clone'")
+	t.Run("link_step_created_new_symlinks_in_home", func(t *testing.T) {
+		// The count was captured before the install above.
+		after, _ := vm.Run(countDotfileSymlinksCmd)
+		afterCount := strings.TrimSpace(after)
+		assert.NotEqual(t, symsBefore, afterCount,
+			"link step must create new symlinks pointing into ~/.dotfiles "+
+				"(before=%s after=%s)", symsBefore, afterCount)
 	})
 
 	// ── 3. Re-run is idempotent ──────────────────────────────────────────────
