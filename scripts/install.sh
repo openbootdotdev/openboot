@@ -36,6 +36,22 @@ install_homebrew() {
         return 0
     fi
 
+    # brew may already be installed but missing from PATH (fresh shell without
+    # ~/.zprofile sourced). Detect at known prefixes before reinstalling — a
+    # second install triggers `chown -R /opt/homebrew` which fails on SIP-protected
+    # signed .app bundles in Caskroom (e.g. wetype).
+    local brew_bin=""
+    if [[ -x "/opt/homebrew/bin/brew" ]]; then
+        brew_bin="/opt/homebrew/bin/brew"
+    elif [[ -x "/usr/local/bin/brew" ]]; then
+        brew_bin="/usr/local/bin/brew"
+    fi
+
+    if [[ -n "$brew_bin" ]]; then
+        eval "$("$brew_bin" shellenv)"
+        return 0
+    fi
+
     echo "Installing Homebrew..."
     echo ""
 
@@ -45,26 +61,29 @@ install_homebrew() {
     arch=$(uname -m)
     case "$arch" in
         arm64)
-            if [[ -x "/opt/homebrew/bin/brew" ]]; then
-                export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
-                export HOMEBREW_PREFIX="/opt/homebrew"
-                export HOMEBREW_CELLAR="/opt/homebrew/Cellar"
-                export HOMEBREW_REPOSITORY="/opt/homebrew"
-            fi
+            brew_bin="/opt/homebrew/bin/brew"
             ;;
         x86_64)
-            if [[ -x "/usr/local/bin/brew" ]]; then
-                export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
-                export HOMEBREW_PREFIX="/usr/local"
-                export HOMEBREW_CELLAR="/usr/local/Cellar"
-                export HOMEBREW_REPOSITORY="/usr/local/Homebrew"
-            fi
+            brew_bin="/usr/local/bin/brew"
             ;;
         *)
             echo "Error: Unsupported architecture: $arch" >&2
             exit 1
             ;;
     esac
+
+    if [[ -x "$brew_bin" ]]; then
+        eval "$("$brew_bin" shellenv)"
+        # Persist PATH for future shells. Homebrew's installer only prints
+        # instructions; without this, the next `curl | bash` sees no brew on PATH
+        # and tries to reinstall.
+        local zprofile="${HOME}/.zprofile"
+        local shellenv_line="eval \"\$(${brew_bin} shellenv)\""
+        if [[ ! -f "$zprofile" ]] || ! grep -qF "$shellenv_line" "$zprofile" 2>/dev/null; then
+            printf '\n%s\n' "$shellenv_line" >> "$zprofile"
+            echo "Added Homebrew to $zprofile"
+        fi
+    fi
 
     echo ""
     echo "Homebrew installed!"
