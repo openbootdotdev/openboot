@@ -153,7 +153,8 @@ func runBinary(t *testing.T, binary string, env []string, args ...string) (stdou
 	var outBuf, errBuf strings.Builder
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
-	return outBuf.String(), errBuf.String(), cmd.Run()
+	err = cmd.Run()
+	return outBuf.String(), errBuf.String(), err
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
