@@ -50,10 +50,10 @@ func publishSnapshot(ctx context.Context, snap *snapshot.Snapshot, explicitSlug 
 	var configName, configDesc, visibility string
 	if targetSlug != "" {
 		fmt.Fprintln(os.Stderr)
-		ui.Info(fmt.Sprintf("Publishing to @%s/%s (updating)", stored.Username, targetSlug))
+		fmt.Fprintf(os.Stderr, "  Publishing to @%s/%s (updating)\n", stored.Username, targetSlug)
 	} else {
 		fmt.Fprintln(os.Stderr)
-		ui.Info("Publishing as a new config on openboot.dev")
+		fmt.Fprintln(os.Stderr, "  Publishing as a new config on openboot.dev")
 		configName, configDesc, visibility, err = promptPushDetails("")
 		if err != nil {
 			return err
