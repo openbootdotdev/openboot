@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +9,13 @@ import (
 
 	"github.com/openbootdotdev/openboot/internal/macos"
 )
+
+func requireZsh(t *testing.T) {
+	t.Helper()
+	if _, err := os.Stat("/bin/zsh"); err != nil {
+		t.Skip("/bin/zsh not available")
+	}
+}
 
 // TestApplyMacOSPrefs_EmptyPrefs verifies that applyMacOSPrefs is a no-op when
 // the plan has no macOS preferences — it returns nil without calling any macOS
@@ -100,6 +108,7 @@ func TestApplyPostInstall_SilentNoTTY_WithoutFlag(t *testing.T) {
 // TestApplyPostInstall_SilentWithFlag_MarkerCreated verifies that the script
 // actually runs by checking for a side-effect file.
 func TestApplyPostInstall_SilentWithFlag_MarkerCreated(t *testing.T) {
+	requireZsh(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -118,8 +127,9 @@ func TestApplyPostInstall_SilentWithFlag_MarkerCreated(t *testing.T) {
 }
 
 // TestApplyPostInstall_CommandFailure_ReturnsError verifies that a failing
-// command propagates an error.
+// script propagates an error.
 func TestApplyPostInstall_CommandFailure_ReturnsError(t *testing.T) {
+	requireZsh(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -131,26 +141,31 @@ func TestApplyPostInstall_CommandFailure_ReturnsError(t *testing.T) {
 	}
 	err := applyPostInstall(plan, NopReporter{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "post_install[0]")
+	assert.Contains(t, err.Error(), "post-install")
 }
 
-// TestApplyPostInstall_ContinuesAfterFailure verifies that a failure in one
-// command does not prevent subsequent commands from running.
-func TestApplyPostInstall_ContinuesAfterFailure(t *testing.T) {
+// TestApplyPostInstall_MultilineScript verifies that multi-line constructs
+// (arrays, loops) are executed correctly as a single script.
+func TestApplyPostInstall_MultilineScript(t *testing.T) {
+	requireZsh(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	markerFile := tmpDir + "/second-ran"
+	markerFile := tmpDir + "/multiline-ran"
 	plan := InstallPlan{
 		DryRun:           false,
 		Silent:           true,
 		AllowPostInstall: true,
-		PostInstall:      []string{"false", "touch " + markerFile},
+		PostInstall: []string{
+			"ITEMS=(a b c)",
+			"for item in \"${ITEMS[@]}\"; do",
+			"  touch " + markerFile,
+			"done",
+		},
 	}
 	err := applyPostInstall(plan, NopReporter{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "post_install[0]")
-	require.FileExists(t, markerFile, "second command must run even after first fails")
+	require.NoError(t, err)
+	require.FileExists(t, markerFile, "loop body must execute")
 }
 
 // TestApplyMacOSPrefs_DryRun_TableDriven is a table-driven test covering the

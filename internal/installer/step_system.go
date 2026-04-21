@@ -1,7 +1,6 @@
 package installer
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -84,21 +83,17 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 		return fmt.Errorf("home dir: %w", err)
 	}
 
-	var errs []error
-	for i, cmdStr := range plan.PostInstall {
-		c := exec.Command("/bin/zsh", "-c", cmdStr) //nolint:gosec // post-install scripts require explicit user opt-in (--allow-post-install flag)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		c.Dir = home
-		if err := c.Run(); err != nil {
-			errs = append(errs, fmt.Errorf("post_install[%d]: %w", i, err))
-		}
+	c := exec.Command("/bin/zsh", "-c", script) //nolint:gosec // post-install scripts require explicit user opt-in (--allow-post-install flag)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Dir = home
+	if err := c.Run(); err != nil {
+		fmt.Println()
+		return fmt.Errorf("post-install: %w", err)
 	}
-	if len(errs) == 0 {
-		r.Success("Post-install script complete")
-	}
+	r.Success("Post-install script complete")
 	fmt.Println()
-	return errors.Join(errs...)
+	return nil
 }
 
 func stepMacOS(opts *config.InstallOptions, st *config.InstallState) error {
@@ -203,33 +198,26 @@ func stepPostInstall(opts *config.InstallOptions, st *config.InstallState) error
 		}
 	}
 
-	var home string
-	if !opts.DryRun {
-		var err error
-		home, err = system.HomeDir()
-		if err != nil {
-			return fmt.Errorf("home dir: %w", err)
-		}
-	}
-
-	var errs []error
 	if opts.DryRun {
 		fmt.Println("[DRY-RUN] Would run the script above")
-	} else {
-		for i, cmdStr := range commands {
-			c := exec.Command("/bin/zsh", "-c", cmdStr) //nolint:gosec // post-install scripts require explicit user opt-in (--allow-post-install flag)
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-			c.Dir = home
-			if err := c.Run(); err != nil {
-				errs = append(errs, fmt.Errorf("post_install[%d]: %w", i, err))
-			}
-		}
+		fmt.Println()
+		return nil
 	}
 
-	if len(errs) == 0 && !opts.DryRun {
-		ui.Success("Post-install script complete")
+	home, err := system.HomeDir()
+	if err != nil {
+		return fmt.Errorf("home dir: %w", err)
 	}
+
+	c := exec.Command("/bin/zsh", "-c", script) //nolint:gosec // post-install scripts require explicit user opt-in (--allow-post-install flag)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Dir = home
+	if err := c.Run(); err != nil {
+		fmt.Println()
+		return fmt.Errorf("post-install: %w", err)
+	}
+	ui.Success("Post-install script complete")
 	fmt.Println()
-	return errors.Join(errs...)
+	return nil
 }
