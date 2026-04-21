@@ -654,6 +654,7 @@ func TestStepPostInstall_DryRun(t *testing.T) {
 }
 
 func TestStepPostInstall_RunsCommandsInSilentMode(t *testing.T) {
+	requireZsh(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -676,6 +677,7 @@ func TestStepPostInstall_RunsCommandsInSilentMode(t *testing.T) {
 }
 
 func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
+	requireZsh(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
@@ -691,35 +693,35 @@ func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
 	st := cfg.ToInstallState()
 	err := stepPostInstall(opts, st)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "post_install[0]")
+	assert.Contains(t, err.Error(), "post-install")
 }
 
-func TestStepPostInstall_ContinuesAfterCommandFailure(t *testing.T) {
+func TestStepPostInstall_MultilineScriptRuns(t *testing.T) {
+	requireZsh(t)
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	markerFile := tmpDir + "/second-ran"
+	markerFile := tmpDir + "/multiline-ran"
 	cfg := &config.Config{
 		Silent:           true,
 		AllowPostInstall: true,
 		RemoteConfig: &config.RemoteConfig{
-			// Use "false" (a command that fails with exit 1) instead of "exit 1"
-			// because exit terminates the entire script, while false just sets $?.
-			PostInstall: []string{"false", "touch " + markerFile},
+			PostInstall: []string{
+				"ITEMS=(a b c)",
+				"for item in \"${ITEMS[@]}\"; do",
+				"  touch " + markerFile,
+				"done",
+			},
 		},
 	}
 
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
-
-	// With per-command execution each command runs in its own shell.
-	// The failing command (false) produces an error, but subsequent commands still execute.
 	err := stepPostInstall(opts, st)
-	assert.Error(t, err, "failure in one command should be reported")
-	assert.Contains(t, err.Error(), "post_install[0]")
+	assert.NoError(t, err)
 
 	_, statErr := os.Stat(markerFile)
-	assert.NoError(t, statErr, "second command should still run after first fails")
+	assert.NoError(t, statErr, "loop body must execute")
 }
 
 func TestReconcileBrewWithSystem_RemovesUninstalledPackages(t *testing.T) {
