@@ -27,28 +27,32 @@ var installCmd = &cobra.Command{
 	Short: "Set up your Mac dev environment",
 	Long: `Install and configure your Mac development environment.
 
-Source resolution (position argument, in order):
+Source resolution (positional argument, in order):
   1. ./path, /path, or *.json  → local file
   2. user/slug                  → openboot.dev config
   3. preset name                → built-in preset (minimal, developer, full)
   4. other word                 → treated as an openboot.dev alias
 
-With no arguments, resumes from your saved sync source (or interactive if none).
+With no arguments, resumes from your saved sync source (or runs the interactive
+wizard if you have never synced before).
 
-Explicit flags (--from, --user, -p) override the positional argument.`,
-	Example: `  # Resume last sync (or interactive if never synced)
+Explicit flags (--from, --user, -p) take precedence over the positional argument.`,
+	Example: `  # Interactive setup (or resume last sync)
   openboot install
 
-  # Install from a cloud config
-  openboot install alice/dev-setup
-
-  # Install from a local file
-  openboot install ./backup.json
-
-  # Install a built-in preset
+  # Quick setup with a built-in preset
   openboot install -p developer
 
-  # Preview without installing
+  # Install from your cloud config
+  openboot install -u githubusername
+
+  # Install from a specific cloud config
+  openboot install alice/dev-setup
+
+  # Install from a local file or snapshot
+  openboot install --from ./backup.json
+
+  # Preview changes without installing
   openboot install --dry-run`,
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
@@ -68,6 +72,7 @@ func init() {
 	installCmd.Flags().StringVar(&installCfg.Shell, "shell", "", "shell setup: install, skip")
 	installCmd.Flags().StringVar(&installCfg.Macos, "macos", "", "macOS preferences: configure, skip")
 	installCmd.Flags().StringVar(&installCfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
+	installCmd.Flags().StringVar(&installCfg.PostInstall, "post-install", "", "post-install script: skip")
 
 	installCmd.Flags().BoolVar(&installCfg.Update, "update", false, "update Homebrew before installing")
 	installCmd.Flags().BoolVar(&installCfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")

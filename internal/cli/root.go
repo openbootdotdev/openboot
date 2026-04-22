@@ -18,25 +18,26 @@ var version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "openboot",
-	Short: "Set up your Mac dev environment in one command",
-	Long: `OpenBoot - Mac development environment setup tool
+	Short: "Set up your Mac dev environment",
+	Long: `OpenBoot — Mac development environment setup tool
 
 Automates installation of Homebrew packages, CLI tools, GUI apps, npm packages,
 shell configuration, and macOS preferences.`,
-	Example: `  # Interactive setup with package selection
-  openboot
+	Example: `  # Interactive setup
+  openboot install
 
   # Quick setup with a preset
-  openboot -p developer
+  openboot install -p developer
 
   # Install from your cloud config
-  openboot -u githubusername
+  openboot install -u githubusername
 
   # Install from a local config or snapshot file
-  openboot --from config.json
+  openboot install --from config.json
 
   # Capture your current environment
   openboot snapshot --json > my-setup.json`,
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Install always-on file logging; --verbose controls stderr level.
 		// Failure here is never fatal — Init falls back to stderr internally.
@@ -52,46 +53,17 @@ shell configuration, and macOS preferences.`,
 		// Only the install flow needs the package catalog and auto-update.
 		// All other commands (snapshot, login, logout, etc.) run without
 		// network overhead.
-		installCmds := map[string]bool{
-			"openboot": true, // root command delegates to install
-			"install":  true,
-		}
-		if installCmds[cmd.Name()] {
+		if cmd.Name() == "install" {
 			updater.AutoUpgrade(version)
 			config.RefreshPackagesFromRemote()
 		}
 
 		return nil
 	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		// `openboot` with no subcommand is equivalent to `openboot install`.
-		// Root flags bind directly to installCfg, so no bridging is needed.
-		return runInstallCmd(cmd, args)
-	},
 }
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enable debug logging to stderr")
-	rootCmd.Flags().SortFlags = false
-
-	// Root is an alias for `openboot install`, so its flags bind directly to
-	// installCfg — the same struct used by the install subcommand. This ensures
-	// `openboot -p developer` and `openboot install -p developer` are identical
-	// code paths with no config divergence.
-	rootCmd.Flags().StringVarP(&installCfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
-	rootCmd.Flags().StringVarP(&installCfg.User, "user", "u", "", "install from openboot.dev/username config")
-	rootCmd.Flags().String("from", "", "install from a local config or snapshot JSON file")
-	rootCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
-	rootCmd.Flags().BoolVar(&installCfg.DryRun, "dry-run", false, "preview changes without installing")
-	rootCmd.Flags().BoolVar(&installCfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
-
-	rootCmd.Flags().StringVar(&installCfg.Shell, "shell", "", "shell setup: install, skip")
-	rootCmd.Flags().StringVar(&installCfg.Macos, "macos", "", "macOS preferences: configure, skip")
-	rootCmd.Flags().StringVar(&installCfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
-	rootCmd.Flags().StringVar(&installCfg.PostInstall, "post-install", "", "post-install script: skip")
-	rootCmd.Flags().BoolVar(&installCfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
-
-	rootCmd.Flags().BoolVar(&installCfg.Update, "update", false, "update Homebrew before installing")
 
 	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(versionCmd)
