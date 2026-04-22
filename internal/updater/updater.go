@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -419,11 +420,13 @@ func DownloadAndReplace(targetVersion, currentVersion string) error {
 		return fmt.Errorf("resolve binary path: %w", err)
 	}
 
-	tmpPath := binPath + ".tmp"
-	f, err := os.Create(tmpPath)
+	// Download to os.TempDir so the binary's directory (e.g. /usr/local/bin)
+	// doesn't need to be writable just for the staging step.
+	f, err := os.CreateTemp("", "openboot-update-*")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
+	tmpPath := f.Name()
 
 	// Ensure tmp file is cleaned up on any failure (including panics).
 	// Set to false after successful rename.
@@ -461,11 +464,28 @@ func DownloadAndReplace(targetVersion, currentVersion string) error {
 	}
 
 	if err := os.Rename(tmpPath, binPath); err != nil {
-		return fmt.Errorf("replace binary: %w", err)
+		if errors.Is(err, syscall.EXDEV) {
+			// Cross-device: tmp dir is on a different filesystem than the binary.
+			if copyErr := copyFile(tmpPath, binPath, 0755); copyErr != nil {
+				return installErr(binPath, copyErr)
+			}
+			needsCleanup = false
+			return nil
+		}
+		return installErr(binPath, err)
 	}
 
 	needsCleanup = false
 	return nil
+}
+
+// installErr wraps a binary-placement error, adding a sudo hint when the
+// failure is a permission error (e.g. binary lives in /usr/local/bin).
+func installErr(binPath string, err error) error {
+	if os.IsPermission(err) {
+		return fmt.Errorf("replace binary: permission denied writing to %s — try: sudo openboot update", filepath.Dir(binPath))
+	}
+	return fmt.Errorf("replace binary: %w", err)
 }
 
 // --- Backup & rollback ---
@@ -649,8 +669,16 @@ func Rollback() error {
 	}
 
 	src := filepath.Join(dir, files[0].Name())
-	tmpPath := binPath + ".rollback.tmp"
+	// Stage in os.TempDir so the binary's directory doesn't need to be
+	// writable just for staging.
+	tmpFile, err := os.CreateTemp("", "openboot-rollback-*")
+	if err != nil {
+		return fmt.Errorf("stage rollback: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close() //nolint:errcheck,gosec // copyFile opens it fresh
 	if err := copyFile(src, tmpPath, 0755); err != nil {
+		os.Remove(tmpPath) //nolint:errcheck,gosec // best-effort cleanup
 		return fmt.Errorf("stage rollback: %w", err)
 	}
 	needsCleanup := true
@@ -661,7 +689,14 @@ func Rollback() error {
 	}()
 
 	if err := os.Rename(tmpPath, binPath); err != nil {
-		return fmt.Errorf("replace binary: %w", err)
+		if errors.Is(err, syscall.EXDEV) {
+			if copyErr := copyFile(tmpPath, binPath, 0755); copyErr != nil {
+				return installErr(binPath, copyErr)
+			}
+			needsCleanup = false
+			return nil
+		}
+		return installErr(binPath, err)
 	}
 	needsCleanup = false
 	return nil
