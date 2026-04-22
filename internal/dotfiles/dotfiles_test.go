@@ -28,6 +28,46 @@ func TestClone_EmptyURL(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestReferencesOMZ(t *testing.T) {
+	cases := []struct {
+		name    string
+		layout  string // "stow" -> zsh/.zshrc, "flat" -> .zshrc, "none" -> no file
+		content string
+		want    bool
+	}{
+		{"stow layout with source line", "stow", "export ZSH=$HOME/.oh-my-zsh\nsource $ZSH/oh-my-zsh.sh\n", true},
+		{"flat layout with source line", "flat", "source ~/.oh-my-zsh/oh-my-zsh.sh\n", true},
+		{"indented source line", "stow", "  source $ZSH/oh-my-zsh.sh\n", true},
+		{"commented source line", "stow", "# source $ZSH/oh-my-zsh.sh\n", false},
+		{"only alias mentions OMZ", "stow", "alias ohmyzsh=\"mate ~/.oh-my-zsh\"\n", false},
+		{"only comment mentions OMZ", "flat", "# configure oh-my-zsh plugins later\n", false},
+		{"no .zshrc at all", "none", "", false},
+		{"empty file", "flat", "", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			switch tc.layout {
+			case "stow":
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "zsh"), 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "zsh", ".zshrc"), []byte(tc.content), 0o644))
+			case "flat":
+				require.NoError(t, os.WriteFile(filepath.Join(dir, ".zshrc"), []byte(tc.content), 0o644))
+			}
+			assert.Equal(t, tc.want, ReferencesOMZ(dir))
+		})
+	}
+}
+
+func TestDefaultPath(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	p, err := DefaultPath()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(tmpHome, defaultDotfilesDir), p)
+}
+
 func TestClone_DryRun(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)

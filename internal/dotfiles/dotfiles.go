@@ -453,14 +453,16 @@ func GetDotfilesURL() string {
 	return os.Getenv("OPENBOOT_DOTFILES")
 }
 
+// omzSourceRe matches a live `source .../oh-my-zsh.sh` line — not commented,
+// not in an alias value. Anchored to the start of a line (after optional
+// whitespace) so comments like `# alias ohmyzsh="mate ~/.oh-my-zsh"` don't
+// trigger a false positive.
+var omzSourceRe = regexp.MustCompile(`(?m)^\s*source\s.*oh-my-zsh\.sh`)
+
 // ReferencesOMZ reports whether the cloned dotfiles contain a .zshrc that
-// sources Oh-My-Zsh. Checks both stow-layout (zsh/.zshrc) and flat-layout (.zshrc).
-func ReferencesOMZ() bool {
-	home, err := system.HomeDir()
-	if err != nil {
-		return false
-	}
-	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
+// actively sources Oh-My-Zsh. Checks both stow-layout (zsh/.zshrc) and
+// flat-layout (.zshrc) under dotfilesPath.
+func ReferencesOMZ(dotfilesPath string) bool {
 	candidates := []string{
 		filepath.Join(dotfilesPath, "zsh", ".zshrc"),
 		filepath.Join(dotfilesPath, ".zshrc"),
@@ -470,9 +472,18 @@ func ReferencesOMZ() bool {
 		if err != nil {
 			continue
 		}
-		if strings.Contains(string(data), "oh-my-zsh") {
+		if omzSourceRe.Match(data) {
 			return true
 		}
 	}
 	return false
+}
+
+// DefaultPath returns the absolute path to the dotfiles directory (~/.dotfiles).
+func DefaultPath() (string, error) {
+	home, err := system.HomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, defaultDotfilesDir), nil
 }
