@@ -86,7 +86,6 @@ func (m SelectorModel) renderTabBar() string {
 	totalTabs := len(m.categories)
 
 	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555"))
-	neighborStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666"))
 	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#444"))
 	posStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555"))
 
@@ -131,7 +130,7 @@ func (m SelectorModel) renderTabBar() string {
 	for remaining > 0 && (li >= 0 || ri < totalTabs) {
 		added := false
 		if li >= 0 {
-			rendered := neighborStyle.Render(m.categories[li].Name)
+			rendered := tabStyle.Render(m.categories[li].Name)
 			w := lipgloss.Width(rendered) + sepW
 			if w <= remaining {
 				leftNeighbors = append([]string{rendered}, leftNeighbors...)
@@ -143,7 +142,7 @@ func (m SelectorModel) renderTabBar() string {
 			}
 		}
 		if ri < totalTabs {
-			rendered := neighborStyle.Render(m.categories[ri].Name)
+			rendered := tabStyle.Render(m.categories[ri].Name)
 			w := lipgloss.Width(rendered) + sepW
 			if w <= remaining {
 				rightNeighbors = append(rightNeighbors, rendered)
