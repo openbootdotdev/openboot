@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/auth"
+	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
@@ -51,6 +52,14 @@ func publishSnapshot(ctx context.Context, snap *snapshot.Snapshot, explicitSlug 
 	if targetSlug != "" {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintf(os.Stderr, "  Publishing to @%s/%s (updating)\n", stored.Username, targetSlug)
+		// PUT endpoint requires name; fetch the existing config to preserve it.
+		userSlug := fmt.Sprintf("%s/%s", stored.Username, targetSlug)
+		if rc, fetchErr := config.FetchRemoteConfig(userSlug, stored.Token); fetchErr == nil {
+			configName = rc.Name
+		}
+		if configName == "" {
+			configName = targetSlug
+		}
 	} else {
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "  Publishing as a new config on openboot.dev")
