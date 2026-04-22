@@ -26,6 +26,11 @@ func makeTestSnapshot() *snapshot.Snapshot {
 			Taps:     []string{"homebrew/core"},
 			Npm:      []string{"typescript", "eslint"},
 		},
+		Shell: snapshot.ShellSnapshot{
+			OhMyZsh: true,
+			Theme:   "robbyrussell",
+			Plugins: []string{"git", "helm", "kubectl"},
+		},
 		MacOSPrefs: []snapshot.MacOSPref{
 			{Domain: "com.apple.dock", Key: "autohide", Value: "1", Desc: "Auto-hide Dock"},
 			{Domain: "com.apple.finder", Key: "ShowPathbar", Value: "1", Desc: "Show path bar"},
@@ -34,9 +39,16 @@ func makeTestSnapshot() *snapshot.Snapshot {
 			UserName:  "Test User",
 			UserEmail: "test@example.com",
 		},
+		Dotfiles: snapshot.DotfilesSnapshot{
+			RepoURL: "https://github.com/test/dotfiles",
+		},
 		DevTools: []snapshot.DevTool{
 			{Name: "go", Version: "1.24.0"},
 			{Name: "node", Version: "20.0.0"},
+		},
+		Health: snapshot.CaptureHealth{
+			FailedSteps: []string{},
+			Partial:     false,
 		},
 	}
 }
@@ -362,8 +374,11 @@ func TestBuildEditedSnapshotPreservesMetadata(t *testing.T) {
 
 	assert.Equal(t, snap.Version, edited.Version)
 	assert.Equal(t, snap.Hostname, edited.Hostname)
+	assert.Equal(t, snap.Shell, edited.Shell)
 	assert.Equal(t, snap.Git, edited.Git)
+	assert.Equal(t, snap.Dotfiles, edited.Dotfiles)
 	assert.Equal(t, snap.DevTools, edited.DevTools)
+	assert.Equal(t, snap.Health, edited.Health)
 }
 
 func TestBuildEditedSnapshotAllSelected(t *testing.T) {

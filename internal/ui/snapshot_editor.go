@@ -836,10 +836,13 @@ func buildEditedSnapshot(original *snapshot.Snapshot, m *SnapshotEditorModel) *s
 		Version:       original.Version,
 		CapturedAt:    original.CapturedAt,
 		Hostname:      original.Hostname,
+		Shell:         original.Shell,
 		Git:           original.Git,
+		Dotfiles:      original.Dotfiles,
 		DevTools:      original.DevTools,
 		MatchedPreset: original.MatchedPreset,
 		CatalogMatch:  original.CatalogMatch,
+		Health:        original.Health,
 	}
 
 	// Build lookup maps for original snapshot items (for macOS prefs matching)
