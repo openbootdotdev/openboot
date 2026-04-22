@@ -22,7 +22,7 @@ import (
 
 // TestVM_Journey_DotfilesClonedAndLinked runs
 //
-//	openboot --preset minimal --silent --dotfiles clone --shell skip --macos skip
+//	openboot install --preset minimal --silent --dotfiles clone --shell skip --macos skip
 //
 // and verifies that:
 //  1. ~/.dotfiles is a valid git repository (clone succeeded).
@@ -112,7 +112,7 @@ func TestVM_Journey_DotfilesClonedAndLinked(t *testing.T) {
 
 // TestVM_Journey_DotfilesLink_OnlyLinks runs
 //
-//	openboot --preset minimal --silent --dotfiles link --shell skip --macos skip
+//	openboot install --preset minimal --silent --dotfiles link --shell skip --macos skip
 //
 // when ~/.dotfiles already exists (from a previous clone), verifying that the
 // link-only mode does not re-clone but still creates symlinks.

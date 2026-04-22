@@ -31,7 +31,7 @@ type macOSPrefCheck struct {
 
 // TestVM_Journey_MacOSDefaults_AllCategoriesWritten runs
 //
-//	openboot --preset minimal --silent --shell skip --dotfiles skip --macos configure
+//	openboot install --preset minimal --silent --shell skip --dotfiles skip --macos configure
 //
 // and verifies that representative preferences from each of the eight
 // categories in internal/macos/categories.go are actually written to the

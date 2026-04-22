@@ -236,7 +236,7 @@ Bug reports and feature requests: [open an issue](https://github.com/openbootdot
 git clone https://github.com/openbootdotdev/openboot.git
 cd openboot
 go build -o openboot ./cmd/openboot
-./openboot --dry-run
+./openboot install --dry-run
 ```
 
 </details>

@@ -188,7 +188,11 @@ main() {
     echo "Starting OpenBoot setup..."
     echo ""
     
-    exec openboot "$@"
+    if [[ "$snapshot_mode" == true ]]; then
+        exec openboot "$@"
+    else
+        exec openboot install "$@"
+    fi
 }
 
 main "$@"

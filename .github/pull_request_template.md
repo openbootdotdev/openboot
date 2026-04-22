@@ -12,7 +12,7 @@
 <!-- How did you test this? -->
 - [ ] `go vet ./...` passes
 - [ ] Relevant tests added or updated
-- [ ] Tested locally (`./openboot --dry-run` or similar)
+- [ ] Tested locally (`./openboot install --dry-run` or similar)
 
 ## Notes for reviewer
 
