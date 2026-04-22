@@ -71,8 +71,8 @@ func TestNewSnapshotEditorItems(t *testing.T) {
 func TestNewSnapshotEditorSkipsInvalidMacOSPrefs(t *testing.T) {
 	snap := makeTestSnapshot()
 	snap.MacOSPrefs = append(snap.MacOSPrefs,
-		snapshot.MacOSPref{Domain: "cirruslabs/cli", Key: ""},   // tap misclassified as pref
-		snapshot.MacOSPref{Domain: "", Key: "SomeKey"},           // empty domain
+		snapshot.MacOSPref{Domain: "cirruslabs/cli", Key: ""},                      // tap misclassified as pref
+		snapshot.MacOSPref{Domain: "", Key: "SomeKey"},                             // empty domain
 		snapshot.MacOSPref{Domain: "com.apple.dock", Key: "tilesize", Value: "48"}, // valid
 	)
 	m := NewSnapshotEditor(snap)
