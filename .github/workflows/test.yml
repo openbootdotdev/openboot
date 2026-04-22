@@ -188,15 +188,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "arm64" ]; then
+            ASSET="openboot-darwin-arm64"
+          else
+            ASSET="openboot-darwin-amd64"
+          fi
           PREV=$(curl -sf https://api.github.com/repos/openbootdotdev/openboot/releases \
             -H "Authorization: Bearer $GITHUB_TOKEN" | \
-            python3 -c "
-          import json, sys
+            ASSET="$ASSET" python3 -c "
+          import json, os, sys
+          asset = os.environ['ASSET']
           releases = json.load(sys.stdin)
-          stable = [r for r in releases if not r.get('prerelease') and not r.get('draft')]
-          if len(stable) >= 2:
-              print(stable[1]['tag_name'])
-          elif len(stable) == 1:
+          # Keep stable releases that still have the binary asset for this arch.
+          # Some older releases have had their binaries deleted (e.g. v0.55.1),
+          # so fall back to the most recent release that is still downloadable.
+          stable = [r for r in releases
+                    if not r.get('prerelease') and not r.get('draft')
+                    and any(a.get('name') == asset for a in r.get('assets', []))]
+          if stable:
               print(stable[0]['tag_name'])
           else:
               sys.exit(1)

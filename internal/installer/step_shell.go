@@ -10,6 +10,10 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
+// installOhMyZshFunc is a var so tests can stub out the real installer
+// (which downloads and runs the upstream script).
+var installOhMyZshFunc = shell.InstallOhMyZsh
+
 func applyShell(plan InstallPlan, r Reporter) error {
 	if plan.InstallOhMyZsh {
 		r.Header("Shell Configuration")
@@ -63,6 +67,21 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	if err := dotfiles.Clone(plan.DotfilesURL, plan.DryRun); err != nil {
 		return err
 	}
+
+	// If the cloned dotfiles reference Oh-My-Zsh but the shell step didn't
+	// install it (e.g. remote config with oh_my_zsh:false), install OMZ now
+	// before linking so the resulting .zshrc isn't broken. Skip when the shell
+	// step already tried — it would just fail again with the same error.
+	if !plan.DryRun && !plan.InstallOhMyZsh && !shell.IsOhMyZshInstalled() {
+		if dfPath, err := dotfiles.DefaultPath(); err == nil && dotfiles.ReferencesOMZ(dfPath) {
+			if err := installOhMyZshFunc(false); err != nil {
+				r.Error(fmt.Sprintf("dotfiles require Oh-My-Zsh but installation failed: %v", err))
+			} else {
+				r.Success("Oh-My-Zsh installed (required by dotfiles)")
+			}
+		}
+	}
+
 	if err := dotfiles.Link(plan.DryRun); err != nil {
 		return err
 	}
