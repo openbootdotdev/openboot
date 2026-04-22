@@ -481,7 +481,6 @@ func (m SnapshotEditorModel) View() string { //nolint:gocyclo // renders editor 
 		}
 	}
 	lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, tabs...))
-	lines = append(lines, "")
 
 	tab := m.tabs[m.activeTab]
 	visibleItems := m.getVisibleItems()
