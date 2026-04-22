@@ -315,7 +315,8 @@ func backupConflicts(pkgDir, targetDir string) ([][2]string, error) {
 			// Target doesn't exist or is already a symlink — no conflict.
 			return nil
 		}
-		if info.IsDir() {
+		if !info.Mode().IsRegular() {
+			// Skip non-regular files (directories, sockets, named pipes, devices, etc.).
 			return nil
 		}
 
