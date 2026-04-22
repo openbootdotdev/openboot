@@ -53,7 +53,7 @@ if [ ! -t 0 ] && [ -e /dev/tty ]; then
 fi
 export OPENBOOT_DRY_RUN=true
 export OPENBOOT_API_URL=http://localhost:{port}
-{binary} -s -u testuser/test-config
+{binary} install -s -u testuser/test-config
 exit 0
 }}
 main

@@ -17,9 +17,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-// installCfg is the single config instance shared by the root command (openboot)
-// and the install subcommand (openboot install). Both bind their flags here so
-// that `openboot -p developer` and `openboot install -p developer` are identical.
+// installCfg is the config instance used by the install subcommand.
 var installCfg = &config.Config{}
 
 var installCmd = &cobra.Command{

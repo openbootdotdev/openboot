@@ -25,7 +25,7 @@ func TestE2E_InstallSinglePackage_JQ(t *testing.T) {
 	binary := testutil.BuildTestBinary(t)
 
 	// When: we install jq via openboot (minimal preset includes jq)
-	cmd := exec.Command(binary, "--packages-only", "--silent", "--preset", "minimal")
+	cmd := exec.Command(binary, "install", "--packages-only", "--silent", "--preset", "minimal")
 	cmd.Env = append(os.Environ(),
 		"OPENBOOT_GIT_NAME=Test User",
 		"OPENBOOT_GIT_EMAIL=test@example.com",
@@ -67,7 +67,7 @@ func TestE2E_InstallMultiplePackages(t *testing.T) {
 	}`)
 	defer os.Remove(tmpConfig)
 
-	cmd := exec.Command(binary, "--packages-only", "--silent", "--preset", "minimal")
+	cmd := exec.Command(binary, "install", "--packages-only", "--silent", "--preset", "minimal")
 	cmd.Env = append(os.Environ(),
 		"OPENBOOT_GIT_NAME=Test User",
 		"OPENBOOT_GIT_EMAIL=test@example.com",
@@ -183,7 +183,7 @@ func TestE2E_DryRunDoesNotInstall(t *testing.T) {
 	}`)
 	defer os.Remove(tmpConfig)
 
-	cmd := exec.Command(binary, "--dry-run", "--packages-only", "--silent", "--preset", "minimal")
+	cmd := exec.Command(binary, "install", "--dry-run", "--packages-only", "--silent", "--preset", "minimal")
 	cmd.Env = append(os.Environ(),
 		"OPENBOOT_GIT_NAME=Test User",
 		"OPENBOOT_GIT_EMAIL=test@example.com",
@@ -201,7 +201,7 @@ func TestE2E_BrewUpdateBeforeInstall(t *testing.T) {
 	binary := testutil.BuildTestBinary(t)
 
 	// Given: we request brew update
-	cmd := exec.Command(binary, "--update", "--dry-run", "--packages-only", "--silent", "--preset", "minimal")
+	cmd := exec.Command(binary, "install", "--update", "--dry-run", "--packages-only", "--silent", "--preset", "minimal")
 	cmd.Env = append(os.Environ(),
 		"OPENBOOT_GIT_NAME=Test User",
 		"OPENBOOT_GIT_EMAIL=test@example.com",
@@ -224,7 +224,7 @@ func TestE2E_GitConfigSetup(t *testing.T) {
 	testEmail := "e2e-test@example.com"
 
 	// Given: we have test git credentials
-	cmd := exec.Command(binary, "--packages-only", "--silent", "--preset", "minimal")
+	cmd := exec.Command(binary, "install", "--packages-only", "--silent", "--preset", "minimal")
 	cmd.Env = append(os.Environ(),
 		"OPENBOOT_GIT_NAME="+testName,
 		"OPENBOOT_GIT_EMAIL="+testEmail,

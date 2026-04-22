@@ -80,7 +80,7 @@ func TestSmoke_DryRunNoSideEffects(t *testing.T) {
 	before := captureSnapshot(t, binary)
 
 	// When: run with --dry-run --preset full
-	cmd := exec.Command(binary, "--preset", "full", "--dry-run", "--silent")
+	cmd := exec.Command(binary, "install", "--preset", "full", "--dry-run", "--silent")
 	cmd.Env = append(os.Environ(),
 		"OPENBOOT_GIT_NAME=Smoke Test",
 		"OPENBOOT_GIT_EMAIL=smoke@test.local",
