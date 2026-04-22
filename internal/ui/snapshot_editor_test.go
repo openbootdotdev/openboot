@@ -68,6 +68,25 @@ func TestNewSnapshotEditorItems(t *testing.T) {
 	assert.Equal(t, "homebrew/core", m.tabs[3].items[0].name)
 }
 
+func TestNewSnapshotEditorSkipsInvalidMacOSPrefs(t *testing.T) {
+	snap := makeTestSnapshot()
+	snap.MacOSPrefs = append(snap.MacOSPrefs,
+		snapshot.MacOSPref{Domain: "cirruslabs/cli", Key: ""},   // tap misclassified as pref
+		snapshot.MacOSPref{Domain: "", Key: "SomeKey"},           // empty domain
+		snapshot.MacOSPref{Domain: "com.apple.dock", Key: "tilesize", Value: "48"}, // valid
+	)
+	m := NewSnapshotEditor(snap)
+
+	// Only valid prefs (non-empty domain AND key) should appear in the macOS Prefs tab.
+	prefTab := m.tabs[4]
+	for _, item := range prefTab.items {
+		assert.NotEmpty(t, item.name, "pref item name must not be empty")
+		assert.Contains(t, item.name, ".", "pref item name must contain a dot separator")
+	}
+	// 2 from makeTestSnapshot + 1 valid new pref = 3
+	assert.Equal(t, 3, len(prefTab.items))
+}
+
 func TestNewSnapshotEditorAllItemsSelected(t *testing.T) {
 	snap := makeTestSnapshot()
 	m := NewSnapshotEditor(snap)

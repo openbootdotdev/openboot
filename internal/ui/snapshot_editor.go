@@ -114,14 +114,17 @@ func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 	}
 	tabs[3] = editorTab{name: "Taps", icon: "🔌", items: tapItems, itemType: editorItemTap}
 
-	prefItems := make([]editorItem, len(snap.MacOSPrefs))
-	for i, p := range snap.MacOSPrefs {
-		prefItems[i] = editorItem{
+	var prefItems []editorItem
+	for _, p := range snap.MacOSPrefs {
+		if p.Domain == "" || p.Key == "" {
+			continue
+		}
+		prefItems = append(prefItems, editorItem{
 			name:        fmt.Sprintf("%s.%s", p.Domain, p.Key),
 			description: fmt.Sprintf("= %s (%s)", p.Value, p.Desc),
 			selected:    true,
 			itemType:    editorItemMacOSPref,
-		}
+		})
 	}
 	tabs[4] = editorTab{name: "macOS Prefs", icon: "⚙️ ", items: prefItems, itemType: editorItemMacOSPref}
 
