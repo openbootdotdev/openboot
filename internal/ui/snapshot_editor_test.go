@@ -770,6 +770,39 @@ func TestBuildEditedSnapshotAddedMacOSPrefSplitsOnLastDot(t *testing.T) {
 	assert.Equal(t, "48", added.Value)
 }
 
+func TestSnapshotEditorTabSwitchReturnsClearScreenCmd(t *testing.T) {
+	m := NewSnapshotEditor(makeTestSnapshot())
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	assert.NotNil(t, cmd, "Tab should return tea.ClearScreen cmd")
+
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	assert.NotNil(t, cmd, "ShiftTab should return tea.ClearScreen cmd")
+}
+
+func TestSnapshotEditorViewTabIsolation(t *testing.T) {
+	snap := makeTestSnapshot()
+	snap.Packages.Taps = []string{"cirruslabs/cli", "hashicorp/tap"}
+	snap.MacOSPrefs = []snapshot.MacOSPref{
+		{Domain: "com.apple.dock", Key: "tilesize", Value: "48", Desc: "Dock tile size"},
+	}
+	m := NewSnapshotEditor(snap)
+	m.width = 80
+	m.height = 30
+
+	// macOS Prefs tab must not show any tap items
+	m.activeTab = 4
+	view := m.View()
+	assert.NotContains(t, view, "cirruslabs/cli", "tap item must not appear on macOS Prefs tab")
+	assert.Contains(t, view, "com.apple.dock.tilesize", "macOS pref must appear on macOS Prefs tab")
+
+	// Taps tab must not show any macOS pref items
+	m.activeTab = 3
+	view = m.View()
+	assert.Contains(t, view, "cirruslabs/cli", "tap must appear on Taps tab")
+	assert.NotContains(t, view, "com.apple.dock.tilesize", "macOS pref must not appear on Taps tab")
+}
+
 func TestSnapshotEditorAddedItemVisualBadge(t *testing.T) {
 	m := NewSnapshotEditor(makeTestSnapshot())
 	m.width = 80
