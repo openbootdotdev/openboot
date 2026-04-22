@@ -63,6 +63,18 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	if err := dotfiles.Clone(plan.DotfilesURL, plan.DryRun); err != nil {
 		return err
 	}
+
+	// If the cloned dotfiles reference Oh-My-Zsh but it wasn't installed in the
+	// shell step (e.g. remote config with oh_my_zsh:false but dotfiles need it),
+	// install OMZ now before linking so .zshrc isn't broken.
+	if !plan.DryRun && !shell.IsOhMyZshInstalled() && dotfiles.ReferencesOMZ() {
+		if err := shell.InstallOhMyZsh(false); err != nil {
+			r.Error(fmt.Sprintf("dotfiles require Oh-My-Zsh but installation failed: %v", err))
+		} else {
+			r.Success("Oh-My-Zsh installed (required by dotfiles)")
+		}
+	}
+
 	if err := dotfiles.Link(plan.DryRun); err != nil {
 		return err
 	}

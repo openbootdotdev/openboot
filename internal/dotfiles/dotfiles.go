@@ -452,3 +452,27 @@ func linkDirect(dotfilesPath string, dryRun bool) error {
 func GetDotfilesURL() string {
 	return os.Getenv("OPENBOOT_DOTFILES")
 }
+
+// ReferencesOMZ reports whether the cloned dotfiles contain a .zshrc that
+// sources Oh-My-Zsh. Checks both stow-layout (zsh/.zshrc) and flat-layout (.zshrc).
+func ReferencesOMZ() bool {
+	home, err := system.HomeDir()
+	if err != nil {
+		return false
+	}
+	dotfilesPath := filepath.Join(home, defaultDotfilesDir)
+	candidates := []string{
+		filepath.Join(dotfilesPath, "zsh", ".zshrc"),
+		filepath.Join(dotfilesPath, ".zshrc"),
+	}
+	for _, p := range candidates {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(data), "oh-my-zsh") {
+			return true
+		}
+	}
+	return false
+}
