@@ -208,13 +208,11 @@ func (m SnapshotEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
 			m.cursor = 0
 			m.scrollOffset = 0
-			return m, tea.ClearScreen
 
 		case key.Matches(msg, keys.ShiftTab), key.Matches(msg, keys.Left):
 			m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
 			m.cursor = 0
 			m.scrollOffset = 0
-			return m, tea.ClearScreen
 
 		case key.Matches(msg, keys.Up):
 			if m.cursor > 0 {
