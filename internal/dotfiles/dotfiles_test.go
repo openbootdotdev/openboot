@@ -1,6 +1,7 @@
 package dotfiles
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -562,6 +563,32 @@ func TestBackupConflicts_SkipsSymlinks(t *testing.T) {
 	backed, err := backupConflicts(pkgDir, targetDir)
 	require.NoError(t, err)
 	assert.Len(t, backed, 0)
+}
+
+func TestBackupConflicts_SkipsSocketFiles(t *testing.T) {
+	// Use os.MkdirTemp with an empty dir so the path stays short.
+	// macOS enforces a 104-byte limit on Unix socket paths; t.TempDir() embeds
+	// the full test name and can exceed that limit, causing net.Listen to fail.
+	tmpDir, err := os.MkdirTemp("", "ob")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+
+	pkgDir := filepath.Join(tmpDir, "pkg")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, "s.sock"), []byte("new"), 0644))
+
+	targetDir := filepath.Join(tmpDir, "home")
+	require.NoError(t, os.MkdirAll(targetDir, 0755))
+
+	// Create a Unix domain socket at the conflict path.
+	socketPath := filepath.Join(targetDir, "s.sock")
+	ln, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	defer ln.Close()
+
+	backed, err := backupConflicts(pkgDir, targetDir)
+	require.NoError(t, err)
+	assert.Len(t, backed, 0, "socket files must not be backed up")
 }
 
 func TestBackupConflicts_SkipsMissingTargets(t *testing.T) {
