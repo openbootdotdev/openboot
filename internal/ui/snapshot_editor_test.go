@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -230,6 +231,17 @@ func TestSnapshotEditorTabSwitch(t *testing.T) {
 	result, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
 	updated = result.(SnapshotEditorModel)
 	assert.Equal(t, 0, updated.activeTab)
+}
+
+func TestSnapshotEditorRenderTabBarFitsWidth(t *testing.T) {
+	m := NewSnapshotEditor(makeTestSnapshot())
+	m.width = 60
+	m.activeTab = 4
+
+	rendered := m.renderTabBar()
+	assert.LessOrEqual(t, lipgloss.Width(rendered), m.width)
+	assert.Contains(t, rendered, "5/5")
+	assert.Contains(t, rendered, "macOS Prefs")
 }
 
 func TestSnapshotEditorSpaceTogglesItem(t *testing.T) {

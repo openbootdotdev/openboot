@@ -443,6 +443,99 @@ func (m SnapshotEditorModel) getVisibleItems() int {
 	return available
 }
 
+func (m SnapshotEditorModel) renderTabBar() string {
+	totalTabs := len(m.tabs)
+
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555"))
+	neighborStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666"))
+	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#444"))
+	posStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#555"))
+
+	activeTab := m.tabs[m.activeTab]
+	activeCount := 0
+	for _, item := range activeTab.items {
+		if item.selected {
+			activeCount++
+		}
+	}
+	activeRendered := activeTabStyle.Render(fmt.Sprintf("%s (%d)", activeTab.name, activeCount))
+	posRendered := posStyle.Render(fmt.Sprintf("  %d/%d", m.activeTab+1, totalTabs))
+
+	hasLeft := m.activeTab > 0
+	hasRight := m.activeTab < totalTabs-1
+	leftArrow := "  "
+	if hasLeft {
+		leftArrow = arrowStyle.Render("‹ ")
+	}
+	rightArrow := "  "
+	if hasRight {
+		rightArrow = arrowStyle.Render(" ›")
+	}
+
+	termWidth := m.width
+	if termWidth == 0 {
+		termWidth = 80
+	}
+
+	baseWidth := lipgloss.Width(leftArrow) + lipgloss.Width(activeRendered) + lipgloss.Width(rightArrow) + lipgloss.Width(posRendered)
+	remaining := termWidth - baseWidth
+
+	sep := sepStyle.Render(" │ ")
+	sepW := lipgloss.Width(sep)
+
+	var leftNeighbors []string
+	var rightNeighbors []string
+	li := m.activeTab - 1
+	ri := m.activeTab + 1
+
+	for remaining > 0 && (li >= 0 || ri < totalTabs) {
+		added := false
+		if li >= 0 {
+			rendered := neighborStyle.Render(m.tabs[li].name)
+			w := lipgloss.Width(rendered) + sepW
+			if w <= remaining {
+				leftNeighbors = append([]string{rendered}, leftNeighbors...)
+				remaining -= w
+				li--
+				added = true
+			} else {
+				li = -1
+			}
+		}
+		if ri < totalTabs {
+			rendered := neighborStyle.Render(m.tabs[ri].name)
+			w := lipgloss.Width(rendered) + sepW
+			if w <= remaining {
+				rightNeighbors = append(rightNeighbors, rendered)
+				remaining -= w
+				ri++
+				added = true
+			} else {
+				ri = totalTabs
+			}
+		}
+		if !added {
+			break
+		}
+	}
+
+	var result strings.Builder
+	result.WriteString(leftArrow)
+	for _, n := range leftNeighbors {
+		result.WriteString(n)
+		result.WriteString(sep)
+	}
+	result.WriteString(activeRendered)
+	for _, n := range rightNeighbors {
+		result.WriteString(sep)
+		result.WriteString(n)
+	}
+	result.WriteString(rightArrow)
+	result.WriteString(posRendered)
+
+	return result.String()
+}
+
 func (m SnapshotEditorModel) View() string { //nolint:gocyclo // renders editor sections with per-section formatting; inherent to bubbletea View
 	if m.searchMode {
 		return m.viewSearch()
@@ -465,23 +558,7 @@ func (m SnapshotEditorModel) View() string { //nolint:gocyclo // renders editor 
 	lines = append(lines, "")
 	lines = append(lines, activeTabStyle.Render("📋 Snapshot Editor — Review your captured environment"))
 	lines = append(lines, "")
-
-	var tabs []string
-	for i, tab := range m.tabs {
-		count := 0
-		for _, item := range tab.items {
-			if item.selected {
-				count++
-			}
-		}
-		label := fmt.Sprintf("%s %s (%d)", tab.icon, tab.name, count)
-		if i == m.activeTab {
-			tabs = append(tabs, activeTabStyle.Render(label))
-		} else {
-			tabs = append(tabs, tabStyle.Render(label))
-		}
-	}
-	lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, tabs...))
+	lines = append(lines, m.renderTabBar())
 
 	tab := m.tabs[m.activeTab]
 	visibleItems := m.getVisibleItems()
