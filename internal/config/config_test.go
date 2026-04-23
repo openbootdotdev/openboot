@@ -316,6 +316,30 @@ func TestUnmarshalRemoteConfigFlexible_FlatStringArrays(t *testing.T) {
 	assert.Equal(t, PackageEntryList{{Name: "typescript"}}, rc.Npm)
 }
 
+func TestUnmarshalRemoteConfigFlexible_NormalizesTapOutOfPackages(t *testing.T) {
+	data := []byte(`{
+		"username": "testuser",
+		"packages": ["git", "openbootdotdev/tap/openboot", "openbootdotdev/tap"],
+		"taps": ["openbootdotdev/tap"]
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, PackageEntryList{{Name: "git"}, {Name: "openbootdotdev/tap/openboot"}}, rc.Packages)
+	assert.Equal(t, []string{"openbootdotdev/tap"}, rc.Taps)
+}
+
+func TestUnmarshalRemoteConfigFlexible_PromotesTapLikePackageIntoTaps(t *testing.T) {
+	data := []byte(`{
+		"packages": ["git", "openbootdotdev/tap"]
+	}`)
+
+	rc, err := UnmarshalRemoteConfigFlexible(data)
+	require.NoError(t, err)
+	assert.Equal(t, PackageEntryList{{Name: "git"}}, rc.Packages)
+	assert.Equal(t, []string{"openbootdotdev/tap"}, rc.Taps)
+}
+
 func TestUnmarshalRemoteConfigFlexible_TypedObjectArray(t *testing.T) {
 	data := []byte(`{
 		"username": "testuser",
@@ -478,6 +502,35 @@ func TestFetchRemoteConfig_ObjectArrayFormat(t *testing.T) {
 	assert.Equal(t, "Browser", result.Casks[0].Desc)
 	assert.Len(t, result.Npm, 1)
 	assert.Equal(t, "Typed JS", result.Npm[0].Desc)
+}
+
+func TestFetchRemoteConfig_TypedPackageArrayWithTypes(t *testing.T) {
+	mockConfig := map[string]interface{}{
+		"username": "testuser",
+		"slug":     "myconfig",
+		"packages": []map[string]string{
+			{"name": "git", "type": "formula", "desc": "Version control"},
+			{"name": "firefox", "type": "cask", "desc": "Browser"},
+			{"name": "wrangler", "type": "npm", "desc": "Cloudflare CLI"},
+			{"name": "openbootdotdev/tap/openboot", "type": "formula", "desc": "OpenBoot"},
+			{"name": "openbootdotdev/tap", "type": "tap", "desc": "OpenBoot tap"},
+		},
+	}
+
+	withMockRemoteClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(mockConfig) //nolint:errcheck // test helper
+	}))
+
+	result, err := FetchRemoteConfig("testuser/myconfig", "")
+	require.NoError(t, err)
+	assert.Equal(t, PackageEntryList{
+		{Name: "git", Desc: "Version control"},
+		{Name: "openbootdotdev/tap/openboot", Desc: "OpenBoot"},
+	}, result.Packages)
+	assert.Equal(t, PackageEntryList{{Name: "firefox", Desc: "Browser"}}, result.Casks)
+	assert.Equal(t, PackageEntryList{{Name: "wrangler", Desc: "Cloudflare CLI"}}, result.Npm)
+	assert.Equal(t, []string{"openbootdotdev/tap"}, result.Taps)
 }
 
 func TestUnmarshalRemoteConfigFlexible_InvalidJSON(t *testing.T) {

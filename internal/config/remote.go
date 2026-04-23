@@ -107,8 +107,8 @@ func parseConfigResponse(resp *http.Response, username, slug, token string) (*Re
 		return nil, fmt.Errorf("fetch config %s/%s: status %d", username, slug, resp.StatusCode)
 	}
 
-	var rc RemoteConfig
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rc); err != nil {
+	rc, err := decodeRemoteConfig(resp.Body)
+	if err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
@@ -116,7 +116,7 @@ func parseConfigResponse(resp *http.Response, username, slug, token string) (*Re
 		return nil, fmt.Errorf("invalid remote config %s/%s: %w", username, slug, err)
 	}
 
-	return &rc, nil
+	return rc, nil
 }
 
 // LoadRemoteConfigFromFile reads a JSON file and returns a RemoteConfig.
@@ -249,8 +249,8 @@ func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 		return nil, fmt.Errorf("alias not found: %s", alias)
 	}
 
-	var rc RemoteConfig
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rc); err != nil {
+	rc, err := decodeRemoteConfig(resp.Body)
+	if err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
@@ -258,7 +258,15 @@ func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 		return nil, fmt.Errorf("invalid remote config (alias %s): %w", alias, err)
 	}
 
-	return &rc, nil
+	return rc, nil
+}
+
+func decodeRemoteConfig(r io.Reader) (*RemoteConfig, error) {
+	data, err := io.ReadAll(io.LimitReader(r, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	return UnmarshalRemoteConfigFlexible(data)
 }
 
 // UnmarshalRemoteConfigFlexible parses JSON into a RemoteConfig, accepting
@@ -268,6 +276,7 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 	// Try direct unmarshal first (flat string arrays).
 	var rc RemoteConfig
 	if err := json.Unmarshal(data, &rc); err == nil {
+		normalizeRemoteConfig(&rc)
 		backfillMacOSPrefsFromSnapshot(&rc, data)
 		return &rc, nil
 	}
@@ -334,8 +343,43 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 	if err := json.Unmarshal(normalised, &result); err != nil {
 		return nil, err
 	}
+	normalizeRemoteConfig(&result)
 	backfillMacOSPrefsFromSnapshot(&result, data)
 	return &result, nil
+}
+
+func normalizeRemoteConfig(rc *RemoteConfig) {
+	if rc == nil {
+		return
+	}
+
+	taps := make(map[string]bool, len(rc.Taps))
+	normalizedTaps := make([]string, 0, len(rc.Taps))
+	for _, tap := range rc.Taps {
+		if tap == "" || taps[tap] {
+			continue
+		}
+		taps[tap] = true
+		normalizedTaps = append(normalizedTaps, tap)
+	}
+
+	normalizedPackages := make(PackageEntryList, 0, len(rc.Packages))
+	for _, pkg := range rc.Packages {
+		// owner/repo entries are taps, not installable formulae. Some server
+		// responses currently duplicate them under packages; promote them into
+		// taps so the installer doesn't try `brew install owner/repo`.
+		if tapNameRe.MatchString(pkg.Name) {
+			if !taps[pkg.Name] {
+				taps[pkg.Name] = true
+				normalizedTaps = append(normalizedTaps, pkg.Name)
+			}
+			continue
+		}
+		normalizedPackages = append(normalizedPackages, pkg)
+	}
+
+	rc.Taps = normalizedTaps
+	rc.Packages = normalizedPackages
 }
 
 // backfillMacOSPrefsFromSnapshot copies macos_prefs from the embedded snapshot
