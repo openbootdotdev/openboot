@@ -241,8 +241,13 @@ jobs:
       - name: Run previous binary against current mock
         if: steps.prev.outputs.version != ''
         run: |
-          OPENBOOT_DRY_RUN=true OPENBOOT_API_URL=http://localhost:18889 \
-            /tmp/openboot-prev -s -u testuser/test-config
+          if /tmp/openboot-prev install --help >/dev/null 2>&1; then
+            OPENBOOT_DRY_RUN=true OPENBOOT_API_URL=http://localhost:18889 \
+              /tmp/openboot-prev install -s testuser/test-config
+          else
+            OPENBOOT_DRY_RUN=true OPENBOOT_API_URL=http://localhost:18889 \
+              /tmp/openboot-prev -s -u testuser/test-config
+          fi
 
       - name: Stop compat mock server
         if: always()
