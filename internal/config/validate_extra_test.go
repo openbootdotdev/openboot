@@ -62,7 +62,7 @@ func TestValidateMacOSPrefs_KeyStartsWithDash(t *testing.T) {
 func TestValidateMacOSPrefs_InvalidDomainCharacters(t *testing.T) {
 	rc := &RemoteConfig{
 		MacOSPrefs: []RemoteMacOSPref{
-			{Domain: "com.apple dock", Key: "autohide", Type: "bool"},
+			{Domain: "com.apple;dock", Key: "autohide", Type: "bool"},
 		},
 	}
 	err := validateMacOSPrefs(rc)
@@ -73,7 +73,7 @@ func TestValidateMacOSPrefs_InvalidDomainCharacters(t *testing.T) {
 func TestValidateMacOSPrefs_InvalidKeyCharacters(t *testing.T) {
 	rc := &RemoteConfig{
 		MacOSPrefs: []RemoteMacOSPref{
-			{Domain: "com.apple.dock", Key: "auto hide", Type: "bool"},
+			{Domain: "com.apple.dock", Key: "auto!hide", Type: "bool"},
 		},
 	}
 	err := validateMacOSPrefs(rc)
@@ -109,7 +109,7 @@ func TestValidateMacOSPrefs_MultiplePrefs_SecondInvalid(t *testing.T) {
 	rc := &RemoteConfig{
 		MacOSPrefs: []RemoteMacOSPref{
 			{Domain: "com.apple.dock", Key: "autohide", Type: "bool"},
-			{Domain: "com.apple.dock", Key: "bad key!", Type: "bool"},
+			{Domain: "com.apple.dock", Key: "bad$key", Type: "bool"},
 		},
 	}
 	err := validateMacOSPrefs(rc)
@@ -117,8 +117,18 @@ func TestValidateMacOSPrefs_MultiplePrefs_SecondInvalid(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid characters")
 }
 
+func TestValidateMacOSPrefs_KeyWithSpaces(t *testing.T) {
+	rc := &RemoteConfig{
+		MacOSPrefs: []RemoteMacOSPref{
+			{Domain: "com.apple.systemuiserver", Key: "NSStatusItem Visible Sound", Type: "bool", Value: "true"},
+		},
+	}
+	err := validateMacOSPrefs(rc)
+	assert.NoError(t, err)
+}
+
 func TestValidateMacOSPrefs_DomainWithSpecialValidChars(t *testing.T) {
-	// Domain and key regex: [a-zA-Z0-9._-]+
+	// Domain and key regex: [a-zA-Z0-9 ._-]+
 	validDomains := []string{
 		"com.apple.dock",
 		"NSGlobalDomain",
