@@ -62,7 +62,7 @@ func TestValidateMacOSPrefs_KeyStartsWithDash(t *testing.T) {
 func TestValidateMacOSPrefs_InvalidDomainCharacters(t *testing.T) {
 	rc := &RemoteConfig{
 		MacOSPrefs: []RemoteMacOSPref{
-			{Domain: "com.apple;dock", Key: "autohide", Type: "bool"},
+			{Domain: "com.apple dock", Key: "autohide", Type: "bool"},
 		},
 	}
 	err := validateMacOSPrefs(rc)
@@ -128,7 +128,7 @@ func TestValidateMacOSPrefs_KeyWithSpaces(t *testing.T) {
 }
 
 func TestValidateMacOSPrefs_DomainWithSpecialValidChars(t *testing.T) {
-	// Domain and key regex: [a-zA-Z0-9 ._-]+
+	// domainRe: [a-zA-Z0-9._-]+  keyRe: [a-zA-Z0-9 ._-]+
 	validDomains := []string{
 		"com.apple.dock",
 		"NSGlobalDomain",

@@ -13,9 +13,11 @@ const (
 )
 
 var (
-	pkgNameRe   = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
-	tapNameRe   = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
-	domainKeyRe = regexp.MustCompile(`^[a-zA-Z0-9 ._-]+$`)
+	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
+	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
+	// macOS preference domains never contain spaces; keys may (e.g. "NSStatusItem Visible Sound").
+	domainRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	keyRe    = regexp.MustCompile(`^[a-zA-Z0-9 ._-]+$`)
 
 	// dotfilesPathRe validates the path component: one or more segments of
 	// alphanumeric, dash, underscore, or dot characters separated by slashes.
@@ -126,10 +128,10 @@ func validateMacOSPrefs(rc *RemoteConfig) error {
 		if strings.HasPrefix(mp.Key, "-") {
 			return fmt.Errorf("invalid macos_prefs key: %q must not start with '-'", mp.Key)
 		}
-		if !domainKeyRe.MatchString(mp.Domain) {
+		if !domainRe.MatchString(mp.Domain) {
 			return fmt.Errorf("macos preference domain %q contains invalid characters", mp.Domain)
 		}
-		if !domainKeyRe.MatchString(mp.Key) {
+		if !keyRe.MatchString(mp.Key) {
 			return fmt.Errorf("macos preference key %q contains invalid characters", mp.Key)
 		}
 	}
