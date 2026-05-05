@@ -15,7 +15,7 @@ const (
 var (
 	pkgNameRe   = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
 	tapNameRe   = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
-	domainKeyRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	domainKeyRe = regexp.MustCompile(`^[a-zA-Z0-9 ._-]+$`)
 
 	// dotfilesPathRe validates the path component: one or more segments of
 	// alphanumeric, dash, underscore, or dot characters separated by slashes.
