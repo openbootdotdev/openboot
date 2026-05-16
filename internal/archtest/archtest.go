@@ -109,8 +109,8 @@ func importedAs(f *ast.File, importPath string) string {
 type usage struct {
 	pkgPath     string
 	ident       string
-	requireCall bool                // when false, also reports bare selector references (e.g. http.DefaultClient)
-	stringArg0  string              // when requireCall && non-empty, the call must have args[0] == this string literal
+	requireCall bool   // when false, also reports bare selector references (e.g. http.DefaultClient)
+	stringArg0  string // when requireCall && non-empty, the call must have args[0] == this string literal
 }
 
 // find returns positions in gf where u matches. Walks the AST once.
@@ -228,7 +228,7 @@ func writeBaseline(t *testing.T, name string, found []callSite) {
 		fmt.Fprintln(&b, v.String())
 	}
 	path := baselinePath(name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir baseline dir: %v", err)
 	}
 	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil { // #nosec G306 -- baseline files are repo-tracked
