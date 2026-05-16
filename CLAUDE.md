@@ -8,6 +8,7 @@ Entry point: `cmd/openboot/main.go` → `internal/cli.Execute()`.
 Core flow: `openboot install` runs a 7-step wizard in `internal/installer/installer.go`.
 
 For full contribution guide (test layering L1–L6, Runner interface, hook setup) see @CONTRIBUTING.md.
+For AI agents: @AGENTS.md indexes invariants enforced by `internal/archtest`; @docs/HARNESS.md is the steering meta-doc for where to encode new rules.
 
 ## Commands
 
@@ -79,19 +80,20 @@ scripts/
 | Update self-update | `internal/updater/updater.go` | `AutoUpgrade()` called from `root.go` RunE |
 | Change publish flow | `internal/cli/snapshot_publish.go` (`publishSnapshot`) | Slug resolution |
 | Source resolution (install) | `internal/cli/install.go` (`resolvePositionalArg`) | file / user-slug / preset / alias detection |
-| HTTP with retry | `internal/httputil/ratelimit.go` | Use `httputil.Do()` — handles 429 + Retry-After |
+| HTTP with retry | `internal/httputil/ratelimit.go` | Use `httputil.Do()` — handles 429 + Retry-After (archtest: `no-raw-http`) |
 | Test tier / when to run | `CONTRIBUTING.md` "Test Layering" | L1–L6 table |
 | Release process | `.github/workflows/` | Tag-driven, release-notes template |
 
 ## Project-specific conventions
 
 These cannot be inferred from code alone — everything else is enforced by `go vet` / review.
+Bolded rules are enforced mechanically by `internal/archtest` (fitness functions in L1).
 
 - **Error wrapping**: `fmt.Errorf("context: %w", err)` — never bare returns.
 - **UI output**: always through `ui.*` helpers; raw `fmt.Println` is a bug in user-facing paths.
-- **Subprocess**: `system.RunCommand` (interactive) / `system.RunCommandSilent` (captured). Do not call `exec.Command` directly from feature code — add to `system/` if a wrapper is missing.
+- **Subprocess** *(archtest: `no-direct-exec`)*: `system.RunCommand` (interactive) / `system.RunCommandSilent` (captured). Do not call `exec.Command` directly from feature code — add to `system/` if a wrapper is missing.
 - **Destructive ops**: check `cfg.DryRun` first. Always.
-- **Paths**: `os.UserHomeDir()` — never hardcode `~` or `/Users/...`.
+- **Paths** *(archtest: `no-os-getenv-home`)*: `os.UserHomeDir()` — never hardcode `~` or `/Users/...`, never `os.Getenv("HOME")`.
 - **State**: everything user-local goes under `~/.openboot/` (auth, cache, snapshots, state).
 - **Concurrency**: bounded `sync.WaitGroup` — brew install is sequential with retry; `GetInstalledPackages` uses 2 goroutines for formula+cask list. No unbounded goroutines.
 - **Embedded data**: `//go:embed data/*.yaml` loaded in `init()`.

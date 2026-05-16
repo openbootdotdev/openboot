@@ -1,0 +1,104 @@
+name: Harness
+
+# Drift sensors that run alongside the main test workflow but never block a
+# merge. These are the "continuous drift" controls from the harness
+# engineering article — they observe maintainability decay (vulnerable deps,
+# dead code, stale go.mod) without forcing a refactor on every PR.
+#
+# Each job sets continue-on-error: true. Failures show up as informational
+# annotations on the PR. To promote any of these to a required check,
+# remove continue-on-error and add to the branch protection rules.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    # Nightly run on main so drift in dependencies surfaces even without
+    # PR activity (govulncheck advisories land independently of code).
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    name: govulncheck (drift)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  deadcode:
+    name: deadcode (drift)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Install deadcode
+        run: go install golang.org/x/tools/cmd/deadcode@latest
+      - name: Run deadcode
+        # -test flag also considers test-only entry points.
+        run: deadcode -test ./...
+
+  mod-tidy:
+    name: go mod tidy diff (drift)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Verify go.mod is tidy
+        run: |
+          cp go.mod /tmp/go.mod.before
+          cp go.sum /tmp/go.sum.before
+          go mod tidy
+          if ! diff -q go.mod /tmp/go.mod.before >/dev/null || ! diff -q go.sum /tmp/go.sum.before >/dev/null; then
+            echo "::warning::go.mod / go.sum are not tidy — run 'go mod tidy' and commit the diff."
+            echo "--- go.mod diff ---"
+            diff /tmp/go.mod.before go.mod || true
+            echo "--- go.sum diff ---"
+            diff /tmp/go.sum.before go.sum || true
+            exit 1
+          fi
+
+  archtest-stale-baseline:
+    name: archtest stale baseline (drift)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - name: Detect stale baseline entries
+        # archtest prints "stale baseline entr(ies)" via t.Logf when an entry
+        # references code that no longer exists. Surface that here as a
+        # warning so we can prune the baseline.
+        run: |
+          # -count=1 disables the test cache so t.Logf output always prints,
+          # otherwise a cached "ok" line would hide stale baseline warnings.
+          out=$(go test -v -count=1 ./internal/archtest/... 2>&1)
+          echo "$out"
+          if echo "$out" | grep -q "stale baseline"; then
+            echo "::warning::archtest reported stale baseline entries — consider regenerating with ARCHTEST_UPDATE_BASELINE=1 and committing the diff."
+            exit 1
+          fi
