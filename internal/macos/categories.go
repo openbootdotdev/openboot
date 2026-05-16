@@ -113,6 +113,21 @@ var DefaultCategories = []PrefCategory{
 		},
 	},
 	{
+		Name: "Menu Bar",
+		Icon: "🎛",
+		Prefs: []Preference{
+			{"com.apple.controlcenter", "NSStatusItem Visible Sound", "bool", "true", "Show Sound in menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible Bluetooth", "bool", "true", "Show Bluetooth in menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible WiFi", "bool", "true", "Show Wi-Fi in menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible Battery", "bool", "true", "Show Battery in menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible AirDrop", "bool", "false", "Hide AirDrop from menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible Display", "bool", "false", "Hide Display from menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible FocusModes", "bool", "false", "Hide Focus Modes from menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible NowPlaying", "bool", "false", "Hide Now Playing from menu bar"},
+			{"com.apple.controlcenter", "NSStatusItem Visible ScreenMirroring", "bool", "false", "Hide Screen Mirroring from menu bar"},
+		},
+	},
+	{
 		Name: "Security",
 		Icon: "🔒",
 		Prefs: []Preference{

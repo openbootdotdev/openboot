@@ -128,7 +128,7 @@ func CreateScreenshotsDir(dryRun bool) error {
 }
 
 func RestartAffectedApps(dryRun bool) error {
-	apps := []string{"Finder", "Dock", "SystemUIServer"}
+	apps := []string{"Finder", "Dock", "SystemUIServer", "ControlCenter"}
 
 	for _, app := range apps {
 		if dryRun {
