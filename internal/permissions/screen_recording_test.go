@@ -1,3 +1,12 @@
+//go:build !darwin || !cgo
+
+// These tests cover the stub implementations only. The darwin+cgo path calls
+// CoreGraphics' CGPreflightScreenCaptureAccess (which registers the test
+// binary with macOS TCC) and `open x-apple.systempreferences:...` (which
+// pops up System Settings) — both have real side effects and violate the
+// L1 "no real network, no real fork" contract. Coverage for the cgo path
+// belongs in L6 / manual verification.
+
 package permissions
 
 import (
@@ -6,17 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestHasScreenRecordingPermission_Returns verifies the function returns a bool.
-// On non-darwin/non-cgo builds the stub always returns false; on darwin+cgo
-// the result depends on system permissions, so we only check the type.
-func TestHasScreenRecordingPermission_Returns(t *testing.T) {
-	result := HasScreenRecordingPermission()
-	assert.IsType(t, true, result)
+func TestHasScreenRecordingPermission_StubReturnsFalse(t *testing.T) {
+	assert.False(t, HasScreenRecordingPermission())
 }
 
-// TestOpenScreenRecordingSettings_Returns verifies the non-darwin/non-cgo stub
-// is a no-op and returns nil.
-func TestOpenScreenRecordingSettings_Returns(t *testing.T) {
-	err := OpenScreenRecordingSettings()
-	assert.NoError(t, err)
+func TestOpenScreenRecordingSettings_StubIsNoOp(t *testing.T) {
+	assert.NoError(t, OpenScreenRecordingSettings())
 }
