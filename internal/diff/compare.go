@@ -57,6 +57,7 @@ func CompareSnapshotToRemote(system *snapshot.Snapshot, remote *config.RemoteCon
 				Type:   p.Type,
 				Value:  p.Value,
 				Desc:   p.Desc,
+				Host:   p.Host,
 			}
 		}
 		result.MacOS = diffMacOS(system.MacOSPrefs, refPrefs)
@@ -117,6 +118,7 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 	type prefKey struct {
 		Domain string
 		Key    string
+		Host   string
 	}
 
 	// Unset prefs on either side mean "no opinion" — they contribute
@@ -127,7 +129,7 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 		if p.Unset {
 			continue
 		}
-		sysMap[prefKey{p.Domain, p.Key}] = p.Value
+		sysMap[prefKey{p.Domain, p.Key, p.Host}] = p.Value
 	}
 
 	refMap := make(map[prefKey]string, len(reference))
@@ -135,7 +137,7 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 		if p.Unset {
 			continue
 		}
-		refMap[prefKey{p.Domain, p.Key}] = p.Value
+		refMap[prefKey{p.Domain, p.Key, p.Host}] = p.Value
 	}
 
 	md := &MacOSDiff{}
@@ -145,7 +147,7 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 		if p.Unset {
 			continue
 		}
-		pk := prefKey{p.Domain, p.Key}
+		pk := prefKey{p.Domain, p.Key, p.Host}
 		sysVal, exists := sysMap[pk]
 		if !exists {
 			md.Missing = append(md.Missing, MacOSPrefEntry{
@@ -163,7 +165,7 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 		if p.Unset {
 			continue
 		}
-		pk := prefKey{p.Domain, p.Key}
+		pk := prefKey{p.Domain, p.Key, p.Host}
 		if _, exists := refMap[pk]; !exists {
 			md.Extra = append(md.Extra, MacOSPrefEntry{
 				Domain: p.Domain, Key: p.Key, Value: p.Value,

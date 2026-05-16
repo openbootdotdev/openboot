@@ -1,6 +1,7 @@
 package macos
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,44 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// captureStdout runs fn and returns whatever it wrote to os.Stdout.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	done := make(chan string)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+	fn()
+	_ = w.Close()
+	os.Stdout = old
+	return <-done
+}
+
+func TestHostScopeLabel(t *testing.T) {
+	assert.Equal(t, "", hostScopeLabel(""))
+	assert.Equal(t, "(ByHost) ", hostScopeLabel("currentHost"))
+}
+
+func TestConfigure_DryRun_ByHostLabel(t *testing.T) {
+	// Regression: a Preference with Host="currentHost" must show the ByHost
+	// scope label in dry-run output (and, by extension, in the actual
+	// `defaults` invocation — same code path adds -currentHost).
+	prefs := []Preference{
+		{Domain: "com.apple.controlcenter", Key: "Sound", Type: "int", Value: "18", Desc: "Always show Sound", Host: "currentHost"},
+		{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "false", Desc: "Keep Dock visible"},
+	}
+	out := captureStdout(t, func() { _ = Configure(prefs, true) })
+	assert.Contains(t, out, "(ByHost) com.apple.controlcenter Sound")
+	// The non-ByHost pref must NOT carry the scope label.
+	assert.Regexp(t, `Would set com\.apple\.dock autohide`, out)
+	assert.NotContains(t, out, "(ByHost) com.apple.dock")
+}
 
 func TestExpandHome_WithTilde(t *testing.T) {
 	tmpHome := t.TempDir()

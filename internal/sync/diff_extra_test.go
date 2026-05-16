@@ -255,6 +255,26 @@ func TestComputeMacOSPrefDiff_ExplicitLocalDiffersFromRemote(t *testing.T) {
 	assert.Equal(t, "false", changed[0].LocalValue)
 }
 
+func TestComputeMacOSPrefDiff_HostIsPartOfIdentity(t *testing.T) {
+	// (Domain, Key) is the same in both scopes; macOS treats them as
+	// independent prefs, so a main-domain local value must NOT satisfy a
+	// ByHost remote pref. The diff must propagate Host on the result so
+	// Configure later writes to the right scope.
+	remote := []config.RemoteMacOSPref{
+		{Domain: "com.apple.controlcenter", Key: "Sound", Type: "int", Value: "18", Host: "currentHost"},
+	}
+	local := []snapshot.MacOSPref{
+		// User's main-domain value (the leftover from before #70 was reverted);
+		// must not be treated as satisfying the ByHost remote.
+		{Domain: "com.apple.controlcenter", Key: "Sound", Type: "int", Value: "18"},
+	}
+	changed := computeMacOSPrefDiff(remote, local)
+	require.Len(t, changed, 1)
+	assert.Equal(t, "currentHost", changed[0].Host)
+	assert.Equal(t, "18", changed[0].RemoteValue)
+	assert.Empty(t, changed[0].LocalValue, "main-domain local must not match a ByHost remote")
+}
+
 // ---- ComputeDiff (pure-logic path — no packages) ----
 
 func TestComputeDiff_EmptyRemoteConfig(t *testing.T) {

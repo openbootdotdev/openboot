@@ -221,6 +221,7 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 			Type:   p.Type,
 			Value:  p.Value,
 			Desc:   p.Desc,
+			Host:   p.Host,
 		}
 	}
 

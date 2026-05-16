@@ -177,6 +177,12 @@ type RemoteMacOSPref struct {
 	Type   string `json:"type"`
 	Value  string `json:"value"`
 	Desc   string `json:"desc"`
+	// Host selects the defaults scope. "" = main domain (default), "currentHost"
+	// = -currentHost / ByHost. macOS stores some prefs (notably the menu bar
+	// dropdown mode under com.apple.controlcenter on Sequoia) per-host, and
+	// reads of the main domain don't see them — writing to the wrong scope is
+	// a silent no-op.
+	Host string `json:"host,omitempty"`
 }
 
 // typedPackage represents a package entry with name, type, and optional

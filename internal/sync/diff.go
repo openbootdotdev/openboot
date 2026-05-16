@@ -52,6 +52,7 @@ type MacOSPrefDiff struct {
 	Key         string
 	Type        string
 	Desc        string
+	Host        string
 	RemoteValue string
 	LocalValue  string
 }
@@ -213,27 +214,32 @@ func diffMacOSPrefs(rc *config.RemoteConfig, d *SyncDiff) error {
 // makes the diff falsely match a remote pref of the same value, suppressing
 // the write needed to make the key actually exist on disk.
 func computeMacOSPrefDiff(remote []config.RemoteMacOSPref, local []snapshot.MacOSPref) []MacOSPrefDiff {
+	// Host is part of identity: macOS treats `com.apple.controlcenter Sound`
+	// in the main domain and in -currentHost as two independent prefs, so the
+	// same (Domain, Key) can legitimately appear in both scopes.
 	type prefKey struct {
 		Domain string
 		Key    string
+		Host   string
 	}
 	localMap := make(map[prefKey]string, len(local))
 	for _, p := range local {
 		if p.Unset {
 			continue
 		}
-		localMap[prefKey{p.Domain, p.Key}] = p.Value
+		localMap[prefKey{p.Domain, p.Key, p.Host}] = p.Value
 	}
 
 	var changed []MacOSPrefDiff
 	for _, rp := range remote {
-		localVal, exists := localMap[prefKey{rp.Domain, rp.Key}]
+		localVal, exists := localMap[prefKey{rp.Domain, rp.Key, rp.Host}]
 		if !exists || localVal != rp.Value {
 			changed = append(changed, MacOSPrefDiff{
 				Domain:      rp.Domain,
 				Key:         rp.Key,
 				Type:        rp.Type,
 				Desc:        rp.Desc,
+				Host:        rp.Host,
 				RemoteValue: rp.Value,
 				LocalValue:  localVal,
 			})

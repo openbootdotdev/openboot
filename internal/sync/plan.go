@@ -189,6 +189,7 @@ func applyMacOSPrefs(remotePrefs []config.RemoteMacOSPref, dryRun bool) error {
 			Type:   prefType,
 			Value:  rp.Value,
 			Desc:   rp.Desc,
+			Host:   rp.Host,
 		}
 	}
 	return macos.Configure(prefs, dryRun)
