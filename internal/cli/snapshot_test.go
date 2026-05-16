@@ -111,7 +111,7 @@ func TestBuildImportConfig_MacOSPrefs(t *testing.T) {
 	assert.Equal(t, "Autohide dock", cfg.SnapshotMacOS[0].Desc)
 }
 
-func TestBuildImportConfig_MacOSPrefs_DropsUnset(t *testing.T) {
+func TestBuildImportConfig_MacOSPrefs_PreservesUnset(t *testing.T) {
 	snap := &snapshot.Snapshot{
 		MacOSPrefs: []snapshot.MacOSPref{
 			{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "1", Desc: "set"},
@@ -122,11 +122,14 @@ func TestBuildImportConfig_MacOSPrefs_DropsUnset(t *testing.T) {
 
 	cfg := buildImportConfig(snap, false)
 
-	// Only the two non-Unset prefs propagate into state — the Unset entry
-	// must not become enforced config.
-	require.Len(t, cfg.SnapshotMacOS, 2)
+	// All three prefs propagate. Unset entries carry the catalog default
+	// (the value we want to enforce anyway), so dropping them here would
+	// silently lose categories whose keys aren't in the user's plist —
+	// the exact bug that hid 8/9 Menu Bar items from openboot.dev.
+	require.Len(t, cfg.SnapshotMacOS, 3)
 	assert.Equal(t, "autohide", cfg.SnapshotMacOS[0].Key)
-	assert.Equal(t, "ShowPathbar", cfg.SnapshotMacOS[1].Key)
+	assert.Equal(t, "tilesize", cfg.SnapshotMacOS[1].Key)
+	assert.Equal(t, "ShowPathbar", cfg.SnapshotMacOS[2].Key)
 }
 
 func TestBuildImportConfig_InvalidDotfilesURL_Skipped(t *testing.T) {

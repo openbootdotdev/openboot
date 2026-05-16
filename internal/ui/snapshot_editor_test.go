@@ -100,7 +100,7 @@ func TestNewSnapshotEditorSkipsInvalidMacOSPrefs(t *testing.T) {
 	assert.Equal(t, 3, len(prefTab.items))
 }
 
-func TestNewSnapshotEditor_UnsetPrefsDefaultUnselected(t *testing.T) {
+func TestNewSnapshotEditor_UnsetPrefsDefaultSelectedWithBadge(t *testing.T) {
 	snap := makeTestSnapshot()
 	snap.MacOSPrefs = []snapshot.MacOSPref{
 		{Domain: "com.apple.dock", Key: "autohide", Value: "true", Desc: "set pref"},
@@ -111,11 +111,13 @@ func TestNewSnapshotEditor_UnsetPrefsDefaultUnselected(t *testing.T) {
 	prefTab := m.tabs[4]
 	require.Len(t, prefTab.items, 2)
 
-	// The order matches insertion order: set pref first, unset second.
-	assert.True(t, prefTab.items[0].selected, "set pref should default to selected")
-	assert.False(t, prefTab.items[1].selected, "unset pref should default to unselected")
+	// Both default selected. The catalog value is what we want to enforce
+	// regardless of whether the source machine had the key in its plist —
+	// dropping unset prefs here is what hid Menu Bar items from publish.
+	assert.True(t, prefTab.items[0].selected, "set pref should default selected")
+	assert.True(t, prefTab.items[1].selected, "unset pref should default selected too")
 	assert.Contains(t, prefTab.items[1].description, "unset",
-		"unset pref description should advertise the (unset) marker")
+		"unset pref keeps the informational (unset) badge in description")
 }
 
 func TestNewSnapshotEditorAllItemsSelected(t *testing.T) {
