@@ -119,13 +119,22 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 		Key    string
 	}
 
+	// Unset prefs on either side mean "no opinion" — they contribute
+	// nothing to a diff. Skip them when building the lookup maps and
+	// when iterating for missing/changed/extra.
 	sysMap := make(map[prefKey]string, len(system))
 	for _, p := range system {
+		if p.Unset {
+			continue
+		}
 		sysMap[prefKey{p.Domain, p.Key}] = p.Value
 	}
 
 	refMap := make(map[prefKey]string, len(reference))
 	for _, p := range reference {
+		if p.Unset {
+			continue
+		}
 		refMap[prefKey{p.Domain, p.Key}] = p.Value
 	}
 
@@ -133,6 +142,9 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 
 	// Find missing and changed
 	for _, p := range reference {
+		if p.Unset {
+			continue
+		}
 		pk := prefKey{p.Domain, p.Key}
 		sysVal, exists := sysMap[pk]
 		if !exists {
@@ -148,6 +160,9 @@ func diffMacOS(system, reference []snapshot.MacOSPref) *MacOSDiff {
 
 	// Find extra (in system but not in reference)
 	for _, p := range system {
+		if p.Unset {
+			continue
+		}
 		pk := prefKey{p.Domain, p.Key}
 		if _, exists := refMap[pk]; !exists {
 			md.Extra = append(md.Extra, MacOSPrefEntry{

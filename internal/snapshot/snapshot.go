@@ -142,6 +142,11 @@ type MacOSPref struct {
 	Type   string `json:"type"`
 	Value  string `json:"value"`
 	Desc   string `json:"desc"`
+	// Unset is true when `defaults read` had no value for this key on the
+	// source machine — Value then holds the catalog's default for display
+	// only. Unset prefs are informational: restore skips them, diff ignores
+	// them on either side, and publish filters them out.
+	Unset bool `json:"unset,omitempty"`
 }
 
 type GitSnapshot struct {

@@ -111,6 +111,24 @@ func TestBuildImportConfig_MacOSPrefs(t *testing.T) {
 	assert.Equal(t, "Autohide dock", cfg.SnapshotMacOS[0].Desc)
 }
 
+func TestBuildImportConfig_MacOSPrefs_DropsUnset(t *testing.T) {
+	snap := &snapshot.Snapshot{
+		MacOSPrefs: []snapshot.MacOSPref{
+			{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "1", Desc: "set"},
+			{Domain: "com.apple.dock", Key: "tilesize", Type: "int", Value: "48", Desc: "unset", Unset: true},
+			{Domain: "com.apple.finder", Key: "ShowPathbar", Type: "bool", Value: "true", Desc: "set"},
+		},
+	}
+
+	cfg := buildImportConfig(snap, false)
+
+	// Only the two non-Unset prefs propagate into state — the Unset entry
+	// must not become enforced config.
+	require.Len(t, cfg.SnapshotMacOS, 2)
+	assert.Equal(t, "autohide", cfg.SnapshotMacOS[0].Key)
+	assert.Equal(t, "ShowPathbar", cfg.SnapshotMacOS[1].Key)
+}
+
 func TestBuildImportConfig_InvalidDotfilesURL_Skipped(t *testing.T) {
 	snap := &snapshot.Snapshot{
 		Dotfiles: snapshot.DotfilesSnapshot{

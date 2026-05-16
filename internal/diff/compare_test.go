@@ -100,6 +100,33 @@ func TestCompareSnapshots_MacOSDifferences(t *testing.T) {
 	assert.Empty(t, result.MacOS.Extra)
 }
 
+func TestCompareSnapshots_MacOS_IgnoresUnset(t *testing.T) {
+	isolateHome(t)
+	// Both sides carry an Unset entry that would generate a false-positive
+	// Changed (different "default" values) and a false-positive Extra/Missing
+	// (key only on one side). diffMacOS must filter Unset on both sides.
+	system := &snapshot.Snapshot{
+		MacOSPrefs: []snapshot.MacOSPref{
+			{Domain: "com.apple.dock", Key: "autohide", Value: "false"},
+			{Domain: "com.apple.dock", Key: "tilesize", Value: "48", Unset: true},
+			{Domain: "com.apple.finder", Key: "ShowPathbar", Value: "true", Unset: true},
+		},
+	}
+	reference := &snapshot.Snapshot{
+		MacOSPrefs: []snapshot.MacOSPref{
+			{Domain: "com.apple.dock", Key: "autohide", Value: "false"},
+			{Domain: "com.apple.dock", Key: "tilesize", Value: "32", Unset: true}, // different "default"
+		},
+	}
+
+	result := CompareSnapshots(system, reference, Source{})
+
+	assert.NotNil(t, result.MacOS)
+	assert.Empty(t, result.MacOS.Changed, "Unset entries must not produce Changed")
+	assert.Empty(t, result.MacOS.Missing, "Unset entries must not produce Missing")
+	assert.Empty(t, result.MacOS.Extra, "Unset entries must not produce Extra")
+}
+
 func TestCompareSnapshots_DevToolDifferences(t *testing.T) {
 	isolateHome(t)
 	system := &snapshot.Snapshot{

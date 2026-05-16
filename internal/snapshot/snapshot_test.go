@@ -165,6 +165,56 @@ func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestMacOSPref_JSON_UnsetRoundTrip(t *testing.T) {
+	tests := []struct {
+		name        string
+		pref        MacOSPref
+		wantHasKey  bool
+		wantValue   bool
+	}{
+		{
+			name:       "set pref omits unset key",
+			pref:       MacOSPref{Domain: "d", Key: "k", Type: "bool", Value: "true", Desc: "x"},
+			wantHasKey: false,
+		},
+		{
+			name:       "unset pref serializes unset:true",
+			pref:       MacOSPref{Domain: "d", Key: "k", Type: "bool", Value: "false", Desc: "x", Unset: true},
+			wantHasKey: true,
+			wantValue:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.pref)
+			require.NoError(t, err)
+
+			var raw map[string]any
+			require.NoError(t, json.Unmarshal(data, &raw))
+
+			val, ok := raw["unset"]
+			assert.Equal(t, tt.wantHasKey, ok, "unset key presence")
+			if ok {
+				assert.Equal(t, tt.wantValue, val)
+			}
+
+			var back MacOSPref
+			require.NoError(t, json.Unmarshal(data, &back))
+			assert.Equal(t, tt.pref, back, "round-trip preserves Unset")
+		})
+	}
+}
+
+func TestMacOSPref_JSON_LegacyDecodeNoUnsetField(t *testing.T) {
+	// A snapshot written by an older version of openboot will have no
+	// "unset" key at all. It must decode cleanly with Unset == false so
+	// existing on-disk snapshots keep working.
+	legacy := `{"domain":"d","key":"k","type":"bool","value":"true","desc":"x"}`
+	var pref MacOSPref
+	require.NoError(t, json.Unmarshal([]byte(legacy), &pref))
+	assert.False(t, pref.Unset)
+}
+
 func TestCaptureHealth(t *testing.T) {
 	t.Run("default is healthy", func(t *testing.T) {
 		snap := &Snapshot{Version: 1}
