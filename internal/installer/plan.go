@@ -100,7 +100,7 @@ func planFromRemoteConfig(opts *config.InstallOptions, st *config.InstallState, 
 			prefType = macos.InferPreferenceType(p.Value)
 		}
 		plan.MacOSPrefs = append(plan.MacOSPrefs, macos.Preference{
-			Domain: p.Domain, Key: p.Key, Type: prefType, Value: p.Value, Desc: p.Desc,
+			Domain: p.Domain, Key: p.Key, Type: prefType, Value: p.Value, Desc: p.Desc, Host: p.Host,
 		})
 	}
 
@@ -342,6 +342,7 @@ func PlanFromSnapshot(opts *config.InstallOptions, st *config.InstallState) Inst
 				Type:   prefType,
 				Value:  p.Value,
 				Desc:   p.Desc,
+				Host:   p.Host,
 			})
 		}
 		plan.MacOSPrefs = prefs

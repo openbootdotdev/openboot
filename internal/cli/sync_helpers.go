@@ -131,6 +131,7 @@ func buildInstallPlan(d *syncpkg.SyncDiff, rc *config.RemoteConfig) *syncpkg.Syn
 				Type:   p.Type,
 				Value:  p.RemoteValue,
 				Desc:   p.Desc,
+				Host:   p.Host,
 			})
 		}
 	}

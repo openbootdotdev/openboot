@@ -142,6 +142,11 @@ type MacOSPref struct {
 	Type   string `json:"type"`
 	Value  string `json:"value"`
 	Desc   string `json:"desc"`
+	// Host selects the defaults scope. "" = main domain (default),
+	// "currentHost" = -currentHost / ByHost. Some macOS prefs (notably the
+	// com.apple.controlcenter menu bar dropdown mode on Sequoia) live
+	// per-host; writing to the main domain is a silent no-op for those.
+	Host string `json:"host,omitempty"`
 	// Unset is true when `defaults read` had no value for this key on the
 	// source machine — Value then holds the catalog's default for display
 	// only. Unset prefs are informational: restore skips them, diff ignores

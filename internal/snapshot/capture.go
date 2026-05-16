@@ -237,7 +237,13 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 	prefs := []MacOSPref{}
 
 	for _, p := range macos.DefaultPreferences {
-		output, err := system.RunCommandOutput("defaults", "read", p.Domain, p.Key)
+		args := []string{}
+		if p.Host == "currentHost" {
+			args = append(args, "-currentHost")
+		}
+		args = append(args, "read", p.Domain, p.Key)
+
+		output, err := system.RunCommandOutput("defaults", args...)
 		if err != nil {
 			// Key isn't set on this machine — record it with the catalog's
 			// default value and the Unset marker so consumers (UI, restore,
@@ -249,6 +255,7 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 				Type:   p.Type,
 				Value:  p.Value,
 				Desc:   p.Desc,
+				Host:   p.Host,
 				Unset:  true,
 			})
 			continue
@@ -260,6 +267,7 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 			Type:   p.Type,
 			Value:  output,
 			Desc:   p.Desc,
+			Host:   p.Host,
 		})
 	}
 

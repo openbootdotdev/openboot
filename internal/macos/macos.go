@@ -16,6 +16,11 @@ type Preference struct {
 	Type   string
 	Value  string
 	Desc   string
+	// Host selects the defaults scope. "" = main domain (default),
+	// "currentHost" = -currentHost / ByHost. Required for prefs that macOS
+	// stores per-host (e.g. com.apple.controlcenter menu bar dropdown mode
+	// on Sequoia); writing to the main domain for those is a silent no-op.
+	Host string
 }
 
 // DefaultPreferences is derived from DefaultCategories and is the single source
@@ -86,11 +91,15 @@ func Configure(prefs []Preference, dryRun bool) error {
 		value := expandHome(pref.Value)
 
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would set %s %s = %s (%s)\n", pref.Domain, pref.Key, value, pref.Desc)
+			fmt.Printf("[DRY-RUN] Would set %s%s %s = %s (%s)\n", hostScopeLabel(pref.Host), pref.Domain, pref.Key, value, pref.Desc)
 			continue
 		}
 
-		args := []string{"write", pref.Domain, pref.Key}
+		args := []string{}
+		if pref.Host == "currentHost" {
+			args = append(args, "-currentHost")
+		}
+		args = append(args, "write", pref.Domain, pref.Key)
 		switch pref.Type {
 		case "bool":
 			args = append(args, "-bool", normalizeBool(value))
@@ -105,11 +114,20 @@ func Configure(prefs []Preference, dryRun bool) error {
 		}
 
 		if _, err := system.RunCommandSilent("defaults", args...); err != nil {
-			errs = append(errs, fmt.Errorf("set %s %s: %w", pref.Domain, pref.Key, err))
+			errs = append(errs, fmt.Errorf("set %s%s %s: %w", hostScopeLabel(pref.Host), pref.Domain, pref.Key, err))
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// hostScopeLabel returns a short prefix for log/error messages that identifies
+// the defaults scope. Empty for the main domain (the common case).
+func hostScopeLabel(host string) string {
+	if host == "currentHost" {
+		return "(ByHost) "
+	}
+	return ""
 }
 
 func CreateScreenshotsDir(dryRun bool) error {
