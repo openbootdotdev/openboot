@@ -102,3 +102,55 @@ jobs:
             echo "::warning::archtest reported stale baseline entries — consider regenerating with ARCHTEST_UPDATE_BASELINE=1 and committing the diff."
             exit 1
           fi
+
+  required-checks-alignment:
+    name: required-checks alignment (drift)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      administration: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PyYAML
+        run: pip install --quiet --user pyyaml
+      - name: Compare branch-protection required checks vs workflow jobs
+        # Catches the desync that bit PR #69: branch protection still
+        # required `integration (L2)` and `contract schema (L3)` after the
+        # workflow renamed/removed those jobs, so the merge silently blocked
+        # waiting for checks that would never report. Now every required
+        # context must resolve to an actual job name across the workflows.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          required=$(gh api "repos/${{ github.repository }}/branches/main/protection" \
+            --jq '.required_status_checks.contexts[]' | sort -u)
+
+          jobs=$(python3 <<'PY'
+          import pathlib, yaml
+          seen = set()
+          for path in sorted(pathlib.Path('.github/workflows').glob('*.yml')):
+              wf = yaml.safe_load(path.read_text())
+              if not isinstance(wf, dict) or not isinstance(wf.get('jobs'), dict):
+                  continue
+              for job_id, job in wf['jobs'].items():
+                  name = job.get('name', job_id) if isinstance(job, dict) else job_id
+                  seen.add(name)
+          for n in sorted(seen):
+              print(n)
+          PY
+          )
+
+          missing=$(comm -23 <(echo "$required") <(echo "$jobs"))
+          if [ -n "$missing" ]; then
+            echo "::warning::Branch protection requires checks that no workflow job produces:"
+            echo "$missing" | sed 's/^/  - /'
+            echo ""
+            echo "Either remove these from branch protection (gh api -X PUT .../protection),"
+            echo "or add matching jobs to .github/workflows/. See docs/MERGE_POLICY.md."
+            exit 1
+          fi
+
+          printf '✓ All %d required checks have matching workflow jobs.\n' "$(echo "$required" | wc -l | tr -d ' ')"
