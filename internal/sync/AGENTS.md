@@ -83,7 +83,7 @@ Error handling: Collects all errors via `errors.Join` (continues on failure).
 
 - Pure logic functions (diffLists, ToSet, HasChanges, Totals, TotalActions, IsEmpty) have 100% coverage
 - `getLocalDotfilesURL` tested with temp git repo at 80%
-- `ComputeDiff` and `Execute` depend on external commands (brew, npm, git) — not unit-testable without interface refactoring. Use `make test-integration` for these.
+- `ComputeDiff` and `Execute` depend on external commands (brew, npm, git) — not unit-testable without interface refactoring. Exercise them via real-subprocess tests in `test/integration/` (run as part of L1, `make test-unit`).
 - Source persistence tested with `t.TempDir()` + `t.Setenv("HOME", tmpDir)` pattern
 
 ## WHEN MODIFYING

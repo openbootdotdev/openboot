@@ -1,4 +1,4 @@
-.PHONY: test-unit test-integration test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
+.PHONY: test-unit test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
        test-vm test-vm-run test-vm-quick test-vm-release test-vm-full \
        install-hooks uninstall-hooks
 
@@ -14,9 +14,6 @@ test-unit:
 
 lint:
 	golangci-lint run ./...
-
-test-integration:
-	go test -v -timeout 5m -tags=integration ./...
 
 test-e2e: build
 	go test -v -tags=e2e -short ./...
@@ -39,7 +36,6 @@ test-coverage:
 test-all:
 	@echo "Running all tests..."
 	$(MAKE) test-unit
-	$(MAKE) test-integration
 	$(MAKE) test-coverage
 
 # =============================================================================
@@ -101,7 +97,7 @@ clean:
 #   make install-hooks
 #
 # pre-commit: go vet + go build   (<5s, runs on every commit)
-# pre-push:   go test ./...       (~15s L1 unit+contract, runs on every push)
+# pre-push:   go test ./...       (~75s L1 unit + integration + contract, runs on every push)
 #
 # Skip once:  git commit --no-verify  |  git push --no-verify
 

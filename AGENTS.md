@@ -7,7 +7,7 @@ human, you probably want [README.md](README.md) or [CONTRIBUTING.md](CONTRIBUTIN
 
 - **[CLAUDE.md](CLAUDE.md)** — project conventions and where-to-look table.
   Treat this as authoritative; this file is a summary index for agents.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — test layering L1–L6, Runner
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — test layering L1–L5, Runner
   interface, hook setup.
 - **[docs/HARNESS.md](docs/HARNESS.md)** — the steering meta-doc: when a
   class of issue recurs, which file do you edit to prevent it next time.

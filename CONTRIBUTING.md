@@ -30,21 +30,20 @@ See [issues labeled `good first issue`](https://github.com/openbootdotdev/openbo
 
 ## Test Layering
 
-Tests are split across six tiers. Which one runs where:
+Tests are split across five tiers. Which one runs where:
 
 | Tier | What | How to run | When it runs |
 |------|------|------------|--------------|
-| **L1 Unit / Contract** | Pure-Go logic + command runners faked via `Runner` interface (no fork, no network) | `make test-unit` (~15s) | Every commit (pre-push hook); CI on push/PR |
-| **L2 Integration** | Real `brew` / `git` / `npm` against temp dirs; real `httptest` servers | `make test-integration` (~75s) | CI on push/PR |
-| **L3 Contract schema** | JSON schema validation against [openboot-contract](https://github.com/openbootdotdev/openboot-contract) | (runs in CI only) | CI on push/PR |
-| **L4 E2E binary** | Compiled binary driven by scripts; `-tags=e2e` | `make test-e2e` | CI on release |
-| **L5 Destructive macOS** | Runs against a real macOS host (installs packages, modifies `~/.zshrc`, writes `defaults`) | `make test-vm-quick` / `test-vm-release` / `test-vm-full` — requires `CI=true` or `OPENBOOT_E2E_DESTRUCTIVE=1` | GH Actions `macos-latest` on release tags + manual dispatch |
-| **L6 Destructive** | Actually installs real packages into a real system | `make test-destructive` / `test-smoke` | CI on release, plus manual `workflow_dispatch` |
+| **L1 Unit + Integration + Contract** | Pure-Go logic with faked `Runner` *plus* real `brew` / `git` / `npm` against temp dirs and real `httptest` servers | `make test-unit` (~75s) | Every push (pre-push hook); CI on push/PR |
+| **L2 Contract schema** | JSON schema validation against [openboot-contract](https://github.com/openbootdotdev/openboot-contract) | (runs in CI only) | CI on push/PR |
+| **L3 E2E binary** | Compiled binary driven by scripts; `-tags=e2e` | `make test-e2e` | CI on release |
+| **L4 Destructive macOS** | Runs against a real macOS host (installs packages, modifies `~/.zshrc`, writes `defaults`) | `make test-vm-quick` / `test-vm-release` / `test-vm-full` — requires `CI=true` or `OPENBOOT_E2E_DESTRUCTIVE=1` | GH Actions `macos-latest` on release tags + manual dispatch |
+| **L5 Destructive** | Actually installs real packages into a real system | `make test-destructive` / `test-smoke` | CI on release, plus manual `workflow_dispatch` |
 
 Rules of thumb:
 
-- **Local dev:** run nothing manually if hooks are installed. `make test-unit` on demand when you want a sanity check. Skip L2+ unless you're touching code that interacts with real brew/git/npm.
-- **Before pushing:** `make test-unit` (the pre-push hook does this automatically).
+- **Local dev:** run nothing manually if hooks are installed. `make test-unit` on demand when you want a sanity check. Skip L2+ unless you're cutting a release.
+- **Before pushing:** `make test-unit` (the pre-push hook does this automatically). Requires `brew` / `git` / `npm` on PATH — they are queried read-only against temp dirs, no real installs.
 - **Before tagging a release:** trigger the `macos-e2e` job via GitHub Actions (manual dispatch or tag push). To run locally on a throwaway macOS machine: `OPENBOOT_E2E_DESTRUCTIVE=1 make test-vm-release`.
 
 ## Git Hooks
@@ -52,7 +51,7 @@ Rules of thumb:
 `make install-hooks` symlinks two hooks from `scripts/hooks/` into `.git/hooks/`:
 
 - **pre-commit** (<5s) — `go vet` + `go build`. Early-exits when no `.go` files are staged.
-- **pre-push** (~15s) — `go test -race ./...` (L1 suite).
+- **pre-push** (~75s) — `go test -race ./...` (L1 suite: unit + integration + contract).
 
 Skip once with git's standard bypass flag. Remove entirely with `make uninstall-hooks`.
 
@@ -64,7 +63,7 @@ Skip once with git's standard bypass flag. Remove entirely with `make uninstall-
 
 **Don't assume filesystem state.** Use `t.TempDir()` and `t.Setenv("HOME", t.TempDir())` when code reads `~/.something`.
 
-Integration tests (L2) *may* touch the real filesystem but only inside temp dirs, and they must not depend on the developer's `~/.dotfiles`, `~/.zshrc`, or similar.
+Integration tests live alongside L1 in `test/integration/` and *may* touch the real filesystem but only inside temp dirs. They must not depend on the developer's `~/.dotfiles`, `~/.zshrc`, or similar, and must only read (never install/uninstall) real `brew` / `npm` / `git` state.
 
 ## Code Expectations
 

@@ -80,8 +80,8 @@ This blocks until every check finishes. Typical wall time is 3–10 min
 depending on which jobs run. The required checks per
 [docs/MERGE_POLICY.md](../../../docs/MERGE_POLICY.md):
 
-- `lint`, `unit (L1)`, `integration (L2)`, `contract schema (L3)`,
-  `curl|bash smoke`, `old-cli compat`
+- `lint`, `unit (L1)`, `contract schema (L2)`, `curl|bash smoke`,
+  `old-cli compat`
 
 If any required check fails:
 - **Stop. Do not proceed to review or merge.**

@@ -52,9 +52,9 @@ For each changed file under `internal/` or `cmd/`:
 
 For each non-trivial change:
 
-- **Pure logic** → must have an L1 test. If missing, request it.
-- **Subprocess interaction** → fake via Runner in L1 OR add L2 with
-  `//go:build integration`.
+- **Pure logic** → must have an L1 test in `internal/<pkg>/`. If missing, request it.
+- **Subprocess interaction** → fake via Runner in `internal/<pkg>/` OR add a
+  real-subprocess test under `test/integration/` (still L1, no build tag).
 - **CLI flag parsing** → table-driven L1 test.
 - **Destructive op** → must run cleanly under `--dry-run` in a test.
 
@@ -67,7 +67,7 @@ unmentioned.
 | Check | Why it matters |
 |---|---|
 | Does the change break the curl\|bash install path? | `scripts/install.sh` is the primary install vector. The smoke test CI job covers this — make sure it still passes. |
-| Does the change alter the contract schema (config / snapshot JSON)? | If yes, the schema needs updating in `openboot-contract` repo and bumping. Otherwise the L3 contract job will fail. |
+| Does the change alter the contract schema (config / snapshot JSON)? | If yes, the schema needs updating in `openboot-contract` repo and bumping. Otherwise the L2 contract job will fail. |
 | Does the change add or change a CLI flag? | Confirm `--help` output is updated, and old-cli compat job still passes (previous release × new mock server). |
 | Does the change touch `data/presets.yaml`? | Three presets must still parse and resolve. |
 | Does the change touch `~/.openboot/*` file format? | Confirm backward compat with old files (snapshot, auth, state) or write a migration. |

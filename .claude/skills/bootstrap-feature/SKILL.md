@@ -78,25 +78,26 @@ type fakeRunner struct { ... }
 func (f *fakeRunner) Output(args ...string) ([]byte, error) { ... }
 ```
 
-This is the pattern that lets L1 stay at ~15s without touching real brew/git/npm.
+This is the pattern that lets the fake-runner half of L1 stay fast and hermetic.
 
 ## Step 4 — Test placement
 
 | Scope | Tier | Build tag | Where |
 |---|---|---|---|
 | Pure logic + fakes | L1 | none | `<pkg>/<feature>_test.go` |
-| Real subprocess in temp dir | L2 | `integration` | `<pkg>/<feature>_integration_test.go` |
-| Compiled binary, no installs | L4 | `e2e` | `test/e2e/...` |
-| Real installs on macOS | L5/L6 | `e2e,vm,destructive` | `test/e2e/...` |
+| Real subprocess in temp dir | L1 | none | `test/integration/<feature>_integration_test.go` |
+| Compiled binary, no installs | L3 | `e2e` | `test/e2e/...` |
+| Real installs on macOS | L4/L5 | `e2e,vm,destructive` | `test/e2e/...` |
 
-Default to L1 unless the thing you're testing only exists when a real
-brew/git/npm is on the path.
+Default to faked-runner L1 unless the thing you're testing only exists when a real
+brew/git/npm is on the path — then add an integration test under `test/integration/`
+(no build tag; it runs as part of L1).
 
 ## Step 5 — Verify before committing
 
 ```bash
 go vet ./...
-make test-unit                  # ~15s, includes archtest
+make test-unit                  # ~75s, includes archtest + integration
 ```
 
 If archtest fails with a new violation, fix the code rather than

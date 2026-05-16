@@ -17,9 +17,8 @@ the merge commit's tip:
 | Check | Workflow | Why required |
 |---|---|---|
 | `lint` | Test | Catches gofmt / gosec / staticcheck issues that block release builds. |
-| `unit (L1)` | Test | The fast Go unit + contract suite. Includes `internal/archtest` fitness rules. |
-| `integration (L2)` | Test | Real `brew` / `git` / `npm` in temp dirs. Catches integration drift the unit suite can't. |
-| `contract schema (L3)` | Test | Validates remote-config / snapshot JSON against the `openboot-contract` schemas. Breaking the contract breaks live users. |
+| `unit (L1)` | Test | Unit + integration + contract: faked-runner Go tests *and* real `brew` / `git` / `npm` against temp dirs. Includes `internal/archtest` fitness rules. |
+| `contract schema (L2)` | Test | Validates remote-config / snapshot JSON against the `openboot-contract` schemas. Breaking the contract breaks live users. |
 | `curl\|bash smoke` | Test | Confirms `scripts/install.sh` still bootstraps the CLI against a mock server. |
 | `old-cli compat` | Test | Runs the **previous** release binary against the **current** mock server. Catches server-side changes that would break already-shipped CLIs in the field. |
 
@@ -27,7 +26,7 @@ the merge commit's tip:
 
 | Check | Status | Reason |
 |---|---|---|
-| `macos e2e (L5)` | runs only on tag pushes / manual dispatch | Slow + destructive; runs at release time, not per PR. |
+| `macos e2e (L4)` | runs only on tag pushes / manual dispatch | Slow + destructive; runs at release time, not per PR. |
 | Harness drift sensors (`govulncheck`, `deadcode`, `mod-tidy diff`, `archtest stale baseline`) | `continue-on-error: true` | Informational by design. Failures surface as annotations and, on `main`, open tracking issues via `drift-to-issue.yml`. |
 | `codecov/patch` | informational | Coverage threshold is a guideline, not a gate. Hard coverage gates push toward test-shaped code without raising actual quality. |
 
@@ -45,16 +44,16 @@ the merge commit's tip:
   add it to this list. Promote a check to required by editing this doc
   and updating branch protection in the same PR.
 
-## Why these six
+## Why these five
 
 Each required check covers a class of regression that has shipped to
 users in past commits:
 
 - `lint` blocks PRs that fail `golangci-lint` (would block release build).
-- `unit (L1)` is the cheapest, broadest behaviour check.
-- `integration (L2)` catches real-subprocess bugs (brew flags changing,
-  `git` exit codes shifting between macOS versions).
-- `contract schema (L3)` is the contract with the openboot.dev API — any
+- `unit (L1)` is the broadest behaviour check — covers both faked-runner
+  unit logic and real-subprocess integration drift (brew flag changes,
+  `git` exit-code shifts between macOS versions).
+- `contract schema (L2)` is the contract with the openboot.dev API — any
   drift breaks every CLI in the field.
 - `curl|bash smoke` covers the **primary install path** for new users.
   Breaking this is a silent acquisition disaster.
