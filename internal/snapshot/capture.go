@@ -239,6 +239,18 @@ func CaptureMacOSPrefs() ([]MacOSPref, error) {
 	for _, p := range macos.DefaultPreferences {
 		output, err := system.RunCommandOutput("defaults", "read", p.Domain, p.Key)
 		if err != nil {
+			// Key isn't set on this machine — record it with the catalog's
+			// default value and the Unset marker so consumers (UI, restore,
+			// diff, publish) can distinguish "user has the macOS default"
+			// from "user explicitly chose the catalog value".
+			prefs = append(prefs, MacOSPref{
+				Domain: p.Domain,
+				Key:    p.Key,
+				Type:   p.Type,
+				Value:  p.Value,
+				Desc:   p.Desc,
+				Unset:  true,
+			})
 			continue
 		}
 

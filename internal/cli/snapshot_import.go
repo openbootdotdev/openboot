@@ -204,15 +204,23 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		// Invalid URLs are silently skipped — validation at push time will catch them.
 	}
 
-	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, len(edited.MacOSPrefs))
-	for i, p := range edited.MacOSPrefs {
-		cfg.SnapshotMacOS[i] = config.RemoteMacOSPref{
+	// Drop Unset prefs at the boundary — they're informational only and
+	// must not propagate into state (which feeds both restore via Plan →
+	// Configure and publish via the remote API). RemoteMacOSPref has no
+	// Unset field by design: the remote config models "what should be
+	// enforced", with no place for "user had no opinion here".
+	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, 0, len(edited.MacOSPrefs))
+	for _, p := range edited.MacOSPrefs {
+		if p.Unset {
+			continue
+		}
+		cfg.SnapshotMacOS = append(cfg.SnapshotMacOS, config.RemoteMacOSPref{
 			Domain: p.Domain,
 			Key:    p.Key,
 			Type:   p.Type,
 			Value:  p.Value,
 			Desc:   p.Desc,
-		}
+		})
 	}
 
 	cfg.SnapshotShellOhMyZsh = edited.Shell.OhMyZsh

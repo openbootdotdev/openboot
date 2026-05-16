@@ -100,6 +100,24 @@ func TestNewSnapshotEditorSkipsInvalidMacOSPrefs(t *testing.T) {
 	assert.Equal(t, 3, len(prefTab.items))
 }
 
+func TestNewSnapshotEditor_UnsetPrefsDefaultUnselected(t *testing.T) {
+	snap := makeTestSnapshot()
+	snap.MacOSPrefs = []snapshot.MacOSPref{
+		{Domain: "com.apple.dock", Key: "autohide", Value: "true", Desc: "set pref"},
+		{Domain: "com.apple.dock", Key: "tilesize", Value: "48", Desc: "unset pref", Unset: true},
+	}
+	m := NewSnapshotEditor(snap)
+
+	prefTab := m.tabs[4]
+	require.Len(t, prefTab.items, 2)
+
+	// The order matches insertion order: set pref first, unset second.
+	assert.True(t, prefTab.items[0].selected, "set pref should default to selected")
+	assert.False(t, prefTab.items[1].selected, "unset pref should default to unselected")
+	assert.Contains(t, prefTab.items[1].description, "unset",
+		"unset pref description should advertise the (unset) marker")
+}
+
 func TestNewSnapshotEditorAllItemsSelected(t *testing.T) {
 	snap := makeTestSnapshot()
 	m := NewSnapshotEditor(snap)
