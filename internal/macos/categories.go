@@ -125,6 +125,12 @@ var DefaultCategories = []PrefCategory{
 			{"com.apple.controlcenter", "NSStatusItem Visible FocusModes", "bool", "false", "Hide Focus Modes from menu bar"},
 			{"com.apple.controlcenter", "NSStatusItem Visible NowPlaying", "bool", "false", "Hide Now Playing from menu bar"},
 			{"com.apple.controlcenter", "NSStatusItem Visible ScreenMirroring", "bool", "false", "Hide Screen Mirroring from menu bar"},
+			// Mode dropdown: 2 = "Show When Active" (macOS default), 18 = "Always Show in Menu Bar".
+			// Without this, visible modules fall back to "Show When Active" — e.g. Sound only appears while playing.
+			{"com.apple.controlcenter", "Sound", "int", "18", "Always show Sound in menu bar (not only when active)"},
+			{"com.apple.controlcenter", "Bluetooth", "int", "18", "Always show Bluetooth in menu bar"},
+			{"com.apple.controlcenter", "WiFi", "int", "18", "Always show Wi-Fi in menu bar"},
+			{"com.apple.controlcenter", "Battery", "int", "18", "Always show Battery in menu bar"},
 		},
 	},
 	{
