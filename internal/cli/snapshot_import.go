@@ -204,23 +204,24 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		// Invalid URLs are silently skipped — validation at push time will catch them.
 	}
 
-	// Drop Unset prefs at the boundary — they're informational only and
-	// must not propagate into state (which feeds both restore via Plan →
-	// Configure and publish via the remote API). RemoteMacOSPref has no
-	// Unset field by design: the remote config models "what should be
-	// enforced", with no place for "user had no opinion here".
-	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, 0, len(edited.MacOSPrefs))
-	for _, p := range edited.MacOSPrefs {
-		if p.Unset {
-			continue
-		}
-		cfg.SnapshotMacOS = append(cfg.SnapshotMacOS, config.RemoteMacOSPref{
+	// Pass every pref through, including those marked Unset on capture.
+	// Rationale: catalog defaults exist precisely to encode "what a sane
+	// macOS looks like" — when a user's machine sits at the system default
+	// (which macOS leaves out of the plist), `defaults read` errors and
+	// capture marks the pref Unset with the catalog value as a stand-in.
+	// Filtering those out at publish made the web UI lose entries like
+	// "Show Sound in menu bar" for any user who hadn't explicitly written
+	// the key. Treat Unset purely as informational metadata (still used
+	// by diff to avoid false-positive Missing/Changed).
+	cfg.SnapshotMacOS = make([]config.RemoteMacOSPref, len(edited.MacOSPrefs))
+	for i, p := range edited.MacOSPrefs {
+		cfg.SnapshotMacOS[i] = config.RemoteMacOSPref{
 			Domain: p.Domain,
 			Key:    p.Key,
 			Type:   p.Type,
 			Value:  p.Value,
 			Desc:   p.Desc,
-		})
+		}
 	}
 
 	cfg.SnapshotShellOhMyZsh = edited.Shell.OhMyZsh

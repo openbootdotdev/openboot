@@ -119,9 +119,10 @@ func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 		if p.Domain == "" || p.Key == "" {
 			continue
 		}
-		// Unset prefs default to unselected — the user had no opinion on
-		// the source machine, so don't ship a default value into their
-		// state/remote-config unless they explicitly tick it.
+		// Unset prefs default selected too — Value carries the catalog
+		// default, which is the value we'd want to enforce anyway. The
+		// "(unset)" tag in the description is informational, telling the
+		// user the source machine sits at macOS default for this key.
 		desc := fmt.Sprintf("= %s (%s)", p.Value, p.Desc)
 		if p.Unset {
 			desc = fmt.Sprintf("(unset, default = %s) %s", p.Value, p.Desc)
@@ -129,7 +130,7 @@ func NewSnapshotEditor(snap *snapshot.Snapshot) SnapshotEditorModel {
 		prefItems = append(prefItems, editorItem{
 			name:        fmt.Sprintf("%s.%s", p.Domain, p.Key),
 			description: desc,
-			selected:    !p.Unset,
+			selected:    true,
 			itemType:    editorItemMacOSPref,
 		})
 	}
