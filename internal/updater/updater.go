@@ -217,6 +217,13 @@ var execBrewUpgrade = func(formula string) error {
 	return nil
 }
 
+// BrewUpgrade pulls the openboot tap and runs `brew upgrade openboot`.
+// It is the public entry point used by the manual `openboot update` command;
+// AutoUpgrade calls execBrewUpgrade directly.
+func BrewUpgrade() error {
+	return execBrewUpgrade(brewFormula)
+}
+
 func doBrewUpgrade(currentVersion, latestVersion string) {
 	latestClean := TrimVersionPrefix(latestVersion)
 	currentClean := TrimVersionPrefix(currentVersion)

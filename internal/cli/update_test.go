@@ -121,13 +121,45 @@ func TestRunUpdate_HomebrewRefusesRollback(t *testing.T) {
 	assert.Contains(t, err.Error(), "Homebrew")
 }
 
-func TestRunUpdate_HomebrewRefusesLatest(t *testing.T) {
+func TestRunUpdate_HomebrewLatestCallsBrew(t *testing.T) {
 	resetUpdateFlags(t)
 	stubSeams(t, func() bool { return true }, nil, nil, nil, nil, nil)
 
+	called := 0
+	orig := updateBrewUpgrade
+	updateBrewUpgrade = func() error { called++; return nil }
+	t.Cleanup(func() { updateBrewUpgrade = orig })
+
+	err := runUpdateCmd(nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, called, "brew upgrade should be invoked exactly once")
+}
+
+func TestRunUpdate_HomebrewLatestPropagatesBrewError(t *testing.T) {
+	resetUpdateFlags(t)
+	stubSeams(t, func() bool { return true }, nil, nil, nil, nil, nil)
+
+	orig := updateBrewUpgrade
+	updateBrewUpgrade = func() error { return errors.New("brew exit 1") }
+	t.Cleanup(func() { updateBrewUpgrade = orig })
+
 	err := runUpdateCmd(nil, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "brew upgrade openboot")
+	assert.Contains(t, err.Error(), "update failed")
+	assert.Contains(t, err.Error(), "brew exit 1")
+}
+
+func TestRunUpdate_HomebrewLatestDryRunSkipsBrew(t *testing.T) {
+	resetUpdateFlags(t)
+	updateDryRun = true
+	stubSeams(t, func() bool { return true }, nil, nil, nil, nil, nil)
+
+	orig := updateBrewUpgrade
+	updateBrewUpgrade = func() error { t.Fatal("brew should not run in dry-run"); return nil }
+	t.Cleanup(func() { updateBrewUpgrade = orig })
+
+	err := runUpdateCmd(nil, nil)
+	require.NoError(t, err)
 }
 
 func TestRunUpdate_HomebrewAllowsListBackups(t *testing.T) {

@@ -12,4 +12,4 @@ internal/config/remote.go:233
 internal/search/search.go:46
 internal/shell/shell.go:28
 internal/shell/shell.go:62
-internal/updater/updater.go:785
+internal/updater/updater.go:792
