@@ -64,10 +64,13 @@ Project-specific Claude skills live under [`.claude/skills/`](.claude/skills/):
 - `bootstrap-feature` — how to add a CLI command end-to-end.
 - `architecture-review` — what to check when reviewing a PR against
   project invariants.
-- `ship-pr` — canonical post-edit flow: local review → L1 → push →
-  `gh pr create` → `gh pr merge --auto`. Use this instead of calling
-  `gh pr create` directly so auto-merge against
-  [`docs/MERGE_POLICY.md`](docs/MERGE_POLICY.md) is consistent.
+- `ship-pr` — canonical post-edit flow: push → `gh pr create` → wait
+  for CI → review the diff → surface findings to the user → user-OK'd
+  manual `gh pr merge --squash` → local cleanup. Use this instead of
+  calling `gh pr create` / `gh pr merge` directly. **Do not use
+  `--auto`** — it skips the review gate, which is the point of having
+  this skill on top of the branch protection rules in
+  [`docs/MERGE_POLICY.md`](docs/MERGE_POLICY.md).
 
 These are loaded automatically when Claude runs in this repo.
 
