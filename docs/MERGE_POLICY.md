@@ -63,8 +63,15 @@ users in past commits:
 
 ## How to change this policy
 
-1. Open a PR that edits this file with the proposed change.
-2. In the same PR, update branch protection via the GitHub UI **or**
+The required-checks list has an in-repo source of truth:
+[`.github/required-checks.txt`](../.github/required-checks.txt). The
+`required-checks alignment (drift)` sensor in
+[`.github/workflows/harness.yml`](../.github/workflows/harness.yml)
+fails on PRs that desync it from the workflow `name:` values.
+
+1. Open a PR that edits this file **and** `.github/required-checks.txt`
+   with the proposed change.
+2. In the same PR, update live branch protection via the GitHub UI **or**
    include the `gh api` command in the PR description so the reviewer can
    reproduce it. Example:
 

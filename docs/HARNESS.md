@@ -41,7 +41,7 @@ Three regulation categories:
 | Maint. | `govulncheck` (drift) | informational CI | `.github/workflows/harness.yml` |
 | Maint. | `deadcode` (drift) | informational CI | `.github/workflows/harness.yml` |
 | Maint. | `go mod tidy -diff` | informational CI | `.github/workflows/harness.yml` |
-| Maint. | `required-checks alignment (drift)` — branch-protection contexts ↔ workflow job names | informational CI | `.github/workflows/harness.yml` |
+| Maint. | `required-checks alignment (drift)` — `.github/required-checks.txt` ↔ workflow job names | informational CI | `.github/workflows/harness.yml` |
 | Arch. | `no-direct-exec` | L1 (`make test-unit`) | `internal/archtest/exec_test.go` |
 | Arch. | `no-raw-http` | L1 | `internal/archtest/http_test.go` |
 | Arch. | `no-os-getenv-home` | L1 | `internal/archtest/envhome_test.go` |
@@ -75,7 +75,7 @@ When you observe a recurring issue, decide where to encode the fix:
 | "Agent did something safe but suboptimal." | Add to CLAUDE.md "Project-specific conventions" and consider whether it's encodable. |
 | "Agent guessed at an API contract." | Update `openboot-contract` repo + fixtures; CI already runs schema validation. |
 | "Agent's PR description was off." | Tighten `pull_request_template.md`. |
-| "PR silently blocked because branch protection required a check the workflow no longer produces (rename / removal)." | The `required-checks alignment (drift)` sensor catches it in CI; for the same PR, update `gh api -X PUT .../protection` and document the change in the PR per `docs/MERGE_POLICY.md`. |
+| "PR silently blocked because branch protection required a check the workflow no longer produces (rename / removal)." | Update `.github/required-checks.txt` in the same PR — the `required-checks alignment (drift)` sensor compares it against workflow job names. Then mirror the change to live protection via `gh api -X PUT .../protection` per `docs/MERGE_POLICY.md`. |
 
 Rule of thumb: **if you reach for a doc edit, ask first whether a test or
 analyzer would catch the same drift mechanically**. Mechanical wins because
