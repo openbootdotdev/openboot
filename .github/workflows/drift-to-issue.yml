@@ -1,0 +1,88 @@
+name: Drift to issue
+
+# When a Harness drift sensor fails on main (or on the nightly schedule),
+# open or update a single tracking GitHub issue per sensor. This stops drift
+# signals from rotting in CI logs — they become actionable work items
+# instead. Closes the steering-loop arrow: sensor fires → issue exists →
+# human decides whether to fix or accept.
+#
+# Only fires on main / scheduled runs, not on PRs (we don't want every PR
+# to open issues — the in-PR annotation from harness.yml is enough there).
+
+on:
+  workflow_run:
+    workflows: ["Harness"]
+    types: [completed]
+    branches: [main, master]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  open-or-update-issue:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find failed jobs and (re)open issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+
+          # Pull the per-job results for this Harness run.
+          jobs_json=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" --paginate)
+
+          # For each failed job, ensure a single open tracking issue exists.
+          # Issue title format: "[harness-drift] <job name>" so updates are idempotent.
+          # We deliberately tag with `harness-drift` so the issues are filterable.
+          echo "$jobs_json" | python3 - <<'PY'
+          import json, os, subprocess, sys
+
+          jobs = json.loads(sys.stdin.read())["jobs"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          run_url = os.environ["RUN_URL"]
+
+          for job in jobs:
+              if job["conclusion"] != "failure":
+                  continue
+              name = job["name"]
+              title = f"[harness-drift] {name}"
+              body = (
+                  f"The harness drift sensor `{name}` failed on `main`.\n\n"
+                  f"Run: {run_url}\n\n"
+                  "This issue is automatically opened by `.github/workflows/drift-to-issue.yml`.\n"
+                  "It's a *tracking* issue — the sensor will keep firing until either:\n"
+                  "  - the underlying drift is resolved (close this issue), or\n"
+                  "  - the sensor is intentionally disabled / its baseline updated.\n\n"
+                  "Repeat failures update this same issue rather than opening duplicates."
+              )
+
+              # Search for an existing open issue with the same title.
+              search = subprocess.run(
+                  ["gh", "issue", "list", "--state", "open", "--label", "harness-drift",
+                   "--search", f'in:title "{title}"', "--json", "number,title"],
+                  capture_output=True, text=True, check=True,
+              )
+              existing = [i for i in json.loads(search.stdout) if i["title"] == title]
+
+              if existing:
+                  num = existing[0]["number"]
+                  # Add a comment with the new run URL — body stays stable.
+                  subprocess.run(
+                      ["gh", "issue", "comment", str(num), "--body", f"Sensor fired again. Run: {run_url}"],
+                      check=True,
+                  )
+                  print(f"updated #{num}: {title}")
+              else:
+                  subprocess.run(
+                      ["gh", "issue", "create", "--title", title, "--body", body,
+                       "--label", "harness-drift"],
+                      check=True,
+                  )
+                  print(f"opened: {title}")
+          PY

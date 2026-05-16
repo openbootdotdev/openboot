@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # pre-commit: keep commits from introducing obvious regressions.
-# Fast (<5s): vet + build. No tests run here — use pre-push for that.
+# Fast (<5s): vet + build + lint-the-diff. No tests run here — use pre-push for that.
 #
 # To skip once:  git commit --no-verify
 # To uninstall:  rm .git/hooks/pre-commit
@@ -18,5 +18,17 @@ go vet ./...
 
 echo "→ go build (quick compile check)"
 go build ./...
+
+# Lint only the diff vs main — sub-second on a typical commit. Skips silently
+# if golangci-lint isn't installed locally; CI's `lint` job is the safety net.
+# This catches the kind of gofmt / gosec issues that bit PR #55 before CI does.
+if command -v golangci-lint >/dev/null 2>&1; then
+	echo "→ golangci-lint (diff only)"
+	golangci-lint run --new-from-rev=HEAD~1 --max-issues-per-linter=0 --max-same-issues=0 ./... || {
+		echo
+		echo "Lint failures above. To skip this commit only:  git commit --no-verify"
+		exit 1
+	}
+fi
 
 exit 0
