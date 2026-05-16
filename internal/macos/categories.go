@@ -106,6 +106,10 @@ var DefaultCategories = []PrefCategory{
 			{"com.apple.dock", "wvous-tr-corner", "int", "0", "Disable top-right hot corner"},
 			{"com.apple.dock", "wvous-bl-corner", "int", "0", "Disable bottom-left hot corner"},
 			{"com.apple.dock", "wvous-br-corner", "int", "0", "Disable bottom-right hot corner"},
+			{"com.apple.dock", "wvous-tl-modifier", "int", "0", "No modifier key for top-left hot corner"},
+			{"com.apple.dock", "wvous-tr-modifier", "int", "0", "No modifier key for top-right hot corner"},
+			{"com.apple.dock", "wvous-bl-modifier", "int", "0", "No modifier key for bottom-left hot corner"},
+			{"com.apple.dock", "wvous-br-modifier", "int", "0", "No modifier key for bottom-right hot corner"},
 		},
 	},
 	{
