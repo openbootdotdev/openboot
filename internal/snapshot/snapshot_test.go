@@ -167,10 +167,10 @@ func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
 
 func TestMacOSPref_JSON_UnsetRoundTrip(t *testing.T) {
 	tests := []struct {
-		name        string
-		pref        MacOSPref
-		wantHasKey  bool
-		wantValue   bool
+		name       string
+		pref       MacOSPref
+		wantHasKey bool
+		wantValue  bool
 	}{
 		{
 			name:       "set pref omits unset key",
