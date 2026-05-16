@@ -186,9 +186,9 @@ catches it on the next session and prints the same cleanup hint.
 - **Do not push directly to `main`.** Branch protection will reject it.
 - **Do not auto-fix findings that need user judgment.** Anything that
   could change behaviour, expand scope, or touches a prior deliberate
-  choice goes through Step 7 — not a silent commit. Self-fixable items
-  (typos, missing tests, doc tweaks following a stated rule) are the
-  exception, not the default.
+  choice gets surfaced in Step 6 — not silently committed. Self-fixable
+  items (typos, missing tests, doc tweaks following a stated rule) are
+  the exception, not the default.
 
 ## Why this is encoded as a skill
 
