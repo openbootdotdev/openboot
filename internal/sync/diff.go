@@ -200,20 +200,36 @@ func diffMacOSPrefs(rc *config.RemoteConfig, d *SyncDiff) error {
 	if err != nil {
 		return fmt.Errorf("capture local macos prefs: %w", err)
 	}
+	d.MacOSChanged = computeMacOSPrefDiff(rc.MacOSPrefs, localPrefs)
+	return nil
+}
 
+// computeMacOSPrefDiff is the pure-logic core of diffMacOSPrefs: given the
+// remote prefs and a captured local pref list, return the prefs that need
+// writing on the local machine.
+//
+// Local prefs marked Unset carry the catalog's default value as a placeholder,
+// not what `defaults read` actually returned. Including them in the lookup
+// makes the diff falsely match a remote pref of the same value, suppressing
+// the write needed to make the key actually exist on disk.
+func computeMacOSPrefDiff(remote []config.RemoteMacOSPref, local []snapshot.MacOSPref) []MacOSPrefDiff {
 	type prefKey struct {
 		Domain string
 		Key    string
 	}
-	localMap := make(map[prefKey]string, len(localPrefs))
-	for _, p := range localPrefs {
+	localMap := make(map[prefKey]string, len(local))
+	for _, p := range local {
+		if p.Unset {
+			continue
+		}
 		localMap[prefKey{p.Domain, p.Key}] = p.Value
 	}
 
-	for _, rp := range rc.MacOSPrefs {
+	var changed []MacOSPrefDiff
+	for _, rp := range remote {
 		localVal, exists := localMap[prefKey{rp.Domain, rp.Key}]
 		if !exists || localVal != rp.Value {
-			d.MacOSChanged = append(d.MacOSChanged, MacOSPrefDiff{
+			changed = append(changed, MacOSPrefDiff{
 				Domain:      rp.Domain,
 				Key:         rp.Key,
 				Type:        rp.Type,
@@ -223,7 +239,7 @@ func diffMacOSPrefs(rc *config.RemoteConfig, d *SyncDiff) error {
 			})
 		}
 	}
-	return nil
+	return changed
 }
 
 // diffLists returns (missing, extra) where missing = in remote but not local,
