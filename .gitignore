@@ -33,6 +33,7 @@ __pycache__/
 .claude/*
 !.claude/hooks/
 !.claude/settings.json
+!.claude/skills/
 .claude/settings.local.json
 
 # Go vendor (deps downloaded at build time)
