@@ -98,23 +98,52 @@ Once CI is green, invoke the
 violations; this catches the rest — behaviour, design, test coverage,
 risk, rollback.
 
-Output what the review found in plain language. Distinguish:
-- **Blocking** — must be fixed before merge.
-- **Nit** — suggest, but user can choose to defer.
-- **Follow-up** — out of scope for this PR; open an issue if material.
+### Step 6 — Triage the findings
 
-### Step 6 — Hand the decision to the user
+Every finding goes into one of two buckets. Get this right or the gate
+fails open.
 
-Surface:
+**Self-fixable — fix in this session, then loop back to Step 4.**
+Anything where the correction is mechanical and clearly inside the
+PR's stated scope:
+- typos, formatting, doc rewording for clarity,
+- dead code that this PR introduced,
+- missing imports, missing test cases for branches this PR adds,
+- bug fixes that don't change observable behaviour,
+- following through on a rule the user has already stated in this
+  session (this is the recursive case).
+
+Fix it, push to the same branch, return to Step 4 to wait for CI again,
+then come back to Step 5. Do **not** prompt the user. The point of this
+branch is to keep the human's attention budget for decisions that
+actually need it.
+
+**Needs user judgment — surface and stop.**
+Anything with a real choice or scope question:
+- design decisions, API shape, behaviour changes,
+- anything that touches a deliberate prior decision (e.g. an explicit
+  user instruction or an existing convention in CLAUDE.md),
+- anything that would expand the PR beyond its stated scope,
+- anything you'd ask a teammate about before pushing.
+
+Surface the finding with the question made explicit; stop the flow.
+
+**Rule of thumb:** would a thoughtful junior engineer file this as a
+question, or just push a follow-up commit? If question → escalate. If
+follow-up commit → fix yourself.
+
+### Step 7 — Hand the decision to the user
+
+Only reached when Step 6 produced no escalation. Surface:
 1. CI status — all required green.
-2. Review findings — blocking? nits? clean?
+2. Review findings — clean (or list of nits the user might still want).
 3. The PR URL.
 
 Then **ask** whether to merge. Do not assume "clean review" means
 "merge now" — the user may want to sit on it, ask for a second pair of
 eyes, or batch with another change.
 
-### Step 7 — Merge (only after user confirms)
+### Step 8 — Merge (only after user confirms)
 
 ```bash
 gh pr merge --squash --delete-branch
@@ -124,7 +153,7 @@ No `--auto`. No `--admin`. The branch-protection rules still apply — if
 something flipped red between Step 4 and now, GitHub will refuse and
 we'll loop back to Step 4.
 
-### Step 8 — Local cleanup
+### Step 9 — Local cleanup
 
 After merge succeeds, the remote branch was deleted by `--delete-branch`.
 Bring local in sync:
@@ -137,7 +166,7 @@ git branch -d "$(git symbolic-ref --quiet --short @{-1} 2>/dev/null)"
 (`@{-1}` refers to the previously checked-out branch — the one we just
 merged.)
 
-If the user closes the session before reaching Step 8, the
+If the user closes the session before reaching Step 9, the
 [`session-start.sh`](../../hooks/session-start.sh) stale-branch sensor
 catches it on the next session and prints the same cleanup hint.
 
@@ -152,8 +181,11 @@ catches it on the next session and prints the same cleanup hint.
 - **Do not amend / force-push** after `gh pr create` unless the user asks
   — it invalidates in-flight reviews and re-runs CI from scratch.
 - **Do not push directly to `main`.** Branch protection will reject it.
-- **Do not silently fix issues found in review.** Surface them, let the
-  user decide scope.
+- **Do not auto-fix findings that need user judgment.** Anything that
+  could change behaviour, expand scope, or touches a prior deliberate
+  choice goes through Step 7 — not a silent commit. Self-fixable items
+  (typos, missing tests, doc tweaks following a stated rule) are the
+  exception, not the default.
 
 ## Why this is encoded as a skill
 
