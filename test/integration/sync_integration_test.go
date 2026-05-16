@@ -3,10 +3,11 @@ package integration
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/config"
-	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/config"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 )
 
 func TestIntegration_Execute_DryRun_EmptyPlan(t *testing.T) {
@@ -75,7 +76,7 @@ func TestIntegration_Execute_DryRun_FullPlan(t *testing.T) {
 		InstallNpm:        []string{"turbo"},
 		InstallTaps:       []string{"homebrew/cask-fonts"},
 		UninstallFormulae: []string{"htop"},
-		UpdateDotfiles: "https://github.com/user/dots",
+		UpdateDotfiles:    "https://github.com/user/dots",
 		UpdateMacOSPrefs: []config.RemoteMacOSPref{
 			{Domain: "com.apple.dock", Key: "autohide", Value: "true"},
 		},

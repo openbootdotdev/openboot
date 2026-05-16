@@ -3,10 +3,11 @@ package integration
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/diff"
-	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/diff"
+	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
 func TestIntegration_Diff_SystemVsItself(t *testing.T) {
