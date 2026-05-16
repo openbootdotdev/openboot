@@ -55,6 +55,8 @@ Three regulation categories:
 | Feedfwd. | Agent conventions | every AI turn | `CLAUDE.md`, `AGENTS.md` |
 | Feedfwd. | Skills | model-loaded | `.claude/skills/*` |
 | Feedfwd. | Session-start hook (warm caches, fetch deps) | every Claude session | `.claude/hooks/session-start.sh` |
+| Feedback (agent) | Stale-branch sensor (suggests cleanup when current branch's upstream is gone) | every Claude session | `.claude/hooks/session-start.sh` |
+| Feedfwd. | `ship-pr` skill — canonical PR flow incl. post-merge cleanup | model-loaded | `.claude/skills/ship-pr/SKILL.md` |
 | Feedback (agent) | `go vet` on edited package | after every Edit/Write/MultiEdit | `.claude/hooks/post-tool-use.sh` |
 | Feedback (agent) | `go vet ./...` + archtest | end of every Claude turn (if .go dirty) | `.claude/hooks/stop.sh` |
 | Maint. | `golangci-lint` on the staged diff | local git pre-commit | `scripts/hooks/pre-commit` |

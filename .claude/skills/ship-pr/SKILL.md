@@ -108,6 +108,29 @@ Return the PR URL and one sentence on what was queued. Example:
 > PR opened: <url>. Auto-merge enabled — will land once the 6 required
 > checks pass.
 
+### Step 8 — Post-merge cleanup (if already merged)
+
+Immediately re-check whether the PR has already landed — for small PRs
+that hit `MERGEABLE` and pass CI in seconds, `gh pr merge --auto` can
+complete before the user sees the PR URL:
+
+```bash
+gh pr view --json state -q .state
+```
+
+If the output is `MERGED`, the remote branch has been deleted by
+`--delete-branch`. Clean up the local side in the same session so the
+user doesn't have to:
+
+```bash
+git checkout main && git pull --quiet
+git branch -d "$(git symbolic-ref --quiet --short @{-1} 2>/dev/null)"
+```
+
+If the output is `OPEN`, do nothing here. The
+[`session-start.sh`](../../hooks/session-start.sh) stale-branch sensor
+will catch it on the next session and prompt cleanup.
+
 ## What NOT to do
 
 - **Do not skip step 2.** "It's a small change" is exactly when archtest
