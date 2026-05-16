@@ -169,9 +169,9 @@ git branch -d "$(git symbolic-ref --quiet --short @{-1} 2>/dev/null)"
 (`@{-1}` refers to the previously checked-out branch — the one we just
 merged.)
 
-If the user closes the session before reaching Step 8, the
-[`session-start.sh`](../../hooks/session-start.sh) stale-branch sensor
-catches it on the next session and prints the same cleanup hint.
+This step is part of the loop, not optional. Because merges are
+synchronous now (no `--auto`), there is no scenario where a feature
+branch should be left checked out after a successful merge.
 
 ## What NOT to do
 
