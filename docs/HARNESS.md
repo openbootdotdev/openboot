@@ -55,7 +55,6 @@ Three regulation categories:
 | Feedfwd. | Agent conventions | every AI turn | `CLAUDE.md`, `AGENTS.md` |
 | Feedfwd. | Skills | model-loaded | `.claude/skills/*` |
 | Feedfwd. | Session-start hook (warm caches, fetch deps) | every Claude session | `.claude/hooks/session-start.sh` |
-| Feedback (agent) | Stale-branch sensor (suggests cleanup when current branch's upstream is gone) | every Claude session | `.claude/hooks/session-start.sh` |
 | Feedfwd. | `ship-pr` skill — canonical PR flow (push → CI → review → triage: self-fix / escalate / merge directly when clean → cleanup; **no `--auto`**, **no "do you want me to merge?" when clean**) | model-loaded | `.claude/skills/ship-pr/SKILL.md` |
 | Feedback (agent) | `go vet` on edited package | after every Edit/Write/MultiEdit | `.claude/hooks/post-tool-use.sh` |
 | Feedback (agent) | `go vet ./...` + archtest | end of every Claude turn (if .go dirty) | `.claude/hooks/stop.sh` |
@@ -95,6 +94,14 @@ it survives doc rot.
 - **No retroactive refactors triggered by new archtest rules.** New rules
   baseline existing code so green builds stay green. Cleanup is a separate
   decision from rule introduction.
+- **No session-start stale-branch sensor.** A previous iteration of the
+  `ship-pr` skill used `gh pr merge --auto`, so the merge could happen
+  asynchronously after the Claude session ended — leaving a feature
+  branch checked out next time. The sensor existed to nag the user to
+  clean it up. Once the skill dropped `--auto` and made cleanup part of
+  the in-session loop (Step 8), the sensor became dead code and was
+  removed. If `--auto` ever comes back, the sensor needs to come back
+  with it.
 
 ## How agents should think about this file
 
