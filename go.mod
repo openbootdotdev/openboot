@@ -1,6 +1,6 @@
 module github.com/openbootdotdev/openboot
 
-go 1.24.0
+go 1.25.10
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0
