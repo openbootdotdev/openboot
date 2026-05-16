@@ -1,15 +1,19 @@
 ---
 name: ship-pr
-description: Use when the user wants to open a pull request for the current branch — phrases like "open a PR", "ship this", "submit PR", "let's send it", "提 PR", "提个 MR". Walks through the canonical post-edit flow: local architecture review → L1 unit tests → push → gh pr create → gh pr merge --auto. Trigger any time the user signals they're done editing and want the change on its way to main; do NOT trigger for `gh pr view` / status checks on existing PRs.
+description: Use when the user wants to open a pull request for the current branch — phrases like "open a PR", "ship this", "submit PR", "let's send it", "提 PR", "提个 MR". Walks through the canonical post-edit flow: push → open PR → wait for CI → review the diff → triage findings (self-fix small issues, escalate decisions to the user, merge directly when clean) → local cleanup. Trigger any time the user signals they're done editing and want the change on its way to main; do NOT trigger for `gh pr view` / status checks on existing PRs.
 ---
 
 # Ship a PR for openboot
 
 This is the canonical way to move a finished change from a feature branch
 into `main`. The branch protection rules defined in [docs/MERGE_POLICY.md](../../../docs/MERGE_POLICY.md)
-do the gating — this skill makes sure the obvious local checks are done
-first and that auto-merge is enabled so the change lands without a human
-having to babysit CI.
+define the **mechanical** gate (6 required checks). This skill adds the
+**inferential** gate on top: after CI is green, the diff gets reviewed,
+findings are surfaced, and merge only happens after the user confirms.
+
+**Auto-merge is intentionally not used.** `gh pr merge --auto` skips the
+review step entirely — that defeats the purpose of having a review gate.
+The merge command is run from this session, after the user OKs it.
 
 ## When to use
 
@@ -17,9 +21,9 @@ Trigger when the user says they're done with a change and want a PR. **Do
 not** use this for:
 
 - Draft PRs / WIP work the user wants reviewed but not merged. Use plain
-  `gh pr create --draft` and skip auto-merge.
-- Changes to `.github/workflows/` or branch protection. Those need human
-  review on `main`'s ruleset interaction.
+  `gh pr create --draft` and stop.
+- Changes to `.github/workflows/` or branch protection rules. Those need
+  a human to also poke the GitHub UI.
 - Release tags (`v*.*.*`). Releases follow `make test-vm-release` first.
 
 ## The flow
@@ -35,31 +39,17 @@ git log --oneline main..HEAD         # commits actually exist
 If the branch is `main`, stop — make a feature branch first. If there are
 no commits ahead of `main`, stop — nothing to ship.
 
-### Step 2 — Local review (cheap, catches most issues)
-
-Invoke the [`architecture-review`](../architecture-review/SKILL.md) skill
-on the current diff. Fix anything it flags before moving on. The point of
-running it locally is to avoid burning a CI cycle on a violation that
-`internal/archtest` would catch in ~15 seconds.
-
-### Step 3 — L1 locally
-
-```bash
-make test-unit
-```
-
-This is the same suite the `pre-push` hook would run, so think of it as
-"don't ship without doing what the hook does". If `make install-hooks` is
-already wired, this step is redundant — but running it explicitly costs
-~15s and removes any uncertainty.
-
-### Step 4 — Push
+### Step 2 — Push
 
 ```bash
 git push -u origin "$(git rev-parse --abbrev-ref HEAD)"
 ```
 
-### Step 5 — Open the PR
+The `pre-push` hook (installed via `make install-hooks`) runs L1 here
+automatically — no need to run `make test-unit` separately. If the hook
+is not installed, that's the user's choice; CI will still gate.
+
+### Step 3 — Open the PR
 
 ```bash
 gh pr create --title "<conventional commit subject>" --body "$(cat <<'EOF'
@@ -80,78 +70,137 @@ Title rules (from CLAUDE.md):
   `test:` / `chore:` / `ci:` / `perf:`.
 - Keep under 70 chars. Detail goes in the body.
 
-### Step 6 — Hand the PR to GitHub's auto-merge
+### Step 4 — Wait for CI
 
 ```bash
-gh pr merge --auto --squash --delete-branch
+gh pr checks --watch
 ```
 
-GitHub will hold the merge until every required check from
-[docs/MERGE_POLICY.md](../../../docs/MERGE_POLICY.md) reports success —
-currently:
+This blocks until every check finishes. Typical wall time is 3–10 min
+depending on which jobs run. The required checks per
+[docs/MERGE_POLICY.md](../../../docs/MERGE_POLICY.md):
 
-- `lint`
-- `unit (L1)`
-- `integration (L2)`
-- `contract schema (L3)`
-- `curl|bash smoke`
-- `old-cli compat`
+- `lint`, `unit (L1)`, `integration (L2)`, `contract schema (L3)`,
+  `curl|bash smoke`, `old-cli compat`
 
-There is no need to `gh pr checks --watch` in the session. If any check
-fails, GitHub will refuse to merge and the user will see the failure on
-the PR — handle it the next time the user mentions the PR.
+If any required check fails:
+- **Stop. Do not proceed to review or merge.**
+- Read the failure (`gh run view --log-failed`), explain it to the user,
+  and ask whether to fix it now.
+- Drift sensors (`govulncheck`, `deadcode`, etc.) failing is
+  informational — flag them but do not block.
 
-### Step 7 — Tell the user
+### Step 5 — Review the diff
 
-Return the PR URL and one sentence on what was queued. Example:
+Once CI is green, invoke the
+[`architecture-review`](../architecture-review/SKILL.md) skill on the
+**full PR diff** (`git diff main...HEAD`). CI catches mechanical
+violations; this catches the rest — behaviour, design, test coverage,
+risk, rollback.
 
-> PR opened: <url>. Auto-merge enabled — will land once the 6 required
-> checks pass.
+### Step 6 — Triage the findings
 
-### Step 8 — Post-merge cleanup (if already merged)
+Every finding goes into one of two buckets. Get this right or the gate
+fails open.
 
-Immediately re-check whether the PR has already landed — for small PRs
-that hit `MERGEABLE` and pass CI in seconds, `gh pr merge --auto` can
-complete before the user sees the PR URL:
+**Self-fixable — fix in this session, then loop back to Step 4.**
+Anything where the correction is mechanical and clearly inside the
+PR's stated scope:
+- typos, formatting, doc rewording for clarity,
+- dead code that this PR introduced,
+- missing imports, missing test cases for branches this PR adds,
+- bug fixes that don't change observable behaviour,
+- following through on a rule the user has already stated in this
+  session (this is the recursive case).
+
+Fix it, push to the same branch, return to Step 4 to wait for CI again,
+then come back to Step 5. Do **not** prompt the user. The point of this
+branch is to keep the human's attention budget for decisions that
+actually need it.
+
+**Needs user judgment — surface and stop.**
+Anything with a real choice or scope question:
+- design decisions, API shape, behaviour changes,
+- anything that touches a deliberate prior decision (e.g. an explicit
+  user instruction or an existing convention in CLAUDE.md),
+- anything that would expand the PR beyond its stated scope,
+- anything you'd ask a teammate about before pushing.
+
+Surface the finding with the question made explicit; stop the flow.
+
+**Clean — proceed straight to merge.**
+If CI is green AND the diff review found nothing self-fixable AND
+nothing that needs user judgment, skip the "ask the user" step and
+merge directly. Asking when there is nothing to decide just burns the
+user's attention.
+
+**Rule of thumb:** would a thoughtful junior engineer file this as a
+question, push a follow-up commit, or just merge it? Escalate / fix /
+merge accordingly.
+
+### Step 7 — Merge
+
+Reached when Step 6 ended in "clean", OR when the user has explicitly
+approved a merge after an escalation.
 
 ```bash
-gh pr view --json state -q .state
+gh pr merge --squash --delete-branch
 ```
 
-If the output is `MERGED`, the remote branch has been deleted by
-`--delete-branch`. Clean up the local side in the same session so the
-user doesn't have to:
+No `--auto`. No `--admin`. The branch-protection rules still apply — if
+something flipped red between Step 4 and now, GitHub will refuse and
+we'll loop back to Step 4.
+
+Report the merge to the user as a one-liner ("PR #N merged, branch
+deleted, local cleaned up"). Do not ask for confirmation **before**
+merging on a clean review — the harness loop is supposed to close
+itself when there is nothing to decide.
+
+### Step 8 — Local cleanup
+
+After merge succeeds, the remote branch was deleted by `--delete-branch`.
+Bring local in sync:
 
 ```bash
 git checkout main && git pull --quiet
 git branch -d "$(git symbolic-ref --quiet --short @{-1} 2>/dev/null)"
 ```
 
-If the output is `OPEN`, do nothing here. The
+(`@{-1}` refers to the previously checked-out branch — the one we just
+merged.)
+
+If the user closes the session before reaching Step 8, the
 [`session-start.sh`](../../hooks/session-start.sh) stale-branch sensor
-will catch it on the next session and prompt cleanup.
+catches it on the next session and prints the same cleanup hint.
 
 ## What NOT to do
 
-- **Do not skip step 2.** "It's a small change" is exactly when archtest
-  violations sneak in.
-- **Do not merge without `--auto`** (i.e. plain `gh pr merge`) unless the
-  user explicitly asks for an immediate merge. Bypassing required checks
-  is reserved for emergencies and must be documented.
-- **Do not use `--admin`.** That bypasses branch protection entirely.
+- **Do not use `--auto`.** It skips Step 5 (review) entirely, which is
+  the whole reason this skill exists.
+- **Do not use `--admin`.** That bypasses branch protection.
+- **Do not merge before CI completes.** Even if the diff looks trivial,
+  let `gh pr checks --watch` finish — drift detection sometimes catches
+  surprising things.
 - **Do not amend / force-push** after `gh pr create` unless the user asks
-  — it invalidates in-flight reviews.
-- **Do not push directly to `main`.** Branch protection will reject it
-  anyway, but try anyway and you'll have to clean up the failed push.
+  — it invalidates in-flight reviews and re-runs CI from scratch.
+- **Do not push directly to `main`.** Branch protection will reject it.
+- **Do not auto-fix findings that need user judgment.** Anything that
+  could change behaviour, expand scope, or touches a prior deliberate
+  choice gets surfaced in Step 6 — not silently committed. Self-fixable
+  items (typos, missing tests, doc tweaks following a stated rule) are
+  the exception, not the default.
 
 ## Why this is encoded as a skill
 
-Per [docs/HARNESS.md](../../../docs/HARNESS.md), repeated guidance
-becomes a control. The post-edit flow ("review → test → push → PR →
-auto-merge") was previously oral tradition; encoding it here means:
+Per [docs/HARNESS.md](../../../docs/HARNESS.md), repeated guidance becomes
+a control. The merge gate has two layers:
 
-1. New agents follow the same recipe without being told.
-2. If the recipe changes (e.g. a new required check), this is the one
-   place to edit, and AGENTS.md points here.
-3. Skipped steps become a reviewable diff against this file, not a
-   judgment call buried in a session transcript.
+- **Mechanical** (branch protection / required checks) — already
+  enforced by GitHub. Catches what CI knows how to check.
+- **Inferential** (review of the diff) — was previously oral tradition.
+  Encoding the order here ("CI green THEN review THEN ask THEN merge")
+  is the harness; without it, the easy thing is auto-merge, which is
+  cheap and wrong.
+
+If the recipe changes (new required check, different review tool), this
+is the one place to edit; AGENTS.md points here.
