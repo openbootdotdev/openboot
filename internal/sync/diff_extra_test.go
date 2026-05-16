@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
 // ---- diffDotfiles ----
@@ -209,6 +210,49 @@ func TestDiffMacOSPrefs_EmptyPrefsList(t *testing.T) {
 	err := diffMacOSPrefs(rc, d)
 	require.NoError(t, err)
 	assert.Empty(t, d.MacOSChanged)
+}
+
+// ---- computeMacOSPrefDiff (pure-logic core) ----
+
+func TestComputeMacOSPrefDiff_UnsetLocalCountsAsMissing(t *testing.T) {
+	// Regression: a locally captured Unset pref carries the catalog default in
+	// Value as a placeholder. The diff must treat it as "not on the machine"
+	// so the remote pref still drives a write, instead of falsely matching.
+	remote := []config.RemoteMacOSPref{
+		{Domain: "com.apple.controlcenter", Key: "Bluetooth", Type: "int", Value: "18", Desc: "Always show Bluetooth"},
+	}
+	local := []snapshot.MacOSPref{
+		{Domain: "com.apple.controlcenter", Key: "Bluetooth", Type: "int", Value: "18", Unset: true},
+	}
+	changed := computeMacOSPrefDiff(remote, local)
+	require.Len(t, changed, 1)
+	assert.Equal(t, "Bluetooth", changed[0].Key)
+	assert.Equal(t, "18", changed[0].RemoteValue)
+	assert.Empty(t, changed[0].LocalValue, "Unset local pref must not surface its placeholder value")
+}
+
+func TestComputeMacOSPrefDiff_ExplicitLocalMatchesRemote(t *testing.T) {
+	// Sanity: an explicit (non-Unset) local value equal to remote → no diff.
+	remote := []config.RemoteMacOSPref{
+		{Domain: "com.apple.controlcenter", Key: "Sound", Type: "int", Value: "18"},
+	}
+	local := []snapshot.MacOSPref{
+		{Domain: "com.apple.controlcenter", Key: "Sound", Type: "int", Value: "18"},
+	}
+	assert.Empty(t, computeMacOSPrefDiff(remote, local))
+}
+
+func TestComputeMacOSPrefDiff_ExplicitLocalDiffersFromRemote(t *testing.T) {
+	remote := []config.RemoteMacOSPref{
+		{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true"},
+	}
+	local := []snapshot.MacOSPref{
+		{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "false"},
+	}
+	changed := computeMacOSPrefDiff(remote, local)
+	require.Len(t, changed, 1)
+	assert.Equal(t, "true", changed[0].RemoteValue)
+	assert.Equal(t, "false", changed[0].LocalValue)
 }
 
 // ---- ComputeDiff (pure-logic path — no packages) ----
