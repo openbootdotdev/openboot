@@ -102,6 +102,14 @@ var DefaultCategories = []PrefCategory{
 		Prefs: []Preference{
 			{"com.apple.dock", "mru-spaces", "bool", "false", "Don't auto-rearrange Spaces based on recent use"},
 			{"com.apple.dock", "expose-group-apps", "bool", "true", "Group windows by application"},
+			{"com.apple.dock", "wvous-tl-corner", "int", "0", "Disable top-left hot corner"},
+			{"com.apple.dock", "wvous-tr-corner", "int", "0", "Disable top-right hot corner"},
+			{"com.apple.dock", "wvous-bl-corner", "int", "0", "Disable bottom-left hot corner"},
+			{"com.apple.dock", "wvous-br-corner", "int", "0", "Disable bottom-right hot corner"},
+			{"com.apple.dock", "wvous-tl-modifier", "int", "0", "No modifier key for top-left hot corner"},
+			{"com.apple.dock", "wvous-tr-modifier", "int", "0", "No modifier key for top-right hot corner"},
+			{"com.apple.dock", "wvous-bl-modifier", "int", "0", "No modifier key for bottom-left hot corner"},
+			{"com.apple.dock", "wvous-br-modifier", "int", "0", "No modifier key for bottom-right hot corner"},
 		},
 	},
 	{
