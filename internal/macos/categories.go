@@ -135,6 +135,15 @@ var DefaultCategories = []PrefCategory{
 			{"com.apple.screensaver", "askForPasswordDelay", "int", "0", "No delay before password required"},
 		},
 	},
+	{
+		Name: "Desktop & Stage Manager",
+		Icon: "🪟",
+		Prefs: []Preference{
+			// false → wallpaper click hides windows only while Stage Manager is active (macOS Sonoma+ default).
+			// true  → wallpaper click always reveals desktop (pre-Sonoma behaviour).
+			{"com.apple.WindowManager", "EnableStandardClickToShowDesktop", "bool", "false", "Click wallpaper to show desktop only in Stage Manager"},
+		},
+	},
 }
 
 // AllPrefsSelected returns a map with all default preferences set to true.
