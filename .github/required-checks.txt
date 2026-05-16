@@ -1,0 +1,15 @@
+# Source of truth for branch protection's required_status_checks.contexts on `main`.
+#
+# Changing this list is half of a two-part change: the other half is
+# `gh api -X PUT repos/openbootdotdev/openboot/branches/main/protection ...`
+# applied in the same PR. See docs/MERGE_POLICY.md for the canonical command.
+#
+# The `required-checks alignment (drift)` sensor in .github/workflows/harness.yml
+# verifies every line here maps to an actual job `name:` in the workflows.
+# Empty lines and `# comments` are ignored.
+
+lint
+unit (L1)
+contract schema (L2)
+curl|bash smoke
+old-cli compat
