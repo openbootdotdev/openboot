@@ -22,6 +22,7 @@ var (
 	updateIsHomebrewInstall  = updater.IsHomebrewInstall
 	updateGetLatestVersion   = updater.GetLatestVersion
 	updateDownloadAndReplace = updater.DownloadAndReplace
+	updateBrewUpgrade        = updater.BrewUpgrade
 	updateRollbackFn         = updater.Rollback
 	updateListBackupsFn      = updater.ListBackups
 	updateGetBackupDir       = updater.GetBackupDir
@@ -154,9 +155,16 @@ func runPinnedUpgrade(v string) error {
 
 func runLatestUpgrade() error {
 	if updateIsHomebrewInstall() {
-		ui.Warn("OpenBoot is managed by Homebrew.")
-		ui.Muted("Run 'brew upgrade openboot' to update.")
-		return fmt.Errorf("use 'brew upgrade openboot'")
+		if updateDryRun {
+			ui.Info("Dry-run: would run 'brew upgrade openboot'.")
+			return nil
+		}
+		ui.Info("Updating OpenBoot via Homebrew...")
+		if err := updateBrewUpgrade(); err != nil {
+			return fmt.Errorf("update failed: %w", err)
+		}
+		ui.Success("Update complete.")
+		return nil
 	}
 	if updateDryRun {
 		ui.Info("Dry-run: would check GitHub for the latest release and upgrade.")
