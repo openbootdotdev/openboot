@@ -44,12 +44,11 @@ Three regulation categories:
 | Arch. | `no-direct-exec` | L1 (`make test-unit`) | `internal/archtest/exec_test.go` |
 | Arch. | `no-raw-http` | L1 | `internal/archtest/http_test.go` |
 | Arch. | `no-os-getenv-home` | L1 | `internal/archtest/envhome_test.go` |
-| Behav. | L1 unit + contract | pre-push, CI | `make test-unit` |
-| Behav. | L2 integration (real brew/git/npm in temp dirs) | CI | `make test-integration` |
-| Behav. | L3 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
-| Behav. | L4 e2e binary | release | `make test-e2e` |
-| Behav. | L5 macOS e2e (`vm`) | release tags, manual dispatch | `make test-vm-release` |
-| Behav. | L6 destructive (real installs) | release tags, manual dispatch | `make test-destructive` |
+| Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
+| Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
+| Behav. | L3 e2e binary | release | `make test-e2e` |
+| Behav. | L4 macOS e2e (`vm`) | release tags, manual dispatch | `make test-vm-release` |
+| Behav. | L5 destructive (real installs) | release tags, manual dispatch | `make test-destructive` |
 | Behav. | curl\|bash smoke (install.sh + mock server) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
 | Feedfwd. | Agent conventions | every AI turn | `CLAUDE.md`, `AGENTS.md` |
@@ -70,7 +69,7 @@ When you observe a recurring issue, decide where to encode the fix:
 | "Agent keeps calling `exec.Command` from a feature package." | New entry in `execAllowedPaths` *or* refactor + update baseline. The rule itself is already in `internal/archtest`. |
 | "Agent doesn't know about preset X." | Update `internal/config/data/presets.yaml`. Source of truth, not docs. |
 | "Agent introduced a new lint failure that golangci-lint should have caught." | Enable the relevant linter in `.golangci.yml`. |
-| "Agent broke a behaviour that has no test." | Write the test at the right tier (usually L1 unit; L2 if it requires real subprocess). |
+| "Agent broke a behaviour that has no test." | Write the test at the right tier — L1 covers both faked-runner units in `internal/<pkg>/` and real-subprocess integration in `test/integration/`. |
 | "Agent missed a CLAUDE.md rule we keep restating." | Make it a hard or soft archtest rule (a docs rule that doesn't fail is a docs rule that drifts). |
 | "Agent did something safe but suboptimal." | Add to CLAUDE.md "Project-specific conventions" and consider whether it's encodable. |
 | "Agent guessed at an API contract." | Update `openboot-contract` repo + fixtures; CI already runs schema validation. |

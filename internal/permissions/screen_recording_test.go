@@ -5,7 +5,7 @@
 // binary with macOS TCC) and `open x-apple.systempreferences:...` (which
 // pops up System Settings) — both have real side effects and violate the
 // L1 "no real network, no real fork" contract. Coverage for the cgo path
-// belongs in L6 / manual verification.
+// belongs in L5 / manual verification.
 
 package permissions
 

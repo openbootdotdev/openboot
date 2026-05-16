@@ -64,9 +64,6 @@ jobs:
       - name: Unit tests
         run: make test-unit
 
-      - name: Integration tests
-        run: make test-integration
-
       - name: Destructive tests
         run: make test-destructive
 

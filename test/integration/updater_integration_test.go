@@ -1,5 +1,3 @@
-//go:build integration
-
 package integration
 
 import (
@@ -11,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openbootdotdev/openboot/internal/updater"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/updater"
 )
 
 func TestIntegration_Updater_IsHomebrewInstall(t *testing.T) {

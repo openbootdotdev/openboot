@@ -1,5 +1,3 @@
-//go:build integration
-
 package integration
 
 import (
@@ -13,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/snapshot"
 )
 
 // TestIntegration_SnapshotSaveLoad tests snapshot file I/O operations.

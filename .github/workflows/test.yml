@@ -74,27 +74,8 @@ jobs:
             coverage.html
           retention-days: 7
 
-  integration:
-    name: integration (L2)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
-      - name: Run integration tests
-        run: make test-integration
-
-      - name: Run destructive tests
-        if: ${{ inputs.run_destructive == true }}
-        run: make test-destructive
-
   contract:
-    name: contract schema (L3)
+    name: contract schema (L2)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -159,7 +140,7 @@ jobs:
         run: kill $(cat /tmp/mock-pid) 2>/dev/null || true
 
   macos-e2e:
-    name: macos e2e (L5)
+    name: macos e2e (L4)
     runs-on: macos-latest
     # Only on release tags or manual dispatch — these are slow and destructive.
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
@@ -175,6 +156,22 @@ jobs:
 
       - name: Run macOS E2E (release tier)
         run: make test-vm-release
+
+  destructive:
+    name: destructive (L5)
+    runs-on: macos-latest
+    if: ${{ inputs.run_destructive == true }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run destructive tests
+        run: make test-destructive
 
   cli-compat:
     name: old-cli compat

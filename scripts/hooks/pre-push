@@ -1,7 +1,8 @@
 #!/bin/sh
 #
-# pre-push: run the full L1 unit/contract suite before pushing.
-# Typical runtime: ~15s. Skips L2 integration and L3+ E2E — those run in CI.
+# pre-push: run the full L1 suite (unit + integration + contract) before pushing.
+# Typical runtime: ~75s. Skips L2+ E2E — those run in CI.
+# Requires brew / git / npm on PATH (read-only queries in temp dirs; no installs).
 #
 # To skip once:  git push --no-verify
 # To uninstall:  rm .git/hooks/pre-push
@@ -15,7 +16,7 @@ while read local_ref local_sha remote_ref remote_sha; do
 	fi
 done
 
-echo "→ go test ./... (L1: unit + contract)"
+echo "→ go test ./... (L1: unit + integration + contract)"
 go test -race -count=1 ./...
 
 exit 0

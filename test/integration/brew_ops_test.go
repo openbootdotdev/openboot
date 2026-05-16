@@ -1,13 +1,12 @@
-//go:build integration
-
 package integration
 
 import (
 	"testing"
 
-	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/openbootdotdev/openboot/internal/brew"
 )
 
 func TestIntegration_Brew_IsInstalled(t *testing.T) {
