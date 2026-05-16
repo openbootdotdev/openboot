@@ -1,6 +1,6 @@
 ---
 name: ship-pr
-description: Use when the user wants to open a pull request for the current branch — phrases like "open a PR", "ship this", "submit PR", "let's send it", "提 PR", "提个 MR". Walks through the canonical post-edit flow: push → open PR → wait for CI → review the diff → surface findings → user-confirmed manual merge → local cleanup. Trigger any time the user signals they're done editing and want the change on its way to main; do NOT trigger for `gh pr view` / status checks on existing PRs.
+description: Use when the user wants to open a pull request for the current branch — phrases like "open a PR", "ship this", "submit PR", "let's send it", "提 PR", "提个 MR". Walks through the canonical post-edit flow: push → open PR → wait for CI → review the diff → triage findings (self-fix small issues, escalate decisions to the user, merge directly when clean) → local cleanup. Trigger any time the user signals they're done editing and want the change on its way to main; do NOT trigger for `gh pr view` / status checks on existing PRs.
 ---
 
 # Ship a PR for openboot
@@ -128,22 +128,20 @@ Anything with a real choice or scope question:
 
 Surface the finding with the question made explicit; stop the flow.
 
+**Clean — proceed straight to merge.**
+If CI is green AND the diff review found nothing self-fixable AND
+nothing that needs user judgment, skip the "ask the user" step and
+merge directly. Asking when there is nothing to decide just burns the
+user's attention.
+
 **Rule of thumb:** would a thoughtful junior engineer file this as a
-question, or just push a follow-up commit? If question → escalate. If
-follow-up commit → fix yourself.
+question, push a follow-up commit, or just merge it? Escalate / fix /
+merge accordingly.
 
-### Step 7 — Hand the decision to the user
+### Step 7 — Merge
 
-Only reached when Step 6 produced no escalation. Surface:
-1. CI status — all required green.
-2. Review findings — clean (or list of nits the user might still want).
-3. The PR URL.
-
-Then **ask** whether to merge. Do not assume "clean review" means
-"merge now" — the user may want to sit on it, ask for a second pair of
-eyes, or batch with another change.
-
-### Step 8 — Merge (only after user confirms)
+Reached when Step 6 ended in "clean", OR when the user has explicitly
+approved a merge after an escalation.
 
 ```bash
 gh pr merge --squash --delete-branch
@@ -153,7 +151,12 @@ No `--auto`. No `--admin`. The branch-protection rules still apply — if
 something flipped red between Step 4 and now, GitHub will refuse and
 we'll loop back to Step 4.
 
-### Step 9 — Local cleanup
+Report the merge to the user as a one-liner ("PR #N merged, branch
+deleted, local cleaned up"). Do not ask for confirmation **before**
+merging on a clean review — the harness loop is supposed to close
+itself when there is nothing to decide.
+
+### Step 8 — Local cleanup
 
 After merge succeeds, the remote branch was deleted by `--delete-branch`.
 Bring local in sync:
@@ -166,7 +169,7 @@ git branch -d "$(git symbolic-ref --quiet --short @{-1} 2>/dev/null)"
 (`@{-1}` refers to the previously checked-out branch — the one we just
 merged.)
 
-If the user closes the session before reaching Step 9, the
+If the user closes the session before reaching Step 8, the
 [`session-start.sh`](../../hooks/session-start.sh) stale-branch sensor
 catches it on the next session and prints the same cleanup hint.
 
