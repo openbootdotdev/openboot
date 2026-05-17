@@ -62,19 +62,26 @@ func (r *ScrollRegion) DrawTop(lines []string) {
 // Cols returns the current terminal width.
 func (r *ScrollRegion) Cols() int { return r.cols }
 
+// write is the internal sink for ANSI control sequences. Terminal writes
+// are best-effort — a failed write to stdout is not recoverable and
+// silently dropping the error matches every other UI helper in this file.
+func (r *ScrollRegion) write(format string, args ...interface{}) {
+	_, _ = fmt.Fprintf(r.w, format, args...)
+}
+
 func (r *ScrollRegion) reserve() {
 	// Hide cursor, set scroll region from row (reserved+1) to last row,
 	// then move cursor into the scroll region.
-	fmt.Fprintf(r.w, "\x1b[?25l")
-	fmt.Fprintf(r.w, "\x1b[%d;%dr", r.reserved+1, r.rows)
-	fmt.Fprintf(r.w, "\x1b[%d;1H", r.reserved+1)
+	r.write("\x1b[?25l")
+	r.write("\x1b[%d;%dr", r.reserved+1, r.rows)
+	r.write("\x1b[%d;1H", r.reserved+1)
 }
 
 func (r *ScrollRegion) reset() {
 	// Reset scroll region, show cursor, move cursor to the bottom row.
-	fmt.Fprintf(r.w, "\x1b[r")
-	fmt.Fprintf(r.w, "\x1b[?25h")
-	fmt.Fprintf(r.w, "\x1b[%d;1H", r.rows)
+	r.write("\x1b[r")
+	r.write("\x1b[?25h")
+	r.write("\x1b[%d;1H", r.rows)
 }
 
 func (r *ScrollRegion) drawTop(lines []string) {
@@ -82,11 +89,11 @@ func (r *ScrollRegion) drawTop(lines []string) {
 		panic(fmt.Sprintf("scrollregion: %d lines exceed reserved %d", len(lines), r.reserved))
 	}
 	// DEC save cursor, draw each reserved row from top, restore.
-	fmt.Fprintf(r.w, "\x1b7")
+	r.write("\x1b7")
 	for i, line := range lines {
-		fmt.Fprintf(r.w, "\x1b[%d;1H\x1b[2K%s", i+1, line)
+		r.write("\x1b[%d;1H\x1b[2K%s", i+1, line)
 	}
-	fmt.Fprintf(r.w, "\x1b8")
+	r.write("\x1b8")
 }
 
 // IsScrollRegionSupported reports whether the current terminal can use the
@@ -94,7 +101,7 @@ func (r *ScrollRegion) drawTop(lines []string) {
 // stdout is not a TTY, or the terminal is too short.
 func IsScrollRegionSupported() bool {
 	_, h := terminalSize()
-	return isScrollRegionSupportedFor(os.Getenv("TERM"), h, term.IsTerminal(int(os.Stdout.Fd())))
+	return isScrollRegionSupportedFor(os.Getenv("TERM"), h, term.IsTerminal(int(os.Stdout.Fd()))) //nolint:gosec // os.Stdout.Fd() returns a valid file descriptor; uintptr fits in int on all supported platforms
 }
 
 func isScrollRegionSupportedFor(termEnv string, rows int, isTTY bool) bool {
@@ -111,7 +118,7 @@ func isScrollRegionSupportedFor(termEnv string, rows int, isTTY bool) bool {
 }
 
 func terminalSize() (cols, rows int) {
-	w, h, err := term.GetSize(int(os.Stdout.Fd()))
+	w, h, err := term.GetSize(int(os.Stdout.Fd())) //nolint:gosec // os.Stdout.Fd() returns a valid file descriptor; uintptr fits in int on all supported platforms
 	if err != nil || w <= 0 || h <= 0 {
 		return 80, 24
 	}
