@@ -87,7 +87,7 @@ This is the pattern that lets the fake-runner half of L1 stay fast and hermetic.
 | Pure logic + fakes | L1 | none | `<pkg>/<feature>_test.go` |
 | Real subprocess in temp dir | L1 | none | `test/integration/<feature>_integration_test.go` |
 | Compiled binary, no installs | L3 | `e2e` | `test/e2e/...` |
-| Real installs on macOS | L4/L5 | `e2e,vm,destructive` | `test/e2e/...` |
+| Real installs on macOS | L4 (VM) | `e2e,vm` | `test/e2e/...` |
 
 Default to faked-runner L1 unless the thing you're testing only exists when a real
 brew/git/npm is on the path — then add an integration test under `test/integration/`

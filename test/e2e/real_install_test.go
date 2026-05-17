@@ -1,4 +1,4 @@
-//go:build e2e && destructive
+//go:build e2e && vm
 
 package e2e
 

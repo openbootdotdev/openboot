@@ -24,7 +24,7 @@ not** use this for:
   `gh pr create --draft` and stop.
 - Changes to `.github/workflows/` or branch protection rules. Those need
   a human to also poke the GitHub UI.
-- Release tags (`v*.*.*`). Releases follow `make test-vm-release` first.
+- Release tags (`v*.*.*`). Releases follow `make test-vm` first (see CONTRIBUTING.md "VM E2E setup").
 
 ## The flow
 
