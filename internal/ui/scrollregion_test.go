@@ -16,6 +16,7 @@ func TestIsScrollRegionSupported(t *testing.T) {
 	}{
 		{"xterm-ghostty rows OK", "xterm-ghostty", 24, true},
 		{"xterm-256color rows OK", "xterm-256color", 24, true},
+		{"terminal exactly at threshold", "xterm-256color", 6, true},
 		{"dumb terminal", "dumb", 24, false},
 		{"empty TERM", "", 24, false},
 		{"terminal too short", "xterm-256color", 4, false},
@@ -23,7 +24,6 @@ func TestIsScrollRegionSupported(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("TERM", tt.term)
 			got := isScrollRegionSupportedFor(tt.term, tt.rows, true)
 			assert.Equal(t, tt.expected, got)
 		})
@@ -62,7 +62,6 @@ func TestScrollRegionDrawTopUsesSaveRestoreCursor(t *testing.T) {
 	r.drawTop([]string{"line one", "line two"})
 	out := buf.String()
 	// DEC save (\x1b7) before, DEC restore (\x1b8) after.
-	assert.True(t, len(out) > 0)
 	assert.Contains(t, out, "\x1b7")
 	assert.Contains(t, out, "\x1b8")
 	assert.Contains(t, out, "\x1b[1;1H")
