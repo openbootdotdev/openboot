@@ -26,9 +26,11 @@ func ParsePicks(raw string) map[string]bool {
 // ApplyPicks returns a copy of rc whose Packages, Casks, and Npm
 // slices contain only entries whose Name appears in picks. Taps,
 // dotfiles, shell, macOS prefs, post-install, and other fields are
-// passed through unchanged. Any names in picks that didn't match any
-// package are returned in unknown so the caller can fail fast (--pick)
-// or ignore (TUI, where picks come from rc itself).
+// passed through unchanged. Non-package fields are shallow-copied: do not
+// mutate Taps, PostInstall, MacOSPrefs, or Shell on the returned config.
+// Any names in picks that didn't match any package are returned in unknown
+// so the caller can fail fast (--pick) or ignore (TUI, where picks come
+// from rc itself).
 func ApplyPicks(rc *config.RemoteConfig, picks map[string]bool) (filtered *config.RemoteConfig, unknown []string) {
 	cp := *rc
 	cp.Packages = filterEntries(rc.Packages, picks)
