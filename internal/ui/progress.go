@@ -186,23 +186,6 @@ func (sp *StickyProgress) renderInline() {
 // formatLines returns the two strings to render in the scroll region:
 // row 1 = data + bar, row 2 = divider line.
 func (sp *StickyProgress) formatLines() []string {
-	pct := float64(0)
-	if sp.total > 0 {
-		pct = float64(sp.completed) / float64(sp.total)
-	}
-	cols := 80
-	if sp.region != nil {
-		cols = sp.region.Cols()
-	}
-	barWidth := cols - 40
-	if barWidth < 20 {
-		barWidth = 20
-	}
-	filled := int(pct * float64(barWidth))
-	empty := barWidth - filled
-	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
-		progressBgStyle.Render(strings.Repeat("░", empty))
-
 	var head string
 	switch sp.phase {
 	case PhaseCask:
@@ -210,6 +193,31 @@ func (sp *StickyProgress) formatLines() []string {
 	default:
 		head = sp.formatFormulaHead()
 	}
+
+	cols := 80
+	if sp.region != nil {
+		cols = sp.region.Cols()
+	}
+
+	// barWidth is whatever's left after head + " " + bar + " 100%" suffix.
+	// Clamp [minBarWidth, defaultBarWidth] so the bar stays readable on
+	// narrow terminals and doesn't dominate wide ones.
+	barWidth := cols - len(head) - 6
+	if barWidth < minBarWidth {
+		barWidth = minBarWidth
+	}
+	if barWidth > defaultBarWidth {
+		barWidth = defaultBarWidth
+	}
+
+	pct := float64(0)
+	if sp.total > 0 {
+		pct = float64(sp.completed) / float64(sp.total)
+	}
+	filled := int(pct * float64(barWidth))
+	empty := barWidth - filled
+	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
+		progressBgStyle.Render(strings.Repeat("░", empty))
 
 	line1 := fmt.Sprintf("%s %s %3d%%", head, bar, int(pct*100))
 	line2 := strings.Repeat("─", cols)
@@ -366,7 +374,7 @@ func (sp *StickyProgress) PrintLine(format string, args ...interface{}) {
 
 // Deprecated: scroll region keeps the bar visible during interactive
 // subprocess output, so callers no longer need to pause. Will be removed
-// in the brew_install.go wiring task.
+// once brew_install.go no longer calls these stubs.
 func (sp *StickyProgress) PauseForInteractive() {}
 
 // Deprecated: see PauseForInteractive.

@@ -161,9 +161,13 @@ func TestStickyProgressSpeedEMA(t *testing.T) {
 	// First sample: no speed yet (need two points).
 	sp.observeBytesAt(1_000_000, time.Unix(0, 0))
 	assert.InDelta(t, 0, sp.speed, 0.01)
-	// Second sample one second later: 1 MB more = 1 MB/s.
+	// Second sample one second later: 1 MB more = 1 MB/s, sets speed directly.
 	sp.observeBytesAt(2_000_000, time.Unix(1, 0))
 	assert.InDelta(t, 1_000_000, sp.speed, 1.0)
+	// Third sample: 500 KB more in 1s = 500 K/s instantaneous.
+	// EMA blends: 0.3*500_000 + 0.7*1_000_000 = 850_000.
+	sp.observeBytesAt(2_500_000, time.Unix(2, 0))
+	assert.InDelta(t, 850_000, sp.speed, 1.0)
 }
 
 func TestStickyProgressBytesETAUsesSpeed(t *testing.T) {
