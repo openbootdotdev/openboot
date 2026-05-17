@@ -1,0 +1,135 @@
+name: Auto Release
+
+# Sensor: when unreleased commits on main trip a threshold, automatically tag
+# the next version and dispatch release.yml. Closes the "agent forgot to cut
+# a release" loop — see docs/HARNESS.md.
+#
+# Triggers (any one fires):
+#   - >=5 feat/fix commits since last stable tag
+#   - >=7 days since last stable tag AND new commits exist
+#   - any fix: present (patch fast lane)
+#
+# Version bump:
+#   - any feat: present -> minor (X.Y+1.0)
+#   - else              -> patch (X.Y.Z+1)
+#
+# Why we dispatch release.yml instead of relying on the tag-push trigger:
+# GitHub deliberately suppresses workflow events fired by GITHUB_TOKEN, so a
+# tag pushed from here would NOT start release.yml. We push the tag and then
+# explicitly `gh workflow run release.yml -f version=<tag>`.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run: compute decision and exit without tagging.'
+        type: boolean
+        default: true
+
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  evaluate:
+    name: auto-release sensor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Decide
+        id: decide
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          last_tag=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname \
+            | grep -Ev -- '-(rc|beta|alpha)' \
+            | head -n1 || true)
+          if [ -z "$last_tag" ]; then
+            echo "::warning::no stable tag found — skipping auto-release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "last_tag=$last_tag"
+
+          commits=$(git log --format='%s' "${last_tag}..HEAD")
+          if [ -z "$commits" ]; then
+            echo "no commits since $last_tag — skip"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          feat_count=$(printf '%s\n' "$commits" | grep -cE '^feat(\(.+\))?!?:' || true)
+          fix_count=$(printf '%s\n' "$commits" | grep -cE '^fix(\(.+\))?!?:' || true)
+          combined=$((feat_count + fix_count))
+
+          last_ts=$(git log -1 --format=%ct "$last_tag")
+          now=$(date -u +%s)
+          days=$(( (now - last_ts) / 86400 ))
+
+          echo "feat=$feat_count fix=$fix_count combined=$combined days_since=$days"
+
+          reason=""
+          if [ "$combined" -ge 5 ]; then
+            reason="${combined} feat/fix commits since ${last_tag}"
+          elif [ "$days" -ge 7 ]; then
+            reason="${days} days since ${last_tag} with new commits"
+          elif [ "$fix_count" -ge 1 ]; then
+            reason="fix present (patch fast lane)"
+          else
+            echo "no threshold tripped — skip"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS='.' read -r major minor patch <<<"${last_tag#v}"
+          if [ "$feat_count" -ge 1 ]; then
+            minor=$((minor + 1))
+            patch=0
+            bump="minor"
+          else
+            patch=$((patch + 1))
+            bump="patch"
+          fi
+          new_tag="v${major}.${minor}.${patch}"
+          echo "decision: release ${new_tag} (${bump}) — ${reason}"
+
+          {
+            echo "release=true"
+            echo "new_tag=${new_tag}"
+            echo "bump=${bump}"
+            echo "reason=${reason}"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "${DRY_RUN:-false}" = "true" ]; then
+            echo "::notice::DRY_RUN — would tag ${new_tag} (${reason})"
+            echo "dry_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and dispatch release
+        if: steps.decide.outputs.release == 'true' && steps.decide.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.decide.outputs.new_tag }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_TAG" -m "Auto-release: $REASON"
+          git push origin "$NEW_TAG"
+          gh workflow run release.yml -f version="$NEW_TAG"
+          echo "::notice::tagged $NEW_TAG and dispatched release.yml — $REASON"

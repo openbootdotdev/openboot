@@ -51,6 +51,7 @@ Three regulation categories:
 | Behav. | L4 macOS e2e (`vm`) | release tags, manual dispatch | `make test-vm-release` |
 | Behav. | L5 destructive (real installs) | release tags, manual dispatch | `make test-destructive` |
 | Behav. | curl\|bash smoke (install.sh + mock server) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
+| Behav. | Auto-release sensor — tag + dispatch `release.yml` when unreleased commits trip a threshold (`>=5 feat/fix`, `>=7 days + new`, or any `fix:` for patch fast lane) | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
 | Feedfwd. | Agent conventions | every AI turn | `CLAUDE.md`, `AGENTS.md` |
 | Feedfwd. | Skills | model-loaded | `.claude/skills/*` |
@@ -75,6 +76,7 @@ When you observe a recurring issue, decide where to encode the fix:
 | "Agent did something safe but suboptimal." | Add to CLAUDE.md "Project-specific conventions" and consider whether it's encodable. |
 | "Agent guessed at an API contract." | Update `openboot-contract` repo + fixtures; CI already runs schema validation. |
 | "Agent's PR description was off." | Tighten `pull_request_template.md`. |
+| "Fixes and features piled up on `main` because nobody told an agent to cut a release." | Already handled: `.github/workflows/auto-release.yml` tags on threshold. Tune the thresholds there rather than re-introducing manual release cadence. |
 | "PR silently blocked because branch protection required a check the workflow no longer produces (rename / removal)." | Update `.github/required-checks.txt` in the same PR — the `required-checks alignment (drift)` sensor compares it against workflow job names. Then mirror the change to live protection via `gh api -X PUT .../protection` per `docs/MERGE_POLICY.md`. |
 
 Rule of thumb: **if you reach for a doc edit, ask first whether a test or
