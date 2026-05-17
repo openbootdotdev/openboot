@@ -219,6 +219,13 @@ func installCasksWithProgress(pkgs []string, sizes map[string]int64, progress *u
 		progress.SetCurrent(pkg)
 		progress.PrintLine("  Installing %s...", pkg)
 
+		// Seed totalBytes for this cask immediately so the head shows
+		// "0B/<size>" instead of "—" for the ~500ms before the cache
+		// tracker's first poll lands. Casks with unknown size pass 0 and
+		// the head's bytes column stays "—" (correct — we have nothing
+		// to show).
+		progress.SetCurrentBytes(0, sizes[pkg])
+
 		// Start tracker for this cask (skip if size unknown — no bar, just spinner).
 		// trackerDone closes only after the goroutine has emitted its final
 		// reading, so we never let a stale byte value bleed into the next cask.
