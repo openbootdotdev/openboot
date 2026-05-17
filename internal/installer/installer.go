@@ -72,24 +72,6 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 		st.OnlinePkgs = plan.OnlinePkgs
 	}
 
-	// Remote-config installs: show what will be installed and confirm before proceeding.
-	if plan.RemoteConfig != nil && !opts.Silent && !opts.DryRun {
-		ui.Info(fmt.Sprintf("Custom config: @%s/%s", plan.RemoteConfig.Username, plan.RemoteConfig.Slug))
-		fmt.Println()
-		printPackageList("CLI tools", plan.RemoteConfig.Packages)
-		printPackageList("Apps", plan.RemoteConfig.Casks)
-		printPackageList("npm", plan.RemoteConfig.Npm)
-		fmt.Println()
-		proceed, err := ui.Confirm("Install these packages?", true)
-		if err != nil {
-			return err
-		}
-		if !proceed {
-			return ErrUserCancelled
-		}
-		fmt.Println()
-	}
-
 	return Apply(plan, ConsoleReporter{})
 }
 
@@ -259,31 +241,6 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	fmt.Println()
 	ui.Header("Update Complete!")
 	return nil
-}
-
-func printPackageList(label string, pkgs config.PackageEntryList) {
-	if len(pkgs) == 0 {
-		return
-	}
-	hasDesc := false
-	for _, pkg := range pkgs {
-		if pkg.Desc != "" {
-			hasDesc = true
-			break
-		}
-	}
-	if !hasDesc {
-		ui.Muted(fmt.Sprintf("  %s: %s", label, strings.Join(pkgs.Names(), ", ")))
-		return
-	}
-	ui.Muted(fmt.Sprintf("  %s:", label))
-	for _, pkg := range pkgs {
-		if pkg.Desc != "" {
-			ui.Muted(fmt.Sprintf("    %s — %s", pkg.Name, pkg.Desc))
-		} else {
-			ui.Muted(fmt.Sprintf("    %s", pkg.Name))
-		}
-	}
 }
 
 func estimateInstallMinutes(formulaeCount, caskCount, npmCount int) int {

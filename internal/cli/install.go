@@ -14,6 +14,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
+	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
@@ -66,6 +67,7 @@ func init() {
 	installCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (no TTY prompts; for scripts and e2e)")
 	installCmd.Flags().BoolVar(&installCfg.DryRun, "dry-run", false, "preview changes without installing")
 	installCmd.Flags().BoolVar(&installCfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
+	installCmd.Flags().String("pick", "", "comma-separated list of package names to install from a remote config (silent and interactive); fails if any name is unknown")
 
 	installCmd.Flags().StringVar(&installCfg.Shell, "shell", "", "shell setup: install, skip")
 	installCmd.Flags().StringVar(&installCfg.Macos, "macos", "", "macOS preferences: configure, skip")
@@ -106,12 +108,36 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		}
 
 		if src.kind == sourceSyncSource {
-			return runSyncInstall(src.syncSource)
+			pickRaw, _ := cmd.Flags().GetString("pick")
+			return runSyncInstall(src.syncSource, pickRaw)
 		}
 
 		if err := applyInstallSource(src); err != nil {
 			return err
 		}
+	}
+
+	pickRaw, _ := cmd.Flags().GetString("pick")
+	if installCfg.RemoteConfig != nil {
+		if pickRaw != "" {
+			rc, perr := applyPickFlagToRemoteConfig(installCfg.RemoteConfig, pickRaw)
+			if perr != nil {
+				return perr
+			}
+			installCfg.RemoteConfig = rc
+		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
+			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
+			if err != nil {
+				return err
+			}
+			if !proceed {
+				ui.Info("Cancelled.")
+				return nil
+			}
+			installCfg.RemoteConfig = rc
+		}
+	} else if pickRaw != "" {
+		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
 	}
 
 	err := installer.Run(installCfg)
@@ -254,7 +280,7 @@ func applyInstallSource(src *installSource) error {
 // runSyncInstall is the flow when `openboot install` is called without args
 // and a sync source exists. It fetches the remote config, shows a diff, and
 // applies only the additions (install is add-only).
-func runSyncInstall(source *syncpkg.SyncSource) error {
+func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint:gocyclo // orchestrates --pick filter, dry-run, 3-way prompt, and customize TUI for the sync-source path; splitting would scatter the flow
 	printSyncSourceHeader(source)
 
 	var token string
@@ -284,6 +310,21 @@ func runSyncInstall(source *syncpkg.SyncSource) error {
 		return nil
 	}
 
+	if pickRaw != "" {
+		picks := ParsePicks(pickRaw)
+		additionsRC := remoteConfigFromSyncDiffAdditions(rc, diff)
+		_, unknown := ApplyPicks(additionsRC, picks)
+		if len(unknown) > 0 {
+			return fmt.Errorf("unknown package(s) in --pick (not in diff additions): %s", strings.Join(unknown, ", "))
+		}
+		diff = filterSyncDiffByPicks(diff, picks)
+		missingCount = diff.TotalMissing() + diff.TotalChanged()
+		if missingCount == 0 {
+			ui.Info("Nothing matched --pick — exiting.")
+			return nil
+		}
+	}
+
 	printInstallDiff(diff)
 
 	if installCfg.DryRun {
@@ -292,11 +333,33 @@ func runSyncInstall(source *syncpkg.SyncSource) error {
 	}
 
 	if !installCfg.Silent {
-		confirmed, err := ui.Confirm(fmt.Sprintf("Apply %d change(s) from %s?", missingCount, label), true)
+		choice, err := ui.SelectOption(
+			fmt.Sprintf("Apply %d change(s) from %s?", missingCount, label),
+			[]string{customizeChoiceAll, customizeChoiceCustomize, customizeChoiceCancel},
+		)
 		if err != nil {
-			return fmt.Errorf("confirm: %w", err)
+			return fmt.Errorf("prompt: %w", err)
 		}
-		if !confirmed {
+		switch choice {
+		case customizeChoiceAll:
+			// No filtering — the unmodified diff is used below.
+		case customizeChoiceCustomize:
+			additionsRC := remoteConfigFromSyncDiffAdditions(rc, diff)
+			picks, confirmed, err := ui.RunConfigCustomizer(additionsRC)
+			if err != nil {
+				return fmt.Errorf("customizer: %w", err)
+			}
+			if !confirmed {
+				ui.Info("Cancelled.")
+				return nil
+			}
+			diff = filterSyncDiffByPicks(diff, picks)
+			missingCount = diff.TotalMissing() + diff.TotalChanged()
+			if missingCount == 0 {
+				ui.Info("Nothing selected — exiting.")
+				return nil
+			}
+		case customizeChoiceCancel:
 			ui.Info("Cancelled.")
 			return nil
 		}
@@ -340,4 +403,109 @@ func printSyncSourceHeader(source *syncpkg.SyncSource) {
 		}
 	}
 	fmt.Println()
+}
+
+// applyPickFlagToRemoteConfig filters rc to the packages named in pickRaw.
+// Empty pickRaw is a no-op. Unknown names return an error listing them.
+func applyPickFlagToRemoteConfig(rc *config.RemoteConfig, pickRaw string) (*config.RemoteConfig, error) {
+	if pickRaw == "" {
+		return rc, nil
+	}
+	picks := ParsePicks(pickRaw)
+	filtered, unknown := ApplyPicks(rc, picks)
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("unknown package(s) in --pick: %s. Run with --dry-run to see available names", strings.Join(unknown, ", "))
+	}
+	return filtered, nil
+}
+
+const (
+	customizeChoiceAll       = "Install all"
+	customizeChoiceCustomize = "Customize (pick packages)"
+	customizeChoiceCancel    = "Cancel"
+)
+
+// remoteConfigFromSyncDiffAdditions returns a copy of rc trimmed to only the
+// items present in the diff's "missing" sets — i.e. what would be newly added
+// by this sync. Used to scope the customize TUI to the diff, not the whole
+// subscribed config.
+func remoteConfigFromSyncDiffAdditions(rc *config.RemoteConfig, diff *syncpkg.SyncDiff) *config.RemoteConfig {
+	pickSet := map[string]bool{}
+	for _, n := range diff.MissingFormulae {
+		pickSet[n] = true
+	}
+	for _, n := range diff.MissingCasks {
+		pickSet[n] = true
+	}
+	for _, n := range diff.MissingNpm {
+		pickSet[n] = true
+	}
+	filtered, _ := ApplyPicks(rc, pickSet)
+	return filtered
+}
+
+// filterSyncDiffByPicks returns a SyncDiff whose Missing* lists are restricted
+// to entries whose name is in picks. Non-package "Changed" categories (theme,
+// dotfiles, macOS prefs, shell) are preserved unchanged — picks are
+// package-only per the spec. MissingTaps is also preserved unchanged: taps
+// are dependencies of casks, not user-selectable items, so they ride along
+// with whatever picks the user makes. This means the post-filter
+// TotalMissing() count includes taps even when no picked package depends
+// on them — acceptable because Homebrew skips already-tapped repos quickly.
+func filterSyncDiffByPicks(diff *syncpkg.SyncDiff, picks map[string]bool) *syncpkg.SyncDiff {
+	out := *diff
+	out.MissingFormulae = filterStrings(diff.MissingFormulae, picks)
+	out.MissingCasks = filterStrings(diff.MissingCasks, picks)
+	out.MissingNpm = filterStrings(diff.MissingNpm, picks)
+	return &out
+}
+
+func filterStrings(in []string, keep map[string]bool) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if keep[s] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// promptCustomizeAndApply shows a 3-way prompt before installing from a remote
+// config. Returns the rc to install (possibly filtered by user's picks) and
+// whether the user wants to continue. When cancelled, returns (nil, false, nil).
+func promptCustomizeAndApply(rc *config.RemoteConfig) (*config.RemoteConfig, bool, error) {
+	fmt.Println()
+	ui.Info(fmt.Sprintf("→ %s/%s", rc.Username, rc.Slug))
+	ui.Muted(fmt.Sprintf("  CLI tools: %d", len(rc.Packages)))
+	ui.Muted(fmt.Sprintf("  Apps: %d", len(rc.Casks)))
+	if len(rc.Npm) > 0 {
+		ui.Muted(fmt.Sprintf("  npm: %d", len(rc.Npm)))
+	}
+	fmt.Println()
+
+	choice, err := ui.SelectOption(
+		fmt.Sprintf("Install %d packages?", len(rc.Packages)+len(rc.Casks)+len(rc.Npm)),
+		[]string{customizeChoiceAll, customizeChoiceCustomize, customizeChoiceCancel},
+	)
+	if err != nil {
+		return nil, false, fmt.Errorf("prompt: %w", err)
+	}
+
+	switch choice {
+	case customizeChoiceAll:
+		return rc, true, nil
+	case customizeChoiceCustomize:
+		picks, confirmed, err := ui.RunConfigCustomizer(rc)
+		if err != nil {
+			return nil, false, fmt.Errorf("customizer: %w", err)
+		}
+		if !confirmed {
+			return nil, false, nil
+		}
+		// Picks come from rc itself, so ApplyPicks's unknown list is always empty.
+		filtered, _ := ApplyPicks(rc, picks)
+		return filtered, true, nil
+	default: // Cancel
+		return nil, false, nil
+	}
 }
