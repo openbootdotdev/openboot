@@ -14,6 +14,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
+	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
@@ -123,9 +124,18 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 				return perr
 			}
 			installCfg.RemoteConfig = rc
+		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
+			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
+			if err != nil {
+				return err
+			}
+			if !proceed {
+				ui.Info("Cancelled.")
+				return nil
+			}
+			installCfg.RemoteConfig = rc
 		}
 	} else if pickRaw != "" {
-		// --pick requires a remote config (file / cloud / sync source).
 		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
 	}
 
@@ -369,4 +379,49 @@ func applyPickFlagToRemoteConfig(rc *config.RemoteConfig, pickRaw string) (*conf
 		return nil, fmt.Errorf("unknown package(s) in --pick: %s. Run with --dry-run to see available names", strings.Join(unknown, ", "))
 	}
 	return filtered, nil
+}
+
+const (
+	customizeChoiceAll       = "Install all"
+	customizeChoiceCustomize = "Customize (pick packages)"
+	customizeChoiceCancel    = "Cancel"
+)
+
+// promptCustomizeAndApply shows a 3-way prompt before installing from a remote
+// config. Returns the rc to install (possibly filtered by user's picks) and
+// whether the user wants to continue. When cancelled, returns (nil, false, nil).
+func promptCustomizeAndApply(rc *config.RemoteConfig) (*config.RemoteConfig, bool, error) {
+	fmt.Println()
+	ui.Info(fmt.Sprintf("→ %s/%s", rc.Username, rc.Slug))
+	ui.Muted(fmt.Sprintf("  CLI tools: %d", len(rc.Packages)))
+	ui.Muted(fmt.Sprintf("  Apps: %d", len(rc.Casks)))
+	if len(rc.Npm) > 0 {
+		ui.Muted(fmt.Sprintf("  npm: %d", len(rc.Npm)))
+	}
+	fmt.Println()
+
+	choice, err := ui.SelectOption(
+		fmt.Sprintf("Install %d packages?", len(rc.Packages)+len(rc.Casks)+len(rc.Npm)),
+		[]string{customizeChoiceAll, customizeChoiceCustomize, customizeChoiceCancel},
+	)
+	if err != nil {
+		return nil, false, fmt.Errorf("prompt: %w", err)
+	}
+
+	switch choice {
+	case customizeChoiceAll:
+		return rc, true, nil
+	case customizeChoiceCustomize:
+		picks, confirmed, err := ui.RunConfigCustomizer(rc)
+		if err != nil {
+			return nil, false, fmt.Errorf("customizer: %w", err)
+		}
+		if !confirmed {
+			return nil, false, nil
+		}
+		filtered, _ := ApplyPicks(rc, picks)
+		return filtered, true, nil
+	default: // Cancel
+		return nil, false, nil
+	}
 }

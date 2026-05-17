@@ -320,3 +320,10 @@ func TestApplyPickFlagToRemoteConfig_EmptyIsNoOp(t *testing.T) {
 	require.NoError(t, err)
 	assert.Same(t, rc, out)
 }
+
+func TestPromptCustomizeChoice_Constants(t *testing.T) {
+	// Verify the choice constants are distinct strings used by SelectOption.
+	assert.NotEqual(t, customizeChoiceAll, customizeChoiceCustomize)
+	assert.NotEqual(t, customizeChoiceAll, customizeChoiceCancel)
+	assert.NotEqual(t, customizeChoiceCustomize, customizeChoiceCancel)
+}

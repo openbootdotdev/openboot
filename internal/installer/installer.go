@@ -72,24 +72,6 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 		st.OnlinePkgs = plan.OnlinePkgs
 	}
 
-	// Remote-config installs: show what will be installed and confirm before proceeding.
-	if plan.RemoteConfig != nil && !opts.Silent && !opts.DryRun {
-		ui.Info(fmt.Sprintf("Custom config: @%s/%s", plan.RemoteConfig.Username, plan.RemoteConfig.Slug))
-		fmt.Println()
-		printPackageList("CLI tools", plan.RemoteConfig.Packages)
-		printPackageList("Apps", plan.RemoteConfig.Casks)
-		printPackageList("npm", plan.RemoteConfig.Npm)
-		fmt.Println()
-		proceed, err := ui.Confirm("Install these packages?", true)
-		if err != nil {
-			return err
-		}
-		if !proceed {
-			return ErrUserCancelled
-		}
-		fmt.Println()
-	}
-
 	return Apply(plan, ConsoleReporter{})
 }
 
