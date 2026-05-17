@@ -141,12 +141,48 @@ func TestStickyProgressSetCurrentDoesNotPanic(t *testing.T) {
 	})
 }
 
-func TestStickyProgressPauseResume(t *testing.T) {
-	sp := NewStickyProgress(5)
-	sp.mu.Lock()
-	sp.active = true
-	sp.mu.Unlock()
+func TestStickyProgressSetPhase(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	assert.Equal(t, PhaseCask, sp.phase)
+}
 
-	sp.PauseForInteractive()
-	assert.False(t, sp.active)
+func TestStickyProgressSetCurrentBytes(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	sp.SetCurrentBytes(50_000_000, 200_000_000)
+	assert.EqualValues(t, 50_000_000, sp.currentBytes)
+	assert.EqualValues(t, 200_000_000, sp.totalBytes)
+}
+
+func TestStickyProgressSpeedEMA(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	// First sample: no speed yet (need two points).
+	sp.observeBytesAt(1_000_000, time.Unix(0, 0))
+	assert.InDelta(t, 0, sp.speed, 0.01)
+	// Second sample one second later: 1 MB more = 1 MB/s.
+	sp.observeBytesAt(2_000_000, time.Unix(1, 0))
+	assert.InDelta(t, 1_000_000, sp.speed, 1.0)
+}
+
+func TestStickyProgressBytesETAUsesSpeed(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	sp.currentBytes = 100_000_000
+	sp.totalBytes = 500_000_000
+	sp.speed = 10_000_000 // 10 MB/s
+	eta := sp.estimateCurrentCaskETA()
+	// 400MB / 10 MB/s = 40s.
+	assert.Equal(t, "~40s", eta)
+}
+
+func TestStickyProgressEstimatingPlaceholder(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	sp.currentBytes = 0
+	sp.totalBytes = 100_000_000
+	sp.speed = 0
+	eta := sp.estimateCurrentCaskETA()
+	assert.Equal(t, "estimating...", eta)
 }

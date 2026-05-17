@@ -37,6 +37,14 @@ var (
 			Foreground(lipgloss.Color("#666"))
 )
 
+// Phase tracks whether the progress bar is in formula or cask mode.
+type Phase int
+
+const (
+	PhaseFormula Phase = iota
+	PhaseCask
+)
+
 type StickyProgress struct {
 	total      int
 	completed  int
@@ -53,6 +61,20 @@ type StickyProgress struct {
 	succeeded  int
 	failed     int
 	skipped    int
+
+	// Phase tracks whether we're installing formulae or casks. Cask phase
+	// switches to byte-based ETA when bytes are available.
+	phase Phase
+
+	// Cask-only: real-time download tracking.
+	currentBytes int64
+	totalBytes   int64
+	speed        float64 // bytes/sec, EMA
+	lastBytes    int64
+	lastTime     time.Time
+
+	// Scroll region rendering (nil when terminal doesn't support it).
+	region *ScrollRegion
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -91,6 +113,10 @@ func (sp *StickyProgress) Start() {
 	sp.mu.Lock()
 	sp.active = true
 	sp.startTime = time.Now()
+	if IsScrollRegionSupported() {
+		sp.region = NewScrollRegion(2)
+		sp.region.Start()
+	}
 	sp.mu.Unlock()
 
 	signal.Stop(sp.sigCh)
@@ -119,6 +145,16 @@ func (sp *StickyProgress) Start() {
 }
 
 func (sp *StickyProgress) render() {
+	if sp.region != nil {
+		sp.region.DrawTop(sp.formatLines())
+		return
+	}
+	sp.renderInline()
+}
+
+// renderInline is the existing inline-line rendering used when scroll region
+// is unavailable.
+func (sp *StickyProgress) renderInline() {
 	pct := float64(0)
 	if sp.total > 0 {
 		pct = float64(sp.completed) / float64(sp.total)
@@ -145,6 +181,137 @@ func (sp *StickyProgress) render() {
 		progressTextStyle.Render(status),
 		etaStyle.Render(eta),
 		currentPkgStyle.Render(pkgDisplay))
+}
+
+// formatLines returns the two strings to render in the scroll region:
+// row 1 = data + bar, row 2 = divider line.
+func (sp *StickyProgress) formatLines() []string {
+	pct := float64(0)
+	if sp.total > 0 {
+		pct = float64(sp.completed) / float64(sp.total)
+	}
+	cols := 80
+	if sp.region != nil {
+		cols = sp.region.Cols()
+	}
+	barWidth := cols - 40
+	if barWidth < 20 {
+		barWidth = 20
+	}
+	filled := int(pct * float64(barWidth))
+	empty := barWidth - filled
+	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
+		progressBgStyle.Render(strings.Repeat("░", empty))
+
+	var head string
+	switch sp.phase {
+	case PhaseCask:
+		head = sp.formatCaskHead()
+	default:
+		head = sp.formatFormulaHead()
+	}
+
+	line1 := fmt.Sprintf("%s %s %3d%%", head, bar, int(pct*100))
+	line2 := strings.Repeat("─", cols)
+	return []string{line1, line2}
+}
+
+func (sp *StickyProgress) formatFormulaHead() string {
+	pkg := truncate(sp.currentPkg, 24)
+	return fmt.Sprintf("[%d/%d] %-24s", sp.completed, sp.total, pkg)
+}
+
+func (sp *StickyProgress) formatCaskHead() string {
+	pkg := truncate(sp.currentPkg, 18)
+	bytes := "—"
+	speed := "—"
+	if sp.totalBytes > 0 {
+		bytes = fmt.Sprintf("%s/%s", humanBytes(sp.currentBytes), humanBytes(sp.totalBytes))
+	}
+	if sp.speed > 0 {
+		speed = fmt.Sprintf("%s/s", humanBytes(int64(sp.speed)))
+	}
+	eta := sp.estimateCurrentCaskETA()
+	if eta == "" {
+		eta = "—"
+	}
+	return fmt.Sprintf("[%d/%d] %-18s %s · %s · %s", sp.completed, sp.total, pkg, bytes, speed, eta)
+}
+
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1fG", float64(n)/(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%dM", n/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%dK", n/(1<<10))
+	default:
+		return fmt.Sprintf("%dB", n)
+	}
+}
+
+// SetPhase switches between formula and cask data displays. Per-cask byte
+// state is cleared on each transition.
+func (sp *StickyProgress) SetPhase(p Phase) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.phase = p
+	sp.currentBytes = 0
+	sp.totalBytes = 0
+	sp.speed = 0
+	sp.lastBytes = 0
+	sp.lastTime = time.Time{}
+}
+
+// SetCurrentBytes records progress for the currently-installing cask. The
+// total comes from a pre-flight HEAD on the cask URL; current comes from
+// polling the brew cache directory. Updates the EMA speed estimate.
+func (sp *StickyProgress) SetCurrentBytes(current, total int64) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.observeBytesAt(current, time.Now())
+	sp.totalBytes = total
+}
+
+// observeBytesAt is the testable inner loop of SetCurrentBytes (lets tests
+// inject a clock).
+func (sp *StickyProgress) observeBytesAt(current int64, now time.Time) {
+	if !sp.lastTime.IsZero() && current > sp.lastBytes {
+		dt := now.Sub(sp.lastTime).Seconds()
+		if dt > 0 {
+			instant := float64(current-sp.lastBytes) / dt
+			if sp.speed == 0 {
+				sp.speed = instant
+			} else {
+				// EMA with alpha=0.3 (favors recent samples, smooths jitter).
+				sp.speed = 0.3*instant + 0.7*sp.speed
+			}
+		}
+	}
+	sp.currentBytes = current
+	sp.lastBytes = current
+	sp.lastTime = now
+}
+
+func (sp *StickyProgress) estimateCurrentCaskETA() string {
+	if sp.speed <= 0 || sp.totalBytes <= 0 || sp.currentBytes >= sp.totalBytes {
+		if sp.totalBytes > 0 && sp.currentBytes < sp.totalBytes {
+			return "estimating..."
+		}
+		return ""
+	}
+	remaining := sp.totalBytes - sp.currentBytes
+	secs := float64(remaining) / sp.speed
+	if secs < 60 {
+		return fmt.Sprintf("~%ds", int(secs))
+	}
+	mins := int(secs) / 60
+	rem := int(secs) % 60
+	if rem == 0 {
+		return fmt.Sprintf("~%dm", mins)
+	}
+	return fmt.Sprintf("~%dm%ds", mins, rem)
 }
 
 func (sp *StickyProgress) SetCurrent(pkgName string) {
@@ -197,19 +364,13 @@ func (sp *StickyProgress) PrintLine(format string, args ...interface{}) {
 	}
 }
 
-func (sp *StickyProgress) PauseForInteractive() {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	sp.active = false
-	fmt.Printf("\r\033[K")
-}
+// Deprecated: scroll region keeps the bar visible during interactive
+// subprocess output, so callers no longer need to pause. Will be removed
+// in the brew_install.go wiring task.
+func (sp *StickyProgress) PauseForInteractive() {}
 
-func (sp *StickyProgress) ResumeAfterInteractive() {
-	sp.mu.Lock()
-	defer sp.mu.Unlock()
-	sp.active = true
-	sp.render()
-}
+// Deprecated: see PauseForInteractive.
+func (sp *StickyProgress) ResumeAfterInteractive() {}
 
 func (sp *StickyProgress) Finish() {
 	signal.Stop(sp.sigCh)
@@ -217,7 +378,12 @@ func (sp *StickyProgress) Finish() {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	sp.active = false
-	fmt.Printf("\r\033[K")
+	if sp.region != nil {
+		sp.region.Stop()
+		sp.region = nil
+	} else {
+		fmt.Printf("\r\033[K")
+	}
 
 	elapsed := time.Since(sp.startTime)
 
