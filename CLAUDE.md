@@ -10,6 +10,10 @@ Core flow: `openboot install` runs a 7-step wizard in `internal/installer/instal
 For full contribution guide (test layering L1–L5, Runner interface, hook setup) see @CONTRIBUTING.md.
 For AI agents: @AGENTS.md indexes invariants enforced by `internal/archtest`; @docs/HARNESS.md is the steering meta-doc for where to encode new rules.
 
+## Working in parallel
+
+This repo is often worked on from multiple concurrent terminals / agent sessions. Default to `git worktree add ../openboot-<topic> -b <branch>` rather than juggling branches in a single checkout — two sessions racing on the same working tree corrupts state (mid-edit files, half-staged diffs, hooks firing against the wrong branch). One worktree per concurrent task; remove it with `git worktree remove` when the PR merges.
+
 ## Commands
 
 ```bash
