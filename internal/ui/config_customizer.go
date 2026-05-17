@@ -140,7 +140,7 @@ func (m ConfigCustomizerModel) View() string {
 				selectedCount++
 			}
 		}
-		label := fmt.Sprintf("%s (%d/%d)", tab.name, selectedCount, len(tab.items))
+		label := fmt.Sprintf("%s %s (%d/%d)", tab.icon, tab.name, selectedCount, len(tab.items))
 		if i == m.activeTab {
 			tabParts = append(tabParts, activeTabStyle.Render(label))
 		} else {
