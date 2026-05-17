@@ -342,7 +342,7 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error {
 		}
 		switch choice {
 		case customizeChoiceAll:
-			// fall through, build plan from full diff below
+			// No filtering — the unmodified diff is used below.
 		case customizeChoiceCustomize:
 			additionsRC := remoteConfigFromSyncDiffAdditions(rc, diff)
 			picks, confirmed, err := ui.RunConfigCustomizer(additionsRC)
@@ -447,7 +447,11 @@ func remoteConfigFromSyncDiffAdditions(rc *config.RemoteConfig, diff *syncpkg.Sy
 // filterSyncDiffByPicks returns a SyncDiff whose Missing* lists are restricted
 // to entries whose name is in picks. Non-package "Changed" categories (theme,
 // dotfiles, macOS prefs, shell) are preserved unchanged — picks are
-// package-only per the spec.
+// package-only per the spec. MissingTaps is also preserved unchanged: taps
+// are dependencies of casks, not user-selectable items, so they ride along
+// with whatever picks the user makes. This means the post-filter
+// TotalMissing() count includes taps even when no picked package depends
+// on them — acceptable because Homebrew skips already-tapped repos quickly.
 func filterSyncDiffByPicks(diff *syncpkg.SyncDiff, picks map[string]bool) *syncpkg.SyncDiff {
 	out := *diff
 	out.MissingFormulae = filterStrings(diff.MissingFormulae, picks)

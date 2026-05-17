@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 )
 
 func TestApplyEnvOverrides_SilentMode(t *testing.T) {
@@ -326,4 +327,71 @@ func TestPromptCustomizeChoice_Constants(t *testing.T) {
 	assert.NotEqual(t, customizeChoiceAll, customizeChoiceCustomize)
 	assert.NotEqual(t, customizeChoiceAll, customizeChoiceCancel)
 	assert.NotEqual(t, customizeChoiceCustomize, customizeChoiceCancel)
+}
+
+func TestFilterStrings(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		keep map[string]bool
+		want []string
+	}{
+		{"empty input", nil, map[string]bool{"a": true}, []string{}},
+		{"empty keep", []string{"a", "b"}, map[string]bool{}, []string{}},
+		{"partial match", []string{"a", "b", "c"}, map[string]bool{"a": true, "c": true}, []string{"a", "c"}},
+		{"preserves order", []string{"c", "a", "b"}, map[string]bool{"a": true, "b": true, "c": true}, []string{"c", "a", "b"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterStrings(tt.in, tt.keep)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFilterSyncDiffByPicks_FiltersMissingLists(t *testing.T) {
+	d := &syncpkg.SyncDiff{
+		MissingFormulae: []string{"git", "jq", "ripgrep"},
+		MissingCasks:    []string{"docker", "vscode"},
+		MissingNpm:      []string{"typescript"},
+		MissingTaps:     []string{"homebrew/cask-fonts"},
+	}
+	out := filterSyncDiffByPicks(d, map[string]bool{"git": true, "docker": true})
+	assert.Equal(t, []string{"git"}, out.MissingFormulae)
+	assert.Equal(t, []string{"docker"}, out.MissingCasks)
+	assert.Empty(t, out.MissingNpm)
+}
+
+func TestFilterSyncDiffByPicks_PreservesTapsUnchanged(t *testing.T) {
+	// Taps are dependencies — they're not user-selectable but must still be
+	// installed when picked formulae/casks depend on them.
+	d := &syncpkg.SyncDiff{
+		MissingFormulae: []string{"git"},
+		MissingTaps:     []string{"homebrew/cask-fonts", "cirruslabs/cli"},
+	}
+	out := filterSyncDiffByPicks(d, map[string]bool{"git": true})
+	assert.Equal(t, d.MissingTaps, out.MissingTaps)
+}
+
+func TestRemoteConfigFromSyncDiffAdditions_ScopesToAdditions(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Packages: config.PackageEntryList{
+			{Name: "git"}, {Name: "jq"}, {Name: "ripgrep"},
+		},
+		Casks: config.PackageEntryList{
+			{Name: "docker"}, {Name: "vscode"},
+		},
+		Npm: config.PackageEntryList{
+			{Name: "typescript"},
+		},
+	}
+	d := &syncpkg.SyncDiff{
+		MissingFormulae: []string{"git", "ripgrep"},
+		MissingCasks:    []string{"vscode"},
+		MissingNpm:      []string{},
+	}
+	out := remoteConfigFromSyncDiffAdditions(rc, d)
+	assert.Equal(t, []string{"git", "ripgrep"}, out.Packages.Names())
+	assert.Equal(t, []string{"vscode"}, out.Casks.Names())
+	assert.Empty(t, out.Npm)
 }
