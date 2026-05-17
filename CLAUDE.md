@@ -79,6 +79,7 @@ scripts/
 | Add package category | `openboot.dev/src/lib/package-metadata.ts` | Server is source of truth; CLI fetches `/api/packages` and caches 24h in `~/.openboot/packages-cache.json`. `data/packages.yaml` is fallback only. |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |
 | Change brew behavior | `internal/brew/brew.go` + `brew_install.go` | Parallel workers, StickyProgress, Uninstall/UninstallCask |
+| Cask download progress | `internal/brew/cache.go` + `internal/brew/sizecheck.go` | HEAD pre-fetch → poll `brew --cache` for bytes; consumed by `installCasksWithProgress` |
 | Add snapshot data | `internal/snapshot/capture.go` | Extend `CaptureWithProgress` steps |
 | Update self-update | `internal/updater/updater.go` | `AutoUpgrade()` called from `root.go` RunE |
 | Change publish flow | `internal/cli/snapshot_publish.go` (`publishSnapshot`) | Slug resolution |
