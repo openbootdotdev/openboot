@@ -63,7 +63,7 @@ func init() {
 	installCmd.Flags().StringVarP(&installCfg.Preset, "preset", "p", "", "use a preset: minimal, developer, full")
 	installCmd.Flags().StringVarP(&installCfg.User, "user", "u", "", "install from an alias or openboot.dev/username/slug config")
 	installCmd.Flags().String("from", "", "install from a local config or snapshot JSON file")
-	installCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (for CI/CD)")
+	installCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (no TTY prompts; for scripts and e2e)")
 	installCmd.Flags().BoolVar(&installCfg.DryRun, "dry-run", false, "preview changes without installing")
 	installCmd.Flags().BoolVar(&installCfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
 

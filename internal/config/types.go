@@ -15,7 +15,7 @@ type Config struct {
 	Preset           string // -p / OPENBOOT_PRESET
 	User             string // -u / OPENBOOT_USER
 	DryRun           bool   // --dry-run
-	Silent           bool   // -s / CI mode
+	Silent           bool   // -s / non-interactive: no TTY prompts (scripts, e2e)
 	PackagesOnly     bool   // --packages-only
 	Update           bool   // --update
 	Shell            string // --shell (install|skip)
