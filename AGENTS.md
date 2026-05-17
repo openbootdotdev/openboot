@@ -7,7 +7,7 @@ human, you probably want [README.md](README.md) or [CONTRIBUTING.md](CONTRIBUTIN
 
 - **[CLAUDE.md](CLAUDE.md)** — project conventions and where-to-look table.
   Treat this as authoritative; this file is a summary index for agents.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — test layering L1–L5, Runner
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — test layering L1–L4, Runner
   interface, hook setup.
 - **[docs/HARNESS.md](docs/HARNESS.md)** — the steering meta-doc: when a
   class of issue recurs, which file do you edit to prevent it next time.
@@ -81,7 +81,7 @@ These are loaded automatically when Claude runs in this repo.
 - `git push --force` against `main` or release tags.
 - `git commit --amend` on commits already pushed.
 - `git reset --hard` discarding uncommitted work.
-- Running `make test-destructive` or `make test-vm-*` outside an ephemeral
+- Running `make test-vm` (or any other `test-vm-*` target) outside an ephemeral
   VM — these install real packages.
 - Anything that modifies the user's `~/.zshrc`, Homebrew install, or
   macOS `defaults`.
