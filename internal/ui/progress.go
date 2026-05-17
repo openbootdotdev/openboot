@@ -372,14 +372,6 @@ func (sp *StickyProgress) PrintLine(format string, args ...interface{}) {
 	}
 }
 
-// Deprecated: scroll region keeps the bar visible during interactive
-// subprocess output, so callers no longer need to pause. Will be removed
-// once brew_install.go no longer calls these stubs.
-func (sp *StickyProgress) PauseForInteractive() {}
-
-// Deprecated: see PauseForInteractive.
-func (sp *StickyProgress) ResumeAfterInteractive() {}
-
 func (sp *StickyProgress) Finish() {
 	signal.Stop(sp.sigCh)
 	sp.closeOnce.Do(func() { close(sp.stopCh) })
