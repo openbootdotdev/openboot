@@ -31,12 +31,12 @@ func TestParsePicks(t *testing.T) {
 
 func sampleRemoteConfig() *config.RemoteConfig {
 	return &config.RemoteConfig{
-		Username: "alice",
-		Slug:     "dev",
-		Packages: config.PackageEntryList{{Name: "git"}, {Name: "jq"}, {Name: "ripgrep"}},
-		Casks:    config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "docker"}},
-		Npm:      config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
-		Taps:     []string{"homebrew/cask-fonts"},
+		Username:     "alice",
+		Slug:         "dev",
+		Packages:     config.PackageEntryList{{Name: "git"}, {Name: "jq"}, {Name: "ripgrep"}},
+		Casks:        config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "docker"}},
+		Npm:          config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
+		Taps:         []string{"homebrew/cask-fonts"},
 		DotfilesRepo: "https://github.com/alice/dotfiles",
 		PostInstall:  []string{"echo done"},
 	}

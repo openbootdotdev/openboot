@@ -280,7 +280,7 @@ func applyInstallSource(src *installSource) error {
 // runSyncInstall is the flow when `openboot install` is called without args
 // and a sync source exists. It fetches the remote config, shows a diff, and
 // applies only the additions (install is add-only).
-func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error {
+func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint:gocyclo // orchestrates --pick filter, dry-run, 3-way prompt, and customize TUI for the sync-source path; splitting would scatter the flow
 	printSyncSourceHeader(source)
 
 	var token string
