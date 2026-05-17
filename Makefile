@@ -1,5 +1,5 @@
-.PHONY: test-unit test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
-       test-vm test-vm-run test-vm-quick test-vm-release test-vm-full \
+.PHONY: test-unit test-e2e test-coverage test-all \
+       test-vm test-vm-run test-vm-inner test-vm-inner-run \
        install-hooks uninstall-hooks
 
 BINARY_NAME=openboot
@@ -18,16 +18,6 @@ lint:
 test-e2e: build
 	go test -v -tags=e2e -short ./...
 
-test-destructive: build
-	go test -v -timeout 15m -tags="e2e,destructive" ./...
-
-test-smoke: build
-	go test -v -timeout 20m -tags="e2e,destructive,smoke" -run TestSmoke ./...
-
-# test-smoke-prebuilt: like test-smoke but skips build (uses pre-built binary in PATH or ./openboot)
-test-smoke-prebuilt:
-	go test -v -timeout 20m -tags="e2e,destructive,smoke" -run TestSmoke ./...
-
 test-coverage:
 	go test -v -timeout 5m -coverprofile=$(COVERAGE_FILE) ./...
 	go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML)
@@ -39,36 +29,28 @@ test-all:
 	$(MAKE) test-coverage
 
 # =============================================================================
-# Destructive macOS E2E tests — three levels
+# Tart VM e2e — destructive tests run inside a throwaway Tart VM provisioned
+# by scripts/vm/run.sh. The 12 files in test/e2e/ run via the `e2e,vm` build
+# tag; the VM driver SSHs in and invokes `make test-vm-inner`.
+#
+# Requires Apple Silicon + Tart installed locally. See scripts/vm/README.md
+# for one-time setup. The relevant targets are defined immediately below
+# this header: test-vm, test-vm-run, test-vm-inner, test-vm-inner-run.
 # =============================================================================
-#
-# These tests install real packages and modify ~/.zshrc / macOS defaults on
-# the host they run on. They are intended for ephemeral macOS CI runners
-# (GitHub Actions macos-latest) or a throwaway VM.
-#
-# On a developer machine `go test -tags="e2e,vm"` will skip unless you set
-# OPENBOOT_E2E_DESTRUCTIVE=1 (see testutil/machost.go). Don't set that
-# unless you mean it.
 
-# L1: Quick sanity (~1min) — host/arch checks only, no package installs
-test-vm-quick: build
-	go test -v -timeout 5m -tags="e2e,vm" -run "TestVM_Infra" ./test/e2e/...
+# Developer-facing: provisions a Tart VM and runs the full e2e suite inside.
+test-vm: build
+	scripts/vm/run.sh test-vm-inner
 
-# L2: Release validation (~20min) — core user journeys
-test-vm-release: build
-	go test -v -timeout 30m -tags="e2e,vm" \
-	  -run "TestVM_Infra|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Journey_FirstTimeUser|TestVM_Journey_FullSetupConfiguresEverything|TestE2E_DryRunMinimal|TestE2E_SnapshotCapture" \
-	  ./test/e2e/...
-
-# L3: Full validation (~60min) — everything under -tags="e2e,vm"
-test-vm-full: build
-	go test -v -timeout 90m -tags="e2e,vm" ./test/e2e/...
-
-# Aliases
-test-vm: test-vm-release
-
-# Single test by name (e.g. make test-vm-run TEST=TestVM_Journey_DryRunIsCompletelySafe)
+# Developer-facing: runs one named test inside a Tart VM.
 test-vm-run: build
+	scripts/vm/run.sh "test-vm-inner-run TEST=$(TEST)"
+
+# In-VM: invoked over SSH by run.sh — not called by developers directly.
+test-vm-inner:
+	go test -v -timeout 60m -tags="e2e,vm" ./test/e2e/...
+
+test-vm-inner-run:
 	go test -v -timeout 45m -tags="e2e,vm" -run $(TEST) ./test/e2e/...
 
 build:

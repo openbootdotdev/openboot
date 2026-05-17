@@ -30,21 +30,42 @@ See [issues labeled `good first issue`](https://github.com/openbootdotdev/openbo
 
 ## Test Layering
 
-Tests are split across five tiers. Which one runs where:
+Tests are split across four tiers. Which one runs where:
 
 | Tier | What | How to run | When it runs |
 |------|------|------------|--------------|
 | **L1 Unit + Integration + Contract** | Pure-Go logic with faked `Runner` *plus* real `brew` / `git` / `npm` against temp dirs and real `httptest` servers | `make test-unit` (~75s) | Every push (pre-push hook); CI on push/PR |
 | **L2 Contract schema** | JSON schema validation against [openboot-contract](https://github.com/openbootdotdev/openboot-contract) | (runs in CI only) | CI on push/PR |
 | **L3 E2E binary** | Compiled binary driven by scripts; `-tags=e2e` | `make test-e2e` | CI on release |
-| **L4 Destructive macOS** | Runs against a real macOS host (installs packages, modifies `~/.zshrc`, writes `defaults`) | `make test-vm-quick` / `test-vm-release` / `test-vm-full` — requires `CI=true` or `OPENBOOT_E2E_DESTRUCTIVE=1` | GH Actions `macos-latest` on release tags + manual dispatch |
-| **L5 Destructive** | Actually installs real packages into a real system | `make test-destructive` / `test-smoke` | CI on release, plus manual `workflow_dispatch` |
+| **L4 VM e2e** | Full destructive suite (`-tags="e2e,vm"`) runs inside an ephemeral Tart VM provisioned by `scripts/vm/run.sh`. Installs real packages, modifies `~/.zshrc`, writes `defaults` — all contained to the throwaway VM. | `make test-vm` (~30 min, Apple Silicon + Tart required) | **Local only** — convention is to run before tagging a release. No CI gate. |
 
 Rules of thumb:
 
 - **Local dev:** run nothing manually if hooks are installed. `make test-unit` on demand when you want a sanity check. Skip L2+ unless you're cutting a release.
 - **Before pushing:** `make test-unit` (the pre-push hook does this automatically). Requires `brew` / `git` / `npm` on PATH — they are queried read-only against temp dirs, no real installs.
-- **Before tagging a release:** trigger the `macos-e2e` job via GitHub Actions (manual dispatch or tag push). To run locally on a throwaway macOS machine: `OPENBOOT_E2E_DESTRUCTIVE=1 make test-vm-release`.
+- **Before tagging a release (convention, not enforced):** `make test-vm` on an Apple Silicon Mac with Tart installed. See [VM E2E setup](#vm-e2e-setup) below. `auto-release.yml` opens a `release-ready` issue on `feat:` thresholds to nudge you here.
+
+## VM E2E setup
+
+Destructive tests (L4) run inside an ephemeral Tart VM. One-time setup
+on an Apple Silicon Mac:
+
+```bash
+brew install cirruslabs/cli/tart
+tart pull ghcr.nju.edu.cn/cirruslabs/macos-tahoe-base:latest
+tart clone ghcr.nju.edu.cn/cirruslabs/macos-tahoe-base:latest macos-tahoe-base
+```
+
+Then:
+
+```bash
+make test-vm                                         # full suite (~30 min)
+make test-vm-run TEST=TestVM_Journey_FirstTimeUser   # one test
+OPENBOOT_VM_KEEP=1 make test-vm                      # don't destroy VM at exit (debug)
+```
+
+See `scripts/vm/README.md` for full environment-variable docs and
+troubleshooting.
 
 ## Git Hooks
 

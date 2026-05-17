@@ -1,8 +1,8 @@
 name: Auto Release
 
-# Sensor: when unreleased commits on main trip a threshold, automatically tag
-# the next version and dispatch release.yml. Closes the "agent forgot to cut
-# a release" loop — see docs/HARNESS.md.
+# Sensor: when unreleased commits on main trip a threshold, either auto-tag
+# (patch fast lane) or open a release-ready issue (feat threshold).
+# See docs/HARNESS.md.
 #
 # Triggers (any one fires):
 #   - >=5 feat/fix commits since last stable tag
@@ -10,13 +10,18 @@ name: Auto Release
 #   - any fix: present (patch fast lane)
 #
 # Version bump:
-#   - any feat: present -> minor (X.Y+1.0)
-#   - else              -> patch (X.Y.Z+1)
+#   - any feat: present -> minor (X.Y+1.0) — opens issue, does NOT tag
+#   - else              -> patch (X.Y.Z+1) — auto-tags + dispatches release.yml
 #
-# Why we dispatch release.yml instead of relying on the tag-push trigger:
-# GitHub deliberately suppresses workflow events fired by GITHUB_TOKEN, so a
-# tag pushed from here would NOT start release.yml. We push the tag and then
-# explicitly `gh workflow run release.yml -f version=<tag>`.
+# Why the split: feat: changes carry more risk than fix: patches and benefit
+# from a human running the local Tart VM e2e suite before tag. The issue is
+# a nudge, not a hard gate — a human can tag without running it.
+#
+# Why we dispatch release.yml on patch instead of relying on the tag-push
+# trigger: GitHub deliberately suppresses workflow events fired by
+# GITHUB_TOKEN, so a tag pushed from here would NOT start release.yml.
+# We push the tag and then explicitly
+# `gh workflow run release.yml -f version=<tag>`.
 
 on:
   push:
@@ -35,6 +40,7 @@ concurrency:
 permissions:
   contents: write
   actions: write
+  issues: write
 
 jobs:
   evaluate:
@@ -119,8 +125,11 @@ jobs:
             echo "dry_run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Tag and dispatch release
-        if: steps.decide.outputs.release == 'true' && steps.decide.outputs.dry_run != 'true'
+      - name: Tag and dispatch release (patch fast lane)
+        if: |
+          steps.decide.outputs.release == 'true'
+          && steps.decide.outputs.dry_run != 'true'
+          && steps.decide.outputs.bump == 'patch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_TAG: ${{ steps.decide.outputs.new_tag }}
@@ -133,3 +142,52 @@ jobs:
           git push origin "$NEW_TAG"
           gh workflow run release.yml -f version="$NEW_TAG"
           echo "::notice::tagged $NEW_TAG and dispatched release.yml — $REASON"
+
+      - name: Open release-ready issue (feat threshold)
+        if: |
+          steps.decide.outputs.release == 'true'
+          && steps.decide.outputs.dry_run != 'true'
+          && steps.decide.outputs.bump == 'minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.decide.outputs.new_tag }}
+          REASON: ${{ steps.decide.outputs.reason }}
+        run: |
+          set -euo pipefail
+
+          # If an open release-ready issue already exists for this tag, skip
+          # (we don't want to spam the queue every push to main).
+          existing=$(gh issue list \
+            --label release-ready \
+            --state open \
+            --search "in:title ${NEW_TAG}" \
+            --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            echo "::notice::release-ready issue #${existing} already open for ${NEW_TAG} — skipping"
+            exit 0
+          fi
+
+          body=$(cat <<EOF
+          Auto-release sensor wants to cut **${NEW_TAG}** (minor bump).
+
+          **Why:** ${REASON}
+
+          Because this release includes \`feat:\` changes, the sensor did
+          **not** auto-tag. Run the destructive e2e suite locally, then
+          cut the release manually:
+
+          - [ ] \`make test-vm\` passes (Apple Silicon + Tart required — see scripts/vm/README.md)
+          - [ ] sanity-check the curl|bash smoke and cli-compat results in the most recent test.yml run on main
+          - [ ] \`git tag -a ${NEW_TAG} -m "..."\` and \`git push origin ${NEW_TAG}\`
+          - [ ] close this issue
+
+          Skipping \`make test-vm\` is allowed (it is not a hard gate),
+          but \`feat:\` changes carry more risk than \`fix:\` patches.
+          EOF
+          )
+
+          gh issue create \
+            --title "Release ready: ${NEW_TAG}" \
+            --label release-ready \
+            --body "$body"
+          echo "::notice::opened release-ready issue for ${NEW_TAG} — ${REASON}"

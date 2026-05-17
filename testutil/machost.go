@@ -1,11 +1,14 @@
 //go:build e2e && vm
 
-// MacHost runs destructive openboot E2E tests directly against the current
-// macOS host — no Tart VM, no SSH. It's intended for ephemeral CI runners
-// (GitHub Actions macos-latest) that can be thrown away after the run.
+// MacHost runs destructive openboot E2E tests directly against the
+// current macOS host — typically an ephemeral Tart VM provisioned by
+// scripts/vm/run.sh. The driver SSHs in, rsyncs the source, and invokes
+// `make test-vm-inner`; MacHost then executes commands against the VM
+// it's already running inside.
 //
-// A host refuses to activate unless CI=true or OPENBOOT_E2E_DESTRUCTIVE=1
-// is set, so `go test -tags="e2e,vm"` on a developer machine is a no-op
+// A host refuses to activate unless OPENBOOT_IN_VM=1 (set by run.sh) or
+// the legacy CI=true / OPENBOOT_E2E_DESTRUCTIVE=1 envs are set — so
+// `go test -tags="e2e,vm"` on a bare developer machine is a no-op
 // rather than a foot-gun.
 
 package testutil
@@ -91,7 +94,6 @@ func (h *MacHost) RunInteractive(command string, steps []ExpectStep, timeoutSec 
 }
 
 // CopyFile copies a local file to a destination path on the same host.
-// Preserved for API compatibility with the old Tart-based helper.
 func (h *MacHost) CopyFile(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -112,10 +114,13 @@ func shellescape(s string) string {
 
 func requireEphemeralHost(t *testing.T) {
 	t.Helper()
+	if os.Getenv("OPENBOOT_IN_VM") == "1" {
+		return
+	}
 	if os.Getenv("CI") == "true" || os.Getenv("OPENBOOT_E2E_DESTRUCTIVE") == "1" {
 		return
 	}
-	t.Skip("destructive macOS E2E tests require CI=true or OPENBOOT_E2E_DESTRUCTIVE=1")
+	t.Skip("destructive macOS E2E tests require running inside scripts/vm/run.sh (or set OPENBOOT_E2E_DESTRUCTIVE=1)")
 }
 
 func requireMacOS(t *testing.T) {
