@@ -66,12 +66,20 @@ type StickyProgress struct {
 	// switches to byte-based ETA when bytes are available.
 	phase Phase
 
-	// Cask-only: real-time download tracking.
+	// Cask-only: real-time download tracking for the current cask.
 	currentBytes int64
 	totalBytes   int64
 	speed        float64 // bytes/sec, EMA
 	lastBytes    int64
 	lastTime     time.Time
+
+	// Cask-only: aggregate byte progress across the whole cask phase, so the
+	// bar can be byte-proportional rather than count-proportional. The bar
+	// otherwise lies when casks vary by 10x in size (rectangle 4MB vs iina
+	// 104MB) — finishing the small ones first makes the count-based bar jump
+	// to "almost done" while most of the real work is still ahead.
+	phaseTotalBytes     int64
+	phaseCompletedBytes int64
 
 	// Scroll region rendering (nil when terminal doesn't support it).
 	region *ScrollRegion
@@ -213,10 +221,7 @@ func (sp *StickyProgress) formatLines() []string {
 		barWidth = defaultBarWidth
 	}
 
-	pct := float64(0)
-	if sp.total > 0 {
-		pct = float64(sp.completed) / float64(sp.total)
-	}
+	pct := sp.pctForBar()
 	filled := int(pct * float64(barWidth))
 	empty := barWidth - filled
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
@@ -263,7 +268,8 @@ func humanBytes(n int64) string {
 }
 
 // SetPhase switches between formula and cask data displays. Per-cask byte
-// state is cleared on each transition.
+// state is cleared on each transition; phase-wide byte aggregates are reset
+// too so a re-entry into the cask phase starts fresh.
 func (sp *StickyProgress) SetPhase(p Phase) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -271,6 +277,35 @@ func (sp *StickyProgress) SetPhase(p Phase) {
 	sp.currentBytes = 0
 	sp.totalBytes = 0
 	sp.speed = 0
+	sp.lastBytes = 0
+	sp.lastTime = time.Time{}
+	sp.phaseTotalBytes = 0
+	sp.phaseCompletedBytes = 0
+}
+
+// SetPhaseBytesTotal seeds the aggregate byte total for the current cask
+// phase. The bar uses this to render byte-proportional progress; without it
+// the bar falls back to count-proportional, which under-represents work
+// remaining when casks vary widely in size.
+func (sp *StickyProgress) SetPhaseBytesTotal(total int64) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.phaseTotalBytes = total
+}
+
+// AddCompletedCaskBytes accumulates the just-finished cask's known size into
+// the phase total. Pass 0 for casks whose size couldn't be pre-fetched —
+// they simply don't advance the bar.
+//
+// Per-cask state (currentBytes/totalBytes/lastBytes/lastTime) is cleared so
+// the next cask's tracker starts fresh and doesn't double-count. Speed is
+// kept across casks so the EMA carries the network estimate forward.
+func (sp *StickyProgress) AddCompletedCaskBytes(size int64) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.phaseCompletedBytes += size
+	sp.currentBytes = 0
+	sp.totalBytes = 0
 	sp.lastBytes = 0
 	sp.lastTime = time.Time{}
 }
@@ -283,6 +318,28 @@ func (sp *StickyProgress) SetCurrentBytes(current, total int64) {
 	defer sp.mu.Unlock()
 	sp.observeBytesAt(current, time.Now())
 	sp.totalBytes = total
+}
+
+// pctForBar returns the [0,1] progress fraction the bar should fill. For the
+// cask phase, when phase-byte data is available, it's byte-based across all
+// casks (so finishing a small cask doesn't jump the bar far). Otherwise it
+// falls back to count-based.
+func (sp *StickyProgress) pctForBar() float64 {
+	if sp.phase == PhaseCask && sp.phaseTotalBytes > 0 {
+		done := sp.phaseCompletedBytes + sp.currentBytes
+		pct := float64(done) / float64(sp.phaseTotalBytes)
+		if pct > 1 {
+			return 1
+		}
+		if pct < 0 {
+			return 0
+		}
+		return pct
+	}
+	if sp.total > 0 {
+		return float64(sp.completed) / float64(sp.total)
+	}
+	return 0
 }
 
 // observeBytesAt is the testable inner loop of SetCurrentBytes (lets tests

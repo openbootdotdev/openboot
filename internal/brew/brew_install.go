@@ -199,6 +199,14 @@ func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (insta
 	sizes := FetchCaskSizes(sizeCtx, pkgs)
 	sizeCancel()
 
+	// Sum known sizes for byte-proportional bar. Casks with unknown sizes
+	// (HEAD failed) contribute 0 — they advance the count but not the bar.
+	var phaseTotalBytes int64
+	for _, size := range sizes {
+		phaseTotalBytes += size
+	}
+	progress.SetPhaseBytesTotal(phaseTotalBytes)
+
 	for _, pkg := range pkgs {
 		progress.SetCurrent(pkg)
 		progress.PrintLine("  Installing %s...", pkg)
@@ -235,6 +243,10 @@ func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (insta
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
+			// Advance the byte-based bar by this cask's known size. Casks
+			// with unknown sizes (HEAD failed) pass 0 here — they advance the
+			// count but not the bar's byte fill.
+			progress.AddCompletedCaskBytes(sizes[pkg])
 			progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
 			installed = append(installed, pkg)
 		} else {
