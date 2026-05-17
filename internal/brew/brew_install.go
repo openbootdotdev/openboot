@@ -1,6 +1,7 @@
 package brew
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -158,6 +159,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
+		progress.SetPhase(ui.PhaseFormula)
 		failed := runSerialInstallWithProgress(newCli, progress)
 		failedSet := make(map[string]bool, len(failed))
 		for _, f := range failed {
@@ -189,12 +191,47 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 // installCasksWithProgress installs cask packages one by one with progress reporting.
 // Returns the successfully installed cask names and any failed jobs.
 func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
+	progress.SetPhase(ui.PhaseCask)
+
+	// Pre-flight HEAD all cask URLs to learn download sizes. Bounded so a
+	// slow CDN doesn't hold up the whole install phase.
+	sizeCtx, sizeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	sizes := FetchCaskSizes(sizeCtx, pkgs)
+	sizeCancel()
+
 	for _, pkg := range pkgs {
 		progress.SetCurrent(pkg)
 		progress.PrintLine("  Installing %s...", pkg)
+
+		// Start tracker for this cask (skip if size unknown — no bar, just spinner).
+		// trackerDone closes only after the goroutine has emitted its final
+		// reading, so we never let a stale byte value bleed into the next cask.
+		var trackerCancel context.CancelFunc
+		var trackerDone chan struct{}
+		if size, ok := sizes[pkg]; ok && size > 0 {
+			tracker, err := NewCacheTracker(pkg)
+			if err == nil {
+				ctx, cancel := context.WithCancel(context.Background())
+				trackerCancel = cancel
+				trackerDone = make(chan struct{})
+				go func() {
+					defer close(trackerDone)
+					tracker.Run(ctx, func(b int64) {
+						progress.SetCurrentBytes(b, size)
+					})
+				}()
+			}
+		}
+
 		start := time.Now()
-		errMsg := installCaskWithProgress(pkg, progress)
+		errMsg := installCaskWithProgress(pkg)
 		elapsed := time.Since(start)
+
+		if trackerCancel != nil {
+			trackerCancel()
+			<-trackerDone
+		}
+
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
@@ -307,9 +344,7 @@ func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []
 	return failed
 }
 
-func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
-	progress.PauseForInteractive()
-
+func installCaskWithProgress(pkg string) string {
 	cmd := brewInstallCmd("install", "--cask", pkg)
 	tty, opened := system.OpenTTY()
 	if opened {
@@ -318,11 +353,7 @@ func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
 	cmd.Stdin = tty
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-
-	progress.ResumeAfterInteractive()
-
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		return "install failed"
 	}
 	return ""

@@ -58,6 +58,15 @@ fi
 if [ "$1" = "list" ] && [ "$2" = "--cask" ]; then
   exit 0
 fi
+if [ "$1" = "info" ] && [ "$3" = "--cask" ]; then
+  # Cask size pre-fetch — return JSON with token + URL so FetchCaskSizes
+  # has something to parse. The URL points nowhere reachable; HEAD will
+  # fail and size stays 0, which is fine for this test.
+  cat <<'EOF'
+[{"token":"firefox","url":"http://127.0.0.1:1/firefox.dmg"}]
+EOF
+  exit 0
+fi
 if [ "$1" = "info" ]; then
   shift 2
   for arg in "$@"; do
@@ -95,16 +104,22 @@ exit 0
 	logContent, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
-	var infoLines []string
+	var formulaInfo, caskInfo []string
 	for _, line := range strings.Split(strings.TrimSpace(string(logContent)), "\n") {
-		if strings.HasPrefix(line, "info --json") {
-			infoLines = append(infoLines, line)
+		switch {
+		case strings.HasPrefix(line, "info --json --cask"):
+			caskInfo = append(caskInfo, line)
+		case strings.HasPrefix(line, "info --json"):
+			formulaInfo = append(formulaInfo, line)
 		}
 	}
 
-	require.Len(t, infoLines, 1)
-	assert.Equal(t, "info --json postgresql kubectl", infoLines[0])
-	assert.NotContains(t, infoLines[0], "firefox")
+	require.Len(t, formulaInfo, 1, "formula alias resolution should be a single batch")
+	assert.Equal(t, "info --json postgresql kubectl", formulaInfo[0])
+	assert.NotContains(t, formulaInfo[0], "firefox")
+
+	require.Len(t, caskInfo, 1, "cask size pre-fetch should be a single batch")
+	assert.Equal(t, "info --json --cask firefox", caskInfo[0])
 }
 
 func TestInstallWithProgress_RetrySuccessTracksCanonicalNames(t *testing.T) {

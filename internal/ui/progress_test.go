@@ -141,12 +141,79 @@ func TestStickyProgressSetCurrentDoesNotPanic(t *testing.T) {
 	})
 }
 
-func TestStickyProgressPauseResume(t *testing.T) {
-	sp := NewStickyProgress(5)
-	sp.mu.Lock()
-	sp.active = true
-	sp.mu.Unlock()
+func TestStickyProgressSetPhase(t *testing.T) {
+	sp := NewStickyProgress(10)
+	// Seed some byte state from a "previous" cask.
+	sp.currentBytes = 999
+	sp.totalBytes = 9999
+	sp.speed = 1234
+	sp.lastBytes = 999
+	sp.lastTime = time.Unix(42, 0)
 
-	sp.PauseForInteractive()
-	assert.False(t, sp.active)
+	sp.SetPhase(PhaseCask)
+	assert.Equal(t, PhaseCask, sp.phase)
+
+	// SetPhase must reset all per-cask byte state so the next cask
+	// starts clean (no stale bytes bleeding into the bar).
+	assert.EqualValues(t, 0, sp.currentBytes)
+	assert.EqualValues(t, 0, sp.totalBytes)
+	assert.InDelta(t, 0, sp.speed, 0.01)
+	assert.EqualValues(t, 0, sp.lastBytes)
+	assert.True(t, sp.lastTime.IsZero())
+}
+
+func TestStickyProgressSetCurrentBytes(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	sp.SetCurrentBytes(50_000_000, 200_000_000)
+	assert.EqualValues(t, 50_000_000, sp.currentBytes)
+	assert.EqualValues(t, 200_000_000, sp.totalBytes)
+}
+
+func TestStickyProgressSpeedEMA(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	// First sample: no speed yet (need two points).
+	sp.observeBytesAt(1_000_000, time.Unix(0, 0))
+	assert.InDelta(t, 0, sp.speed, 0.01)
+	// Second sample one second later: 1 MB more = 1 MB/s, sets speed directly.
+	sp.observeBytesAt(2_000_000, time.Unix(1, 0))
+	assert.InDelta(t, 1_000_000, sp.speed, 1.0)
+	// Third sample: 500 KB more in 1s = 500 K/s instantaneous.
+	// EMA blends: 0.3*500_000 + 0.7*1_000_000 = 850_000.
+	sp.observeBytesAt(2_500_000, time.Unix(2, 0))
+	assert.InDelta(t, 850_000, sp.speed, 1.0)
+}
+
+func TestStickyProgressBytesETAUsesSpeed(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	sp.currentBytes = 100_000_000
+	sp.totalBytes = 500_000_000
+	sp.speed = 10_000_000 // 10 MB/s
+	eta := sp.estimateCurrentCaskETA()
+	// 400MB / 10 MB/s = 40s.
+	assert.Equal(t, "~40s", eta)
+}
+
+func TestStickyProgressEstimatingPlaceholder(t *testing.T) {
+	sp := NewStickyProgress(10)
+	sp.SetPhase(PhaseCask)
+	sp.currentBytes = 0
+	sp.totalBytes = 100_000_000
+	sp.speed = 0
+	eta := sp.estimateCurrentCaskETA()
+	assert.Equal(t, "estimating...", eta)
+}
+
+func TestStickyProgressFallsBackWhenScrollRegionUnsupported(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	sp := NewStickyProgress(3)
+	sp.Start()
+	defer sp.Finish()
+	// Region should NOT have been attached.
+	sp.mu.Lock()
+	hasRegion := sp.region != nil
+	sp.mu.Unlock()
+	assert.False(t, hasRegion, "scroll region should be disabled on dumb TERM")
 }
