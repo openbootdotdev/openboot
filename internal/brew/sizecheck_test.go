@@ -23,10 +23,12 @@ func TestFetchCaskSizesReturnsBytesPerCask(t *testing.T) {
 	defer srv.Close()
 
 	withFakeBrew(t, func(args []string) ([]byte, error) {
-		// Expect: brew info --json --cask docker rectangle
-		if len(args) >= 3 && args[0] == "info" && args[1] == "--json" && args[2] == "--cask" {
+		// Real brew rejects bare --json with --cask (it prints help text);
+		// the correct invocation is --json=v2 with a nested {"casks":[...]}
+		// envelope. Mirror that exactly here so tests reflect reality.
+		if len(args) >= 3 && args[0] == "info" && args[1] == "--json=v2" && args[2] == "--cask" {
 			return []byte(fmt.Sprintf(
-				`[{"token":"docker","url":"%s/docker.dmg"},{"token":"rectangle","url":"%s/rectangle.dmg"}]`,
+				`{"formulae":[],"casks":[{"token":"docker","url":"%s/docker.dmg"},{"token":"rectangle","url":"%s/rectangle.dmg"}]}`,
 				srv.URL, srv.URL,
 			)), nil
 		}
@@ -40,7 +42,7 @@ func TestFetchCaskSizesReturnsBytesPerCask(t *testing.T) {
 
 func TestFetchCaskSizesSkipsHeadFailures(t *testing.T) {
 	withFakeBrew(t, func(args []string) ([]byte, error) {
-		return []byte(`[{"token":"broken","url":"http://127.0.0.1:1/nope"}]`), nil
+		return []byte(`{"formulae":[],"casks":[{"token":"broken","url":"http://127.0.0.1:1/nope"}]}`), nil
 	})
 
 	sizes := FetchCaskSizes(context.Background(), []string{"broken"})

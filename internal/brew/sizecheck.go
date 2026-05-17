@@ -10,13 +10,21 @@ import (
 	"github.com/openbootdotdev/openboot/internal/httputil"
 )
 
-// caskInfo is the subset of `brew info --json --cask` we care about.
+// caskInfo is the subset of `brew info --json=v2 --cask` we care about.
 type caskInfo struct {
 	Token string `json:"token"`
 	URL   string `json:"url"`
 }
 
-// FetchCaskSizes resolves each cask's download URL via `brew info --json
+// caskInfoEnvelope matches the v2 JSON schema: a top-level object with
+// "formulae" and "casks" arrays. (v1 returned a flat top-level array, but
+// brew rejects bare `--json` together with `--cask`, so we have to ask for
+// v2 explicitly — see https://docs.brew.sh/Manpage `brew info`.)
+type caskInfoEnvelope struct {
+	Casks []caskInfo `json:"casks"`
+}
+
+// FetchCaskSizes resolves each cask's download URL via `brew info --json=v2
 // --cask`, then issues HEAD requests in parallel to read Content-Length.
 // Returns a map[caskName]bytes; missing entries default to 0 (caller treats
 // as "size unknown — no live bytes display").
@@ -26,16 +34,17 @@ func FetchCaskSizes(ctx context.Context, casks []string) map[string]int64 {
 		return result
 	}
 
-	args := append([]string{"info", "--json", "--cask"}, casks...)
+	args := append([]string{"info", "--json=v2", "--cask"}, casks...)
 	output, err := currentRunner().Output(args...)
 	if err != nil {
 		return result
 	}
 
-	var entries []caskInfo
-	if err := json.Unmarshal(output, &entries); err != nil {
+	var env caskInfoEnvelope
+	if err := json.Unmarshal(output, &env); err != nil {
 		return result
 	}
+	entries := env.Casks
 
 	client := &http.Client{Timeout: 8 * time.Second}
 	var mu sync.Mutex
