@@ -143,81 +143,76 @@ func TestStickyProgressSetCurrentDoesNotPanic(t *testing.T) {
 
 func TestStickyProgressSetPhase(t *testing.T) {
 	sp := NewStickyProgress(10)
-	// Seed some byte state from a "previous" cask.
+	// Seed some byte state from a "previous" package and install-wide totals.
 	sp.currentBytes = 999
 	sp.totalBytes = 9999
 	sp.speed = 1234
 	sp.lastBytes = 999
 	sp.lastTime = time.Unix(42, 0)
-	sp.phaseTotalBytes = 5_000_000
-	sp.phaseCompletedBytes = 2_000_000
+	sp.installTotalBytes = 5_000_000
+	sp.installCompletedBytes = 2_000_000
 
 	sp.SetPhase(PhaseCask)
 	assert.Equal(t, PhaseCask, sp.phase)
 
-	// SetPhase must reset all per-cask byte state so the next cask
-	// starts clean (no stale bytes bleeding into the bar). Phase-wide
-	// aggregates reset too — re-entering the cask phase starts fresh.
+	// SetPhase clears per-package byte state for a clean start.
 	assert.EqualValues(t, 0, sp.currentBytes)
 	assert.EqualValues(t, 0, sp.totalBytes)
 	assert.InDelta(t, 0, sp.speed, 0.01)
 	assert.EqualValues(t, 0, sp.lastBytes)
 	assert.True(t, sp.lastTime.IsZero())
-	assert.EqualValues(t, 0, sp.phaseTotalBytes)
-	assert.EqualValues(t, 0, sp.phaseCompletedBytes)
+	// Install-wide aggregates are NOT touched — they span both phases.
+	assert.EqualValues(t, 5_000_000, sp.installTotalBytes)
+	assert.EqualValues(t, 2_000_000, sp.installCompletedBytes)
 }
 
-func TestStickyProgressPctForBarByteBased(t *testing.T) {
-	sp := NewStickyProgress(3)
-	sp.SetPhase(PhaseCask)
-	sp.SetPhaseBytesTotal(100_000_000) // 100 MB across the cask phase
+func TestStickyProgressPctForBarByteBasedAcrossPhases(t *testing.T) {
+	sp := NewStickyProgress(5)
+	// Total install: 5 formulae + 2 casks = some bytes mix.
+	sp.SetTotalBytes(100_000_000) // 100 MB across the whole install
 
-	// Nothing started yet → 0%.
+	// Nothing started → 0%.
 	assert.InDelta(t, 0, sp.pctForBar(), 0.001)
 
-	// Mid-download of first cask: 30M of 100M.
-	sp.SetCurrentBytes(30_000_000, 100_000_000)
-	assert.InDelta(t, 0.3, sp.pctForBar(), 0.001)
+	// Formula phase: each formula complete adds its size lump-sum (no tracker).
+	sp.SetPhase(PhaseFormula)
+	sp.AddCompletedBytes(5_000_000) // first formula done: 5MB
+	assert.InDelta(t, 0.05, sp.pctForBar(), 0.001)
 
-	// First cask done — 40M cask actually, advance the aggregate.
-	sp.AddCompletedCaskBytes(40_000_000)
-	assert.InDelta(t, 0.4, sp.pctForBar(), 0.001)
+	sp.AddCompletedBytes(3_000_000) // second formula done: 3MB. Total 8MB.
+	assert.InDelta(t, 0.08, sp.pctForBar(), 0.001)
 
-	// Second cask mid-download: 30M of 60M, on top of the 40M already done.
+	// Cask phase. Mid-download of first cask: 30M of 60M.
+	sp.SetPhase(PhaseCask)
 	sp.SetCurrentBytes(30_000_000, 60_000_000)
-	// (40 + 30) / 100 = 0.7
-	assert.InDelta(t, 0.7, sp.pctForBar(), 0.001)
+	// 8M done + 30M in flight = 38M / 100M = 0.38.
+	assert.InDelta(t, 0.38, sp.pctForBar(), 0.001)
+
+	// First cask done (60MB).
+	sp.AddCompletedBytes(60_000_000)
+	// 8 + 60 = 68 / 100 = 0.68. currentBytes was cleared.
+	assert.InDelta(t, 0.68, sp.pctForBar(), 0.001)
 }
 
 func TestStickyProgressPctForBarFallsBackToCount(t *testing.T) {
 	sp := NewStickyProgress(4)
-	sp.SetPhase(PhaseCask)
-	// phaseTotalBytes left at 0 (e.g. all HEAD pre-fetches failed) → count-based.
+	// installTotalBytes left at 0 (e.g. all HEAD pre-fetches failed) → count-based.
 	sp.completed = 2
 	assert.InDelta(t, 0.5, sp.pctForBar(), 0.001)
 }
 
-func TestStickyProgressPctForBarFormulaPhaseUsesCount(t *testing.T) {
-	sp := NewStickyProgress(10)
-	// PhaseFormula is the default. Byte aggregates should be ignored even if set.
-	sp.phaseTotalBytes = 999_999_999
-	sp.phaseCompletedBytes = 500_000_000
-	sp.completed = 3
-	assert.InDelta(t, 0.3, sp.pctForBar(), 0.001)
-}
-
-func TestStickyProgressAddCompletedCaskBytesResetsCurrent(t *testing.T) {
+func TestStickyProgressAddCompletedBytesResetsCurrent(t *testing.T) {
 	sp := NewStickyProgress(3)
+	sp.SetTotalBytes(100_000_000)
 	sp.SetPhase(PhaseCask)
-	sp.SetPhaseBytesTotal(100_000_000)
 	sp.SetCurrentBytes(40_000_000, 40_000_000)
 	sp.speed = 5_000_000 // pretend EMA is established
 
-	sp.AddCompletedCaskBytes(40_000_000)
+	sp.AddCompletedBytes(40_000_000)
 
-	// Per-cask state cleared, but speed kept (it's a network-level estimate
-	// that should carry across casks).
-	assert.EqualValues(t, 40_000_000, sp.phaseCompletedBytes)
+	// Per-package state cleared, but speed kept (it's a network-level estimate
+	// that should carry across packages).
+	assert.EqualValues(t, 40_000_000, sp.installCompletedBytes)
 	assert.EqualValues(t, 0, sp.currentBytes)
 	assert.EqualValues(t, 0, sp.totalBytes)
 	assert.EqualValues(t, 0, sp.lastBytes)

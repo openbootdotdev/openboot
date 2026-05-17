@@ -114,9 +114,14 @@ exit 0
 		}
 	}
 
-	require.Len(t, formulaInfo, 1, "formula alias resolution should be a single batch")
-	assert.Equal(t, "info --json postgresql kubectl", formulaInfo[0])
-	assert.NotContains(t, formulaInfo[0], "firefox")
+	// Two formula info calls are expected: one for alias resolution, one for
+	// size pre-fetch (FetchFormulaSizes). Both share the same arg shape —
+	// they're separate consumers of the same brew metadata.
+	require.Len(t, formulaInfo, 2, "expected one alias-resolution + one size pre-fetch call")
+	for _, line := range formulaInfo {
+		assert.Equal(t, "info --json postgresql kubectl", line)
+		assert.NotContains(t, line, "firefox", "formula info must never include cask names")
+	}
 
 	require.Len(t, caskInfo, 1, "cask size pre-fetch should be a single batch")
 	assert.Equal(t, "info --json=v2 --cask firefox", caskInfo[0])
@@ -192,6 +197,7 @@ exit 0
 
 	logContent, err := os.ReadFile(logPath)
 	require.NoError(t, err)
-	assert.Equal(t, 1, strings.Count(string(logContent), "info --json foo"))
+	// Two `info --json foo` calls: alias resolution + size pre-fetch.
+	assert.Equal(t, 2, strings.Count(string(logContent), "info --json foo"))
 	assert.Equal(t, 2, strings.Count(string(logContent), "install foo"))
 }
