@@ -190,3 +190,15 @@ func TestStickyProgressEstimatingPlaceholder(t *testing.T) {
 	eta := sp.estimateCurrentCaskETA()
 	assert.Equal(t, "estimating...", eta)
 }
+
+func TestStickyProgressFallsBackWhenScrollRegionUnsupported(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	sp := NewStickyProgress(3)
+	sp.Start()
+	defer sp.Finish()
+	// Region should NOT have been attached.
+	sp.mu.Lock()
+	hasRegion := sp.region != nil
+	sp.mu.Unlock()
+	assert.False(t, hasRegion, "scroll region should be disabled on dumb TERM")
+}
