@@ -243,7 +243,6 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	return nil
 }
 
-
 func estimateInstallMinutes(formulaeCount, caskCount, npmCount int) int {
 	totalSeconds := formulaeCount*estimatedSecondsPerFormula +
 		caskCount*estimatedSecondsPerCask +
