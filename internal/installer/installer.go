@@ -243,30 +243,6 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	return nil
 }
 
-func printPackageList(label string, pkgs config.PackageEntryList) {
-	if len(pkgs) == 0 {
-		return
-	}
-	hasDesc := false
-	for _, pkg := range pkgs {
-		if pkg.Desc != "" {
-			hasDesc = true
-			break
-		}
-	}
-	if !hasDesc {
-		ui.Muted(fmt.Sprintf("  %s: %s", label, strings.Join(pkgs.Names(), ", ")))
-		return
-	}
-	ui.Muted(fmt.Sprintf("  %s:", label))
-	for _, pkg := range pkgs {
-		if pkg.Desc != "" {
-			ui.Muted(fmt.Sprintf("    %s — %s", pkg.Name, pkg.Desc))
-		} else {
-			ui.Muted(fmt.Sprintf("    %s", pkg.Name))
-		}
-	}
-}
 
 func estimateInstallMinutes(formulaeCount, caskCount, npmCount int) int {
 	totalSeconds := formulaeCount*estimatedSecondsPerFormula +

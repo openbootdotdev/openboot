@@ -419,6 +419,7 @@ func promptCustomizeAndApply(rc *config.RemoteConfig) (*config.RemoteConfig, boo
 		if !confirmed {
 			return nil, false, nil
 		}
+		// Picks come from rc itself, so ApplyPicks's unknown list is always empty.
 		filtered, _ := ApplyPicks(rc, picks)
 		return filtered, true, nil
 	default: // Cancel
