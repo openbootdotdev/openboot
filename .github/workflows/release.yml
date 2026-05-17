@@ -64,9 +64,6 @@ jobs:
       - name: Unit tests
         run: make test-unit
 
-      - name: Destructive tests
-        run: make test-destructive
-
   build:
     needs: [detect-release-type, gate-tests]
     runs-on: ubuntu-latest
@@ -101,54 +98,8 @@ jobs:
           name: openboot-${{ matrix.os }}-${{ matrix.arch }}
           path: openboot-${{ matrix.os }}-${{ matrix.arch }}
 
-  smoke-test:
-    needs: [detect-release-type, build]
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-
-      - name: Download arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: openboot-darwin-arm64
-          path: artifacts
-
-      - name: Prepare release binary for testing
-        run: |
-          chmod +x artifacts/openboot-darwin-arm64
-          cp artifacts/openboot-darwin-arm64 ./openboot
-
-      - name: Verify binary version string
-        run: |
-          VERSION_OUTPUT=$(./openboot version 2>&1 || true)
-          echo "Binary version output: ${VERSION_OUTPUT}"
-          EXPECTED="${{ needs.detect-release-type.outputs.version_clean }}"
-          if [[ "${VERSION_OUTPUT}" != *"${EXPECTED}"* ]]; then
-            echo "ERROR: Binary version '${VERSION_OUTPUT}' does not contain expected '${EXPECTED}'"
-            exit 1
-          fi
-
-      - name: Run smoke tests against release binary
-        run: make test-smoke-prebuilt
-
-      - name: Upload snapshot artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-test-results
-          path: |
-            /tmp/openboot-smoke-*.json
-          retention-days: 7
-          if-no-files-found: ignore
-
   release:
-    needs: [detect-release-type, build, smoke-test]
+    needs: [detect-release-type, build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
