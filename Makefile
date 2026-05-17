@@ -1,5 +1,7 @@
 .PHONY: test-unit test-e2e test-destructive test-smoke test-smoke-prebuilt test-coverage test-all \
        test-vm test-vm-run test-vm-quick test-vm-release test-vm-full \
+       test-vm-OLD-DELETE-ME test-vm-run-OLD-DELETE-ME \
+       test-vm-inner test-vm-inner-run \
        install-hooks uninstall-hooks
 
 BINARY_NAME=openboot
@@ -64,11 +66,13 @@ test-vm-release: build
 test-vm-full: build
 	go test -v -timeout 90m -tags="e2e,vm" ./test/e2e/...
 
-# Aliases
-test-vm: test-vm-release
+# Old alias — kept temporarily, deleted in Task 5. Renamed so the new
+# Tart-driven `test-vm` below can coexist during the migration.
+test-vm-OLD-DELETE-ME: test-vm-release
 
-# Single test by name (e.g. make test-vm-run TEST=TestVM_Journey_DryRunIsCompletelySafe)
-test-vm-run: build
+# Old alias — kept temporarily, deleted in Task 5. Renamed so the new
+# Tart-driven `test-vm-run` below can coexist during the migration.
+test-vm-run-OLD-DELETE-ME: build
 	go test -v -timeout 45m -tags="e2e,vm" -run $(TEST) ./test/e2e/...
 
 build:
@@ -113,3 +117,23 @@ uninstall-hooks:
 		rm -f .git/hooks/$$hook; \
 		echo "✓ removed .git/hooks/$$hook"; \
 	done
+
+# =============================================================================
+# Tart VM e2e — new entrypoints (the old test-vm-* targets above are deprecated
+# and removed in the next phase). See scripts/vm/README.md for setup.
+# =============================================================================
+
+# Developer-facing: provisions a Tart VM and runs the full e2e suite inside.
+test-vm: build
+	scripts/vm/run.sh test-vm-inner
+
+# Developer-facing: runs one named test inside a Tart VM.
+test-vm-run: build
+	scripts/vm/run.sh "test-vm-inner-run TEST=$(TEST)"
+
+# In-VM: invoked over SSH by run.sh — not called by developers directly.
+test-vm-inner:
+	go test -v -timeout 60m -tags="e2e,vm" ./test/e2e/...
+
+test-vm-inner-run:
+	go test -v -timeout 45m -tags="e2e,vm" -run $(TEST) ./test/e2e/...
