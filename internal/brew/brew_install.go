@@ -204,24 +204,32 @@ func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (insta
 		progress.PrintLine("  Installing %s...", pkg)
 
 		// Start tracker for this cask (skip if size unknown — no bar, just spinner).
+		// trackerDone closes only after the goroutine has emitted its final
+		// reading, so we never let a stale byte value bleed into the next cask.
 		var trackerCancel context.CancelFunc
+		var trackerDone chan struct{}
 		if size, ok := sizes[pkg]; ok && size > 0 {
 			tracker, err := NewCacheTracker(pkg)
 			if err == nil {
 				ctx, cancel := context.WithCancel(context.Background())
 				trackerCancel = cancel
-				go tracker.Run(ctx, func(b int64) {
-					progress.SetCurrentBytes(b, size)
-				})
+				trackerDone = make(chan struct{})
+				go func() {
+					defer close(trackerDone)
+					tracker.Run(ctx, func(b int64) {
+						progress.SetCurrentBytes(b, size)
+					})
+				}()
 			}
 		}
 
 		start := time.Now()
-		errMsg := installCaskWithProgress(pkg, progress)
+		errMsg := installCaskWithProgress(pkg)
 		elapsed := time.Since(start)
 
 		if trackerCancel != nil {
 			trackerCancel()
+			<-trackerDone
 		}
 
 		progress.IncrementWithStatus(errMsg == "")
@@ -336,7 +344,7 @@ func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []
 	return failed
 }
 
-func installCaskWithProgress(pkg string, progress *ui.StickyProgress) string {
+func installCaskWithProgress(pkg string) string {
 	cmd := brewInstallCmd("install", "--cask", pkg)
 	tty, opened := system.OpenTTY()
 	if opened {
