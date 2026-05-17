@@ -11,7 +11,4 @@ coverage:
         threshold: 50%
         informational: true
 
-comment:
-  layout: "reach,diff,flags,tree"
-  behavior: default
-  require_changes: false
+comment: false
