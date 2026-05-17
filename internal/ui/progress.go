@@ -200,9 +200,10 @@ func (sp *StickyProgress) formatLines() []string {
 	}
 
 	// barWidth is whatever's left after head + " " + bar + " 100%" suffix.
-	// Clamp [minBarWidth, defaultBarWidth] so the bar stays readable on
-	// narrow terminals and doesn't dominate wide ones.
-	barWidth := cols - len(head) - 6
+	// Use visual width (not byte length) so multi-byte runes like "—" don't
+	// over-count and shrink the bar. Clamp [minBarWidth, defaultBarWidth] so
+	// the bar stays readable on narrow terminals and doesn't dominate wide ones.
+	barWidth := cols - lipgloss.Width(head) - 6
 	if barWidth < minBarWidth {
 		barWidth = minBarWidth
 	}

@@ -42,7 +42,6 @@ Three regulation categories:
 | Maint. | `deadcode` (drift) | informational CI | `.github/workflows/harness.yml` |
 | Maint. | `go mod tidy -diff` | informational CI | `.github/workflows/harness.yml` |
 | Maint. | `required-checks alignment (drift)` — `.github/required-checks.txt` ↔ workflow job names | informational CI | `.github/workflows/harness.yml` |
-| Maint. | scroll-region progress UI (`internal/ui/scrollregion.go`) | runtime, terminal-dependent | gracefully degrades when `TERM=dumb` or stdout is not a TTY |
 | Arch. | `no-direct-exec` | L1 (`make test-unit`) | `internal/archtest/exec_test.go` |
 | Arch. | `no-raw-http` | L1 | `internal/archtest/http_test.go` |
 | Arch. | `no-os-getenv-home` | L1 | `internal/archtest/envhome_test.go` |
@@ -106,6 +105,11 @@ it survives doc rot.
   the in-session loop (Step 8), the sensor became dead code and was
   removed. If `--auto` ever comes back, the sensor needs to come back
   with it.
+- **No archtest rule for scroll-region usage.** `internal/ui/scrollregion.go`
+  detects support at runtime (`TERM`, TTY, terminal height) and falls back
+  to the inline `\r\033[K` renderer when unavailable. A static rule can't
+  see runtime terminal capabilities, so this stays a runtime concern. The
+  fallback is covered by `TestStickyProgressFallsBackWhenScrollRegionUnsupported`.
 
 ## How agents should think about this file
 

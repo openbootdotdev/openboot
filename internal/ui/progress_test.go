@@ -143,8 +143,23 @@ func TestStickyProgressSetCurrentDoesNotPanic(t *testing.T) {
 
 func TestStickyProgressSetPhase(t *testing.T) {
 	sp := NewStickyProgress(10)
+	// Seed some byte state from a "previous" cask.
+	sp.currentBytes = 999
+	sp.totalBytes = 9999
+	sp.speed = 1234
+	sp.lastBytes = 999
+	sp.lastTime = time.Unix(42, 0)
+
 	sp.SetPhase(PhaseCask)
 	assert.Equal(t, PhaseCask, sp.phase)
+
+	// SetPhase must reset all per-cask byte state so the next cask
+	// starts clean (no stale bytes bleeding into the bar).
+	assert.EqualValues(t, 0, sp.currentBytes)
+	assert.EqualValues(t, 0, sp.totalBytes)
+	assert.InDelta(t, 0, sp.speed, 0.01)
+	assert.EqualValues(t, 0, sp.lastBytes)
+	assert.True(t, sp.lastTime.IsZero())
 }
 
 func TestStickyProgressSetCurrentBytes(t *testing.T) {
