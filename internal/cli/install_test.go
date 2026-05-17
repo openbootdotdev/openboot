@@ -318,5 +318,5 @@ func TestApplyPickFlagToRemoteConfig_EmptyIsNoOp(t *testing.T) {
 	}
 	out, err := applyPickFlagToRemoteConfig(rc, "")
 	require.NoError(t, err)
-	assert.Equal(t, rc, out)
+	assert.Same(t, rc, out)
 }

@@ -115,8 +115,8 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	pickRaw, _ := cmd.Flags().GetString("pick")
 	if installCfg.RemoteConfig != nil {
-		pickRaw, _ := cmd.Flags().GetString("pick")
 		if pickRaw != "" {
 			rc, perr := applyPickFlagToRemoteConfig(installCfg.RemoteConfig, pickRaw)
 			if perr != nil {
@@ -124,11 +124,9 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 			}
 			installCfg.RemoteConfig = rc
 		}
-	} else {
+	} else if pickRaw != "" {
 		// --pick requires a remote config (file / cloud / sync source).
-		if pickRaw, _ := cmd.Flags().GetString("pick"); pickRaw != "" {
-			return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
-		}
+		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
 	}
 
 	err := installer.Run(installCfg)
