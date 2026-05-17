@@ -152,15 +152,35 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return installedFormulae, installedCasks, preErr
 	}
 
+	// Pre-flight HEAD all download URLs (formula bottles + cask downloads)
+	// upfront so the progress bar can be byte-proportional across the WHOLE
+	// install — formula and cask share one continuous bar instead of two
+	// algorithms with a jump in between. Bounded so a slow CDN can't stall
+	// the install phase. Unknown sizes (HEAD failures) contribute 0 and
+	// simply don't advance the bar for that package.
+	sizeCtx, sizeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	formulaSizes := FetchFormulaSizes(sizeCtx, newCli)
+	caskSizes := FetchCaskSizes(sizeCtx, newCask)
+	sizeCancel()
+
+	var installTotalBytes int64
+	for _, s := range formulaSizes {
+		installTotalBytes += s
+	}
+	for _, s := range caskSizes {
+		installTotalBytes += s
+	}
+
 	progress := ui.NewStickyProgress(len(newCli) + len(newCask))
 	progress.SetSkipped(skipped)
+	progress.SetTotalBytes(installTotalBytes)
 	progress.Start()
 
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
 		progress.SetPhase(ui.PhaseFormula)
-		failed := runSerialInstallWithProgress(newCli, progress)
+		failed := runSerialInstallWithProgress(newCli, formulaSizes, progress)
 		failedSet := make(map[string]bool, len(failed))
 		for _, f := range failed {
 			failedSet[f.name] = true
@@ -174,7 +194,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	}
 
 	if len(newCask) > 0 {
-		caskInstalled, caskFailed := installCasksWithProgress(newCask, progress)
+		caskInstalled, caskFailed := installCasksWithProgress(newCask, caskSizes, progress)
 		installedCasks = append(installedCasks, caskInstalled...)
 		allFailed = append(allFailed, caskFailed...)
 	}
@@ -188,20 +208,23 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	return installedFormulae, installedCasks, nil
 }
 
-// installCasksWithProgress installs cask packages one by one with progress reporting.
-// Returns the successfully installed cask names and any failed jobs.
-func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
+// installCasksWithProgress installs cask packages one by one with progress
+// reporting. Sizes are pre-fetched by the caller (InstallWithProgress) so
+// the bar's byte total can span formula + cask phases. Returns successful
+// installs and failed jobs.
+func installCasksWithProgress(pkgs []string, sizes map[string]int64, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
 	progress.SetPhase(ui.PhaseCask)
-
-	// Pre-flight HEAD all cask URLs to learn download sizes. Bounded so a
-	// slow CDN doesn't hold up the whole install phase.
-	sizeCtx, sizeCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	sizes := FetchCaskSizes(sizeCtx, pkgs)
-	sizeCancel()
 
 	for _, pkg := range pkgs {
 		progress.SetCurrent(pkg)
 		progress.PrintLine("  Installing %s...", pkg)
+
+		// Seed totalBytes for this cask immediately so the head shows
+		// "0B/<size>" instead of "—" for the ~500ms before the cache
+		// tracker's first poll lands. Casks with unknown size pass 0 and
+		// the head's bytes column stays "—" (correct — we have nothing
+		// to show).
+		progress.SetCurrentBytes(0, sizes[pkg])
 
 		// Start tracker for this cask (skip if size unknown — no bar, just spinner).
 		// trackerDone closes only after the goroutine has emitted its final
@@ -235,6 +258,10 @@ func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (insta
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
+			// Advance the byte-based bar by this cask's known size. Casks
+			// with unknown sizes (HEAD failed) pass 0 here — they advance the
+			// count but not the bar's byte fill.
+			progress.AddCompletedBytes(sizes[pkg])
 			progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
 			installed = append(installed, pkg)
 		} else {
@@ -315,7 +342,7 @@ func handleFailedJobs(failed []failedJob) {
 	}
 }
 
-func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []failedJob {
+func runSerialInstallWithProgress(pkgs []string, sizes map[string]int64, progress *ui.StickyProgress) []failedJob {
 	if len(pkgs) == 0 {
 		return nil
 	}
@@ -330,6 +357,10 @@ func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
+			// Advance the byte-based bar by this formula's bottle size.
+			// Formulae with unknown sizes pass 0; the bar just doesn't move
+			// for them but the count still advances.
+			progress.AddCompletedBytes(sizes[pkg])
 			progress.PrintLine("  %s %s", ui.Green("✔ "+job.name), ui.Cyan("("+duration+")"))
 			continue
 		}

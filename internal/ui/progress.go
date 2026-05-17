@@ -66,12 +66,20 @@ type StickyProgress struct {
 	// switches to byte-based ETA when bytes are available.
 	phase Phase
 
-	// Cask-only: real-time download tracking.
+	// Cask-only: real-time download tracking for the current cask.
 	currentBytes int64
 	totalBytes   int64
 	speed        float64 // bytes/sec, EMA
 	lastBytes    int64
 	lastTime     time.Time
+
+	// Aggregate byte progress across the WHOLE install (formula + cask), so
+	// the bar is byte-proportional rather than count-proportional. The bar
+	// otherwise lies when packages vary by 10x in size — finishing several
+	// small formulae makes a count-based bar jump well past where the real
+	// work is (most of which is in the few large casks).
+	installTotalBytes     int64
+	installCompletedBytes int64
 
 	// Scroll region rendering (nil when terminal doesn't support it).
 	region *ScrollRegion
@@ -146,7 +154,7 @@ func (sp *StickyProgress) Start() {
 
 func (sp *StickyProgress) render() {
 	if sp.region != nil {
-		sp.region.DrawTop(sp.formatLines())
+		sp.region.DrawBottom(sp.formatLines())
 		return
 	}
 	sp.renderInline()
@@ -183,8 +191,10 @@ func (sp *StickyProgress) renderInline() {
 		currentPkgStyle.Render(pkgDisplay))
 }
 
-// formatLines returns the two strings to render in the scroll region:
-// row 1 = data + bar, row 2 = divider line.
+// formatLines returns the two strings to render in the bottom-reserved
+// scroll region. Order matches top-to-bottom layout: the divider sits above
+// the data row so it visually separates the scrolling output from the
+// status line at the very last terminal row.
 func (sp *StickyProgress) formatLines() []string {
 	var head string
 	switch sp.phase {
@@ -211,18 +221,15 @@ func (sp *StickyProgress) formatLines() []string {
 		barWidth = defaultBarWidth
 	}
 
-	pct := float64(0)
-	if sp.total > 0 {
-		pct = float64(sp.completed) / float64(sp.total)
-	}
+	pct := sp.pctForBar()
 	filled := int(pct * float64(barWidth))
 	empty := barWidth - filled
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
 		progressBgStyle.Render(strings.Repeat("░", empty))
 
-	line1 := fmt.Sprintf("%s %s %3d%%", head, bar, int(pct*100))
-	line2 := strings.Repeat("─", cols)
-	return []string{line1, line2}
+	divider := strings.Repeat("─", cols)
+	status := fmt.Sprintf("%s %s %3d%%", head, bar, int(pct*100))
+	return []string{divider, status}
 }
 
 func (sp *StickyProgress) formatFormulaHead() string {
@@ -260,8 +267,10 @@ func humanBytes(n int64) string {
 	}
 }
 
-// SetPhase switches between formula and cask data displays. Per-cask byte
-// state is cleared on each transition.
+// SetPhase switches between formula and cask data displays. Affects only
+// what the head shows (formula = count only, cask = bytes/speed/ETA); the
+// bar uses install-wide byte progress and is unaffected. Per-package byte
+// state is cleared as a hygiene measure for the new phase.
 func (sp *StickyProgress) SetPhase(p Phase) {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
@@ -269,6 +278,33 @@ func (sp *StickyProgress) SetPhase(p Phase) {
 	sp.currentBytes = 0
 	sp.totalBytes = 0
 	sp.speed = 0
+	sp.lastBytes = 0
+	sp.lastTime = time.Time{}
+}
+
+// SetTotalBytes seeds the aggregate byte total for the whole install
+// (formula + cask combined). The bar uses this to render byte-proportional
+// progress; without it the bar falls back to count-proportional.
+func (sp *StickyProgress) SetTotalBytes(total int64) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.installTotalBytes = total
+}
+
+// AddCompletedBytes accumulates the just-finished package's known size into
+// the install total. Pass 0 for packages whose size couldn't be pre-fetched
+// — they simply don't advance the bar.
+//
+// Per-package state (currentBytes/totalBytes/lastBytes/lastTime) is cleared
+// so the next package's tracker starts fresh and doesn't double-count.
+// Speed is kept across packages so the EMA carries the network estimate
+// forward.
+func (sp *StickyProgress) AddCompletedBytes(size int64) {
+	sp.mu.Lock()
+	defer sp.mu.Unlock()
+	sp.installCompletedBytes += size
+	sp.currentBytes = 0
+	sp.totalBytes = 0
 	sp.lastBytes = 0
 	sp.lastTime = time.Time{}
 }
@@ -281,6 +317,29 @@ func (sp *StickyProgress) SetCurrentBytes(current, total int64) {
 	defer sp.mu.Unlock()
 	sp.observeBytesAt(current, time.Now())
 	sp.totalBytes = total
+}
+
+// pctForBar returns the [0,1] progress fraction the bar should fill. The
+// bar is byte-based across the WHOLE install (formula + cask) when total
+// bytes are known, so it advances continuously through both phases instead
+// of using two separate algorithms with a jump in between. Falls back to
+// count-based if no byte data is available at all.
+func (sp *StickyProgress) pctForBar() float64 {
+	if sp.installTotalBytes > 0 {
+		done := sp.installCompletedBytes + sp.currentBytes
+		pct := float64(done) / float64(sp.installTotalBytes)
+		if pct > 1 {
+			return 1
+		}
+		if pct < 0 {
+			return 0
+		}
+		return pct
+	}
+	if sp.total > 0 {
+		return float64(sp.completed) / float64(sp.total)
+	}
+	return 0
 }
 
 // observeBytesAt is the testable inner loop of SetCurrentBytes (lets tests
