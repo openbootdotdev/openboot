@@ -52,6 +52,7 @@ Three regulation categories:
 | Behav. | L5 destructive (real installs) | release tags, manual dispatch | `make test-destructive` |
 | Behav. | curl\|bash smoke (install.sh + mock server) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
 | Behav. | Auto-release sensor — tag + dispatch `release.yml` when unreleased commits trip a threshold (`>=5 feat/fix`, `>=7 days + new`, or any `fix:` for patch fast lane) | push to `main` | `.github/workflows/auto-release.yml` |
+| Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
 | Feedfwd. | Agent conventions | every AI turn | `CLAUDE.md`, `AGENTS.md` |
 | Feedfwd. | Skills | model-loaded | `.claude/skills/*` |

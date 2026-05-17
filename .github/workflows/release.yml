@@ -180,6 +180,7 @@ jobs:
 
       - name: Write release notes
         run: |
+          # Static template — installation + binaries.
           cat > release_notes.md << 'EOF'
           ## Installation
 
@@ -195,6 +196,35 @@ jobs:
           | macOS | Intel | `openboot-darwin-amd64` |
           EOF
           sed -i 's/^          //' release_notes.md
+
+          # Auto-generated changelog from Conventional Commits since the
+          # previous tag, grouped by type. Non-conventional commits are
+          # intentionally dropped — they should be rare (CLAUDE.md enforces
+          # the convention) and silence is better than a misleading row.
+          # Skipped entirely on the first release (no prior tag).
+          VERSION="${{ needs.detect-release-type.outputs.version }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "${VERSION}^" 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            {
+              echo ""
+              echo "## What's Changed"
+              echo ""
+              for entry in "feat:Features" "fix:Bug Fixes" "perf:Performance" "refactor:Refactors" "docs:Docs" "test:Tests" "chore:Chores" "ci:CI"; do
+                prefix="${entry%%:*}"
+                heading="${entry#*:}"
+                lines=$(git log --pretty='format:- %s' "${PREV_TAG}..${VERSION}" | grep -E "^- ${prefix}(\(|:)" || true)
+                if [ -n "$lines" ]; then
+                  echo "### ${heading}"
+                  echo ""
+                  printf '%s\n' "$lines"
+                  echo ""
+                fi
+              done
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${VERSION}"
+            } >> release_notes.md
+          fi
+          echo "----- generated release_notes.md -----"
+          cat release_notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
