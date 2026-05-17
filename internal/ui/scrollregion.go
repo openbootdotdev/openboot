@@ -13,10 +13,15 @@ import (
 // non-region path.
 const minRowsForRegion = 6
 
-// ScrollRegion owns the ANSI plumbing for reserving the top N rows as a
-// "frozen" region while output below scrolls. Use IsScrollRegionSupported to
-// check before enabling; on unsupported terminals, callers should render
+// ScrollRegion owns the ANSI plumbing for reserving the bottom N rows as a
+// "frozen" status area while output above scrolls. Use IsScrollRegionSupported
+// to check before enabling; on unsupported terminals, callers should render
 // inline instead.
+//
+// We chose the bottom over the top because a top-reserved region puts the
+// progress bar at the very top of the terminal viewport — far from where the
+// user actually typed the command. The bottom mirrors how tmux/screen status
+// bars sit and stays closer to the user's eye-line for a one-shot CLI run.
 type ScrollRegion struct {
 	w        io.Writer
 	rows     int
@@ -26,7 +31,7 @@ type ScrollRegion struct {
 }
 
 // NewScrollRegion constructs a scroll region for stdout with the given number
-// of reserved top rows. Caller must invoke Start before drawing and Stop on
+// of reserved bottom rows. Caller must invoke Start before drawing and Stop on
 // teardown (defer / signal handler).
 func NewScrollRegion(reserved int) *ScrollRegion {
 	w, h := terminalSize()
@@ -53,10 +58,11 @@ func (r *ScrollRegion) Stop() {
 	r.active = false
 }
 
-// DrawTop writes lines to the reserved region without disturbing the cursor
-// in the scrolling area. len(lines) must be <= reserved.
-func (r *ScrollRegion) DrawTop(lines []string) {
-	r.drawTop(lines)
+// DrawBottom writes lines to the reserved region without disturbing the cursor
+// in the scrolling area. lines[0] goes to the topmost reserved row, lines[N-1]
+// to the bottommost. len(lines) must be <= reserved.
+func (r *ScrollRegion) DrawBottom(lines []string) {
+	r.drawBottom(lines)
 }
 
 // Cols returns the current terminal width.
@@ -70,28 +76,39 @@ func (r *ScrollRegion) write(format string, args ...interface{}) {
 }
 
 func (r *ScrollRegion) reserve() {
-	// Hide cursor, set scroll region from row (reserved+1) to last row,
-	// then move cursor into the scroll region.
+	// Hide cursor, set scroll region from row 1 to (rows-reserved), then
+	// move the cursor to the last row of the scrollable area so new output
+	// prints just above the reserved bottom rows.
 	r.write("\x1b[?25l")
-	r.write("\x1b[%d;%dr", r.reserved+1, r.rows)
-	r.write("\x1b[%d;1H", r.reserved+1)
+	r.write("\x1b[1;%dr", r.rows-r.reserved)
+	r.write("\x1b[%d;1H", r.rows-r.reserved)
 }
 
 func (r *ScrollRegion) reset() {
-	// Reset scroll region, show cursor, move cursor to the bottom row.
+	// Clear the reserved rows before releasing the region so the bar
+	// doesn't leave residue at the bottom of the scrollback. Save/restore
+	// keeps the cursor at whatever position the scrolling content left it,
+	// so subsequent prompts append naturally.
+	r.write("\x1b7")
+	for i := 0; i < r.reserved; i++ {
+		row := r.rows - r.reserved + 1 + i
+		r.write("\x1b[%d;1H\x1b[2K", row)
+	}
+	r.write("\x1b8")
 	r.write("\x1b[r")
 	r.write("\x1b[?25h")
-	r.write("\x1b[%d;1H", r.rows)
 }
 
-func (r *ScrollRegion) drawTop(lines []string) {
+func (r *ScrollRegion) drawBottom(lines []string) {
 	if len(lines) > r.reserved {
 		panic(fmt.Sprintf("scrollregion: %d lines exceed reserved %d", len(lines), r.reserved))
 	}
-	// DEC save cursor, draw each reserved row from top, restore.
+	// DEC save cursor (caller's position in the scrolling area), draw each
+	// reserved row from the top of the reserved band downward, then restore.
 	r.write("\x1b7")
 	for i, line := range lines {
-		r.write("\x1b[%d;1H\x1b[2K%s", i+1, line)
+		row := r.rows - r.reserved + 1 + i
+		r.write("\x1b[%d;1H\x1b[2K%s", row, line)
 	}
 	r.write("\x1b8")
 }

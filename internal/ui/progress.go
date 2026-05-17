@@ -146,7 +146,7 @@ func (sp *StickyProgress) Start() {
 
 func (sp *StickyProgress) render() {
 	if sp.region != nil {
-		sp.region.DrawTop(sp.formatLines())
+		sp.region.DrawBottom(sp.formatLines())
 		return
 	}
 	sp.renderInline()
@@ -183,8 +183,10 @@ func (sp *StickyProgress) renderInline() {
 		currentPkgStyle.Render(pkgDisplay))
 }
 
-// formatLines returns the two strings to render in the scroll region:
-// row 1 = data + bar, row 2 = divider line.
+// formatLines returns the two strings to render in the bottom-reserved
+// scroll region. Order matches top-to-bottom layout: the divider sits above
+// the data row so it visually separates the scrolling output from the
+// status line at the very last terminal row.
 func (sp *StickyProgress) formatLines() []string {
 	var head string
 	switch sp.phase {
@@ -220,9 +222,9 @@ func (sp *StickyProgress) formatLines() []string {
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
 		progressBgStyle.Render(strings.Repeat("░", empty))
 
-	line1 := fmt.Sprintf("%s %s %3d%%", head, bar, int(pct*100))
-	line2 := strings.Repeat("─", cols)
-	return []string{line1, line2}
+	divider := strings.Repeat("─", cols)
+	status := fmt.Sprintf("%s %s %3d%%", head, bar, int(pct*100))
+	return []string{divider, status}
 }
 
 func (sp *StickyProgress) formatFormulaHead() string {
