@@ -291,3 +291,32 @@ func TestResolveInstallSource_PositionalPreset(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, sourcePreset, src.kind)
 }
+
+func TestApplyPickFlagToRemoteConfig_FiltersPackages(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Packages: config.PackageEntryList{{Name: "git"}, {Name: "jq"}},
+		Casks:    config.PackageEntryList{{Name: "docker"}},
+	}
+	out, err := applyPickFlagToRemoteConfig(rc, "git,docker")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"git"}, out.Packages.Names())
+	assert.Equal(t, []string{"docker"}, out.Casks.Names())
+}
+
+func TestApplyPickFlagToRemoteConfig_FailsOnUnknown(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Packages: config.PackageEntryList{{Name: "git"}},
+	}
+	_, err := applyPickFlagToRemoteConfig(rc, "git,nope")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nope")
+}
+
+func TestApplyPickFlagToRemoteConfig_EmptyIsNoOp(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Packages: config.PackageEntryList{{Name: "git"}},
+	}
+	out, err := applyPickFlagToRemoteConfig(rc, "")
+	require.NoError(t, err)
+	assert.Equal(t, rc, out)
+}

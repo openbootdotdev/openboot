@@ -66,6 +66,7 @@ func init() {
 	installCmd.Flags().BoolVarP(&installCfg.Silent, "silent", "s", false, "non-interactive mode (no TTY prompts; for scripts and e2e)")
 	installCmd.Flags().BoolVar(&installCfg.DryRun, "dry-run", false, "preview changes without installing")
 	installCmd.Flags().BoolVar(&installCfg.PackagesOnly, "packages-only", false, "install packages only, skip system config")
+	installCmd.Flags().String("pick", "", "comma-separated list of package names to install from a remote config (silent and interactive); fails if any name is unknown")
 
 	installCmd.Flags().StringVar(&installCfg.Shell, "shell", "", "shell setup: install, skip")
 	installCmd.Flags().StringVar(&installCfg.Macos, "macos", "", "macOS preferences: configure, skip")
@@ -111,6 +112,22 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 
 		if err := applyInstallSource(src); err != nil {
 			return err
+		}
+	}
+
+	if installCfg.RemoteConfig != nil {
+		pickRaw, _ := cmd.Flags().GetString("pick")
+		if pickRaw != "" {
+			rc, perr := applyPickFlagToRemoteConfig(installCfg.RemoteConfig, pickRaw)
+			if perr != nil {
+				return perr
+			}
+			installCfg.RemoteConfig = rc
+		}
+	} else {
+		// --pick requires a remote config (file / cloud / sync source).
+		if pickRaw, _ := cmd.Flags().GetString("pick"); pickRaw != "" {
+			return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
 		}
 	}
 
@@ -340,4 +357,18 @@ func printSyncSourceHeader(source *syncpkg.SyncSource) {
 		}
 	}
 	fmt.Println()
+}
+
+// applyPickFlagToRemoteConfig filters rc to the packages named in pickRaw.
+// Empty pickRaw is a no-op. Unknown names return an error listing them.
+func applyPickFlagToRemoteConfig(rc *config.RemoteConfig, pickRaw string) (*config.RemoteConfig, error) {
+	if pickRaw == "" {
+		return rc, nil
+	}
+	picks := ParsePicks(pickRaw)
+	filtered, unknown := ApplyPicks(rc, picks)
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("unknown package(s) in --pick: %s. Run with --dry-run to see available names", strings.Join(unknown, ", "))
+	}
+	return filtered, nil
 }
