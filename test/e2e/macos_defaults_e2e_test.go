@@ -49,7 +49,7 @@ func TestVM_Journey_MacOSDefaults_AllCategoriesWritten(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --shell skip --dotfiles skip --macos configure")
+		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure")
 	t.Logf("macOS configure output:\n%s", output)
 	require.NoError(t, err, "install with --macos configure should succeed")
 
@@ -156,7 +156,7 @@ func TestVM_Journey_MacOSDefaults_ScreenshotsDirCreated(t *testing.T) {
 	_, _ = vm.Run("rm -rf ~/Screenshots")
 
 	_, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --shell skip --dotfiles skip --macos configure")
+		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure")
 	require.NoError(t, err, "install with --macos configure should succeed")
 
 	out, _ := vm.Run("test -d ~/Screenshots && echo exists || echo missing")
@@ -189,7 +189,7 @@ func TestVM_Journey_MacOSDefaults_DryRunWritesNothing(t *testing.T) {
 	)
 
 	_, err = vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --shell skip --dotfiles skip --macos configure --dry-run")
+		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure --dry-run")
 	require.NoError(t, err, "dry-run should succeed")
 
 	after, _ := vm.Run(

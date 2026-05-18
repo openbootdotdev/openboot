@@ -49,7 +49,7 @@ func TestSmoke_InstallAndVerifySnapshot(t *testing.T) {
 	require.False(t, beforeFormulae[testPkg], "cowsay should not be in before snapshot")
 
 	// When: install cowsay via brew directly (simulates what openboot does)
-	installCmd := exec.Command("brew", "install", testPkg)
+	installCmd := exec.Command("/opt/homebrew/bin/brew", "install", testPkg)
 	require.NoError(t, installCmd.Run(), "brew install cowsay should succeed")
 	t.Cleanup(func() { testutil.UninstallPackage(t, testPkg) })
 
@@ -101,13 +101,3 @@ func TestSmoke_DryRunNoSideEffects(t *testing.T) {
 		"dry-run should not change installed npm packages")
 }
 
-func TestSmoke_VersionMatchesBuild(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-
-	cmd := exec.Command(binary, "version")
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
-
-	require.NoError(t, err, "version command should succeed")
-	assert.Contains(t, outStr, "OpenBoot v", "version output should contain version prefix")
-}

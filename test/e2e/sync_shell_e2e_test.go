@@ -59,7 +59,7 @@ func TestE2E_Sync_Shell_NoPanic(t *testing.T) {
 	_, err := vm.Run("printf '%s' '" + escaped + "' > /tmp/shell-config.json")
 	require.NoError(t, err)
 
-	out, _ := vmRunDevBinaryWithGit(t, vm, bin, "--from /tmp/shell-config.json --silent --dry-run")
+	out, _ := vmRunDevBinaryWithGit(t, vm, bin, "install --from /tmp/shell-config.json --silent --dry-run")
 	t.Logf("dry-run output:\n%s", out)
 	assert.NotContains(t, out, "panic", "binary should not panic with shell config")
 }

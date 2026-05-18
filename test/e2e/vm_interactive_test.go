@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/openbootdotdev/openboot/testutil"
 )
@@ -19,7 +20,14 @@ func TestVM_Interactive_InstallScript(t *testing.T) {
 	}
 
 	vm := testutil.NewMacHost(t)
-	vmInstallViaBrewTap(t, vm) // Install first
+	vmInstallViaBrew(t, vm) // Install first (no TTY required)
+
+	// expect is required for interactive tests.
+	if _, err := vm.Run(fmt.Sprintf("export PATH=%q && command -v expect", brewPath)); err != nil {
+		out, installErr := vm.Run(fmt.Sprintf("export PATH=%q && brew install expect", brewPath))
+		t.Logf("install expect: %s", out)
+		require.NoError(t, installErr, "should install expect for interactive tests")
+	}
 
 	t.Run("reinstall_answer_no", func(t *testing.T) {
 		cmd := fmt.Sprintf(

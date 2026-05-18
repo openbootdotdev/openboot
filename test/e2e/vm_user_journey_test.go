@@ -14,6 +14,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -40,24 +41,24 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 
 	vm := testutil.NewMacHost(t)
 
-	// Step 1: openboot shouldn't leak in from a prior step. We don't assert on
-	// rg/fd/bat/fzf absence anymore — GitHub Actions runners vary in what
-	// ships preinstalled, and the post-install checks below are the
-	// load-bearing assertion.
+	// Clean up any openboot left over from a prior test run.
+	vm.Run(fmt.Sprintf("export PATH=%q && brew uninstall openboot 2>/dev/null || true", brewPath)) //nolint:errcheck // best-effort cleanup
+
+	// Step 1: openboot shouldn't leak in from a prior step.
 	t.Run("bare_system_has_no_openboot", func(t *testing.T) {
 		out, _ := vm.Run("which openboot 2>/dev/null || echo not-found")
 		assert.Contains(t, out, "not-found", "openboot should not exist before install")
 	})
 
-	// Step 2: Install via curl | bash (the real user journey)
-	t.Run("curl_bash_installs_everything", func(t *testing.T) {
-		version := vmInstallViaBrewTap(t, vm)
+	// Step 2: Install via brew tap (no TTY required; mirrors the curl|bash tap path).
+	t.Run("installs_via_brew_tap", func(t *testing.T) {
+		version := vmInstallViaBrew(t, vm)
 		assert.Contains(t, version, "OpenBoot v", "should report version after install")
 	})
 
 	// Step 3: Run openboot with minimal preset
 	t.Run("minimal_preset_installs_usable_tools", func(t *testing.T) {
-		output, err := vmRunOpenbootWithGit(t, vm, "--preset minimal --silent --packages-only")
+		output, err := vmRunOpenbootWithGit(t, vm, "install --preset minimal --silent --packages-only")
 		t.Logf("install output:\n%s", output)
 		require.NoError(t, err, "minimal preset should succeed")
 
@@ -111,7 +112,7 @@ func TestVM_Journey_DryRunIsCompletelySafe(t *testing.T) {
 	beforeScreenshots, _ := vm.Run("test -d ~/Screenshots && echo exists || echo missing")
 
 	// Run dry-run with FULL preset (maximum possible changes)
-	output, err := vmRunDevBinaryWithGit(t, vm, bin, "--preset full --dry-run --silent")
+	output, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset full --dry-run --silent")
 	t.Logf("dry-run output:\n%s", output)
 	assert.NoError(t, err)
 
@@ -171,7 +172,7 @@ func TestVM_Journey_FullSetupConfiguresEverything(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --shell install --dotfiles clone --macos configure")
+		"install --preset minimal --silent --shell install --dotfiles clone --macos configure")
 	t.Logf("full setup:\n%s", output)
 	require.NoError(t, err)
 
