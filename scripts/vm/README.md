@@ -27,7 +27,8 @@ Verify with `tart list` — you should see `macos-tahoe-base`.
 ## Running
 
 ```bash
-make test-vm                                          # full suite (~30 min)
+make test-vm-parallel                                 # full suite (~14 min, 2 parallel VMs) — use before tagging
+make test-vm                                          # serial fallback — single VM, useful for debugging
 make test-vm-run TEST=TestVM_Journey_FirstTimeUser    # one test
 ```
 

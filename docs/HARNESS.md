@@ -48,7 +48,7 @@ Three regulation categories:
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |
-| Behav. | L4 VM e2e (`vm`) — runs full destructive suite in a local Tart VM | local only (convention is pre-release; no CI gate) | `make test-vm` (driver: `scripts/vm/run.sh`) |
+| Behav. | L4 VM e2e (`vm`) — runs full destructive suite in a local Tart VM | local only (convention is pre-release; no CI gate) | `make test-vm-parallel` (~14 min, driver: `scripts/vm/run.sh`); `make test-vm` is the serial single-VM fallback |
 | Behav. | curl\|bash smoke (install.sh + mock server) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
 | Behav. | Auto-release sensor — patch fast lane (`fix:`-only) auto-tags + dispatches `release.yml`; feat threshold opens a `release-ready` issue with a `make test-vm` checklist instead | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
