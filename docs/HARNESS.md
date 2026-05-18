@@ -113,7 +113,7 @@ it survives doc rot.
 - **No CI gate for VM e2e.** Apple Silicon Tart VMs don't run on
   GitHub-hosted `macos-latest` runners (no nested virt, wrong arch
   guarantees), and we declined to set up a self-hosted runner. L4 is
-  local-only. Running `make test-vm` before tagging is convention,
+  local-only. Running `make test-vm-parallel` before tagging is convention,
   encoded as a `release-ready` issue opened by `auto-release.yml`
   on `feat:` thresholds — not a hard gate. A human can release without
   it.

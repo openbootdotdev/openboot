@@ -37,13 +37,13 @@ Tests are split across four tiers. Which one runs where:
 | **L1 Unit + Integration + Contract** | Pure-Go logic with faked `Runner` *plus* real `brew` / `git` / `npm` against temp dirs and real `httptest` servers | `make test-unit` (~75s) | Every push (pre-push hook); CI on push/PR |
 | **L2 Contract schema** | JSON schema validation against [openboot-contract](https://github.com/openbootdotdev/openboot-contract) | (runs in CI only) | CI on push/PR |
 | **L3 E2E binary** | Compiled binary driven by scripts; `-tags=e2e` | `make test-e2e` | CI on release |
-| **L4 VM e2e** | Full destructive suite (`-tags="e2e,vm"`) runs inside an ephemeral Tart VM provisioned by `scripts/vm/run.sh`. Installs real packages, modifies `~/.zshrc`, writes `defaults` — all contained to the throwaway VM. | `make test-vm` (~30 min, Apple Silicon + Tart required) | **Local only** — convention is to run before tagging a release. No CI gate. |
+| **L4 VM e2e** | Full destructive suite (`-tags="e2e,vm"`) runs inside an ephemeral Tart VM provisioned by `scripts/vm/run.sh`. Installs real packages, modifies `~/.zshrc`, writes `defaults` — all contained to the throwaway VM. | `make test-vm-parallel` (~14 min, Apple Silicon + Tart required); `make test-vm` is the serial single-VM fallback | **Local only** — convention is to run before tagging a release. No CI gate. |
 
 Rules of thumb:
 
 - **Local dev:** run nothing manually if hooks are installed. `make test-unit` on demand when you want a sanity check. Skip L2+ unless you're cutting a release.
 - **Before pushing:** `make test-unit` (the pre-push hook does this automatically). Requires `brew` / `git` / `npm` on PATH — they are queried read-only against temp dirs, no real installs.
-- **Before tagging a release (convention, not enforced):** `make test-vm` on an Apple Silicon Mac with Tart installed. See [VM E2E setup](#vm-e2e-setup) below. `auto-release.yml` opens a `release-ready` issue on `feat:` thresholds to nudge you here.
+- **Before tagging a release (convention, not enforced):** `make test-vm-parallel` on an Apple Silicon Mac with Tart installed. See [VM E2E setup](#vm-e2e-setup) below. `auto-release.yml` opens a `release-ready` issue on `feat:` thresholds to nudge you here.
 
 ## VM E2E setup
 
@@ -59,9 +59,10 @@ tart clone ghcr.nju.edu.cn/cirruslabs/macos-tahoe-base:latest macos-tahoe-base
 Then:
 
 ```bash
-make test-vm                                         # full suite (~30 min)
+make test-vm-parallel                                # full suite in parallel (~14 min)
+make test-vm                                         # full suite serial fallback (~30 min)
 make test-vm-run TEST=TestVM_Journey_FirstTimeUser   # one test
-OPENBOOT_VM_KEEP=1 make test-vm                      # don't destroy VM at exit (debug)
+OPENBOOT_VM_KEEP=1 make test-vm-parallel             # don't destroy VMs at exit (debug)
 ```
 
 See `scripts/vm/README.md` for full environment-variable docs and

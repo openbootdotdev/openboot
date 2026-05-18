@@ -24,7 +24,8 @@ make build-release VERSION=0.25.0    # optimized + UPX
 # Test — full tier table in CONTRIBUTING.md
 make test-unit                       # L1 (~75s) — unit + integration + contract; pre-push hook
 make test-e2e                        # L3 compiled binary
-make test-vm                         # L4 (~30m) — destructive e2e in a local Tart VM; before tagging
+make test-vm-parallel                # L4 (~14 min) — destructive e2e in 2 parallel Tart VMs; before tagging
+make test-vm                         # L4 serial fallback — single VM, use for debugging
 make test-coverage                   # coverage.out + coverage.html
 
 # Single test
