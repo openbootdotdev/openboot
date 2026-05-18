@@ -52,8 +52,8 @@ on an Apple Silicon Mac:
 
 ```bash
 brew install cirruslabs/cli/tart
-tart pull ghcr.nju.edu.cn/cirruslabs/macos-tahoe-base:latest
-tart clone ghcr.nju.edu.cn/cirruslabs/macos-tahoe-base:latest macos-tahoe-base
+tart pull ghcr.nju.edu.cn/cirruslabs/tahoe-base:latest
+tart clone ghcr.nju.edu.cn/cirruslabs/tahoe-base:latest tahoe-base
 ```
 
 Then:

@@ -14,15 +14,15 @@ brew install cirruslabs/cli/tart
 
 # 2. Pull the base image (downloads ~25GB)
 #    Canonical upstream:
-tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
+tart pull ghcr.io/cirruslabs/tahoe-base:latest
 #    Faster mirror for users in China:
-#    tart pull ghcr.nju.edu.cn/cirruslabs/macos-tahoe-base:latest
+#    tart pull ghcr.nju.edu.cn/cirruslabs/tahoe-base:latest
 
 # 3. Give it the local name run.sh expects
-tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest macos-tahoe-base
+tart clone ghcr.io/cirruslabs/tahoe-base:latest tahoe-base
 ```
 
-Verify with `tart list` — you should see `macos-tahoe-base`.
+Verify with `tart list` — you should see `tahoe-base`.
 
 ## Running
 
@@ -36,12 +36,12 @@ make test-vm-run TEST=TestVM_Journey_FirstTimeUser    # one test
 
 | Var | Default | Effect |
 |---|---|---|
-| `OPENBOOT_VM_BASE` | `macos-tahoe-base` | Local Tart image to clone from |
+| `OPENBOOT_VM_BASE` | `tahoe-base` | Local Tart image to clone from |
 | `OPENBOOT_VM_KEEP` | `0` | When `1`, do not destroy the VM at exit. Useful for debugging — attach with the SSH key path printed at exit. Remember to clean up manually. |
 
 ## Troubleshooting
 
-- **`base image 'macos-tahoe-base' not found locally`** — run the one-time
+- **`base image 'tahoe-base' not found locally`** — run the one-time
   setup above.
 - **SSH not reachable within 60s** — Tart logs dumped to stderr.
   Try `OPENBOOT_VM_KEEP=1 make test-vm` (it'll still fail at boot, but the
@@ -59,9 +59,9 @@ make test-vm-run TEST=TestVM_Journey_FirstTimeUser    # one test
 - **Base image needs updating** — re-pull and re-clone:
 
   ```bash
-  tart delete macos-tahoe-base
-  tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
-  tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest macos-tahoe-base
+  tart delete tahoe-base
+  tart pull ghcr.io/cirruslabs/tahoe-base:latest
+  tart clone ghcr.io/cirruslabs/tahoe-base:latest tahoe-base
   ```
 
 ## Why a base image (not vanilla)

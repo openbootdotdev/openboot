@@ -5,7 +5,7 @@
 #   scripts/vm/run.sh <make-target>
 #
 # Env vars:
-#   OPENBOOT_VM_BASE — local Tart image name to clone (default: macos-tahoe-base)
+#   OPENBOOT_VM_BASE — local Tart image name to clone (default: tahoe-base)
 #   OPENBOOT_VM_KEEP — if "1", do not destroy the VM at exit (for debugging)
 #
 # Exit codes match the in-VM make target.
@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ $# -ge 1 ] || die "usage: $0 <make-target>"
 TARGET="$1"
 
-BASE="${OPENBOOT_VM_BASE:-macos-tahoe-base}"
+BASE="${OPENBOOT_VM_BASE:-tahoe-base}"
 KEEP="${OPENBOOT_VM_KEEP:-0}"
 VM_TEST="${OPENBOOT_VM_TEST:-}"
 VM="openboot-ephemeral-$$"
@@ -71,7 +71,7 @@ tart exec "$VM" sh -c "printf '%s\n' '$PUBKEY' >> /Users/admin/.ssh/authorized_k
 tart exec "$VM" chmod 700 /Users/admin/.ssh
 tart exec "$VM" chmod 600 /Users/admin/.ssh/authorized_keys
 
-# Ensure Go is available via mise (the macos-tahoe-base image ships mise but
+# Ensure Go is available via mise (the tahoe-base image ships mise but
 # not Go pre-activated in the default shell PATH). Both commands are idempotent.
 tart exec "$VM" sh -c '/opt/homebrew/bin/mise install go@latest && /opt/homebrew/bin/mise use -g go@latest'
 
