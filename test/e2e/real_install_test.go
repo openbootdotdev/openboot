@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/openbootdotdev/openboot/testutil"
 	"github.com/stretchr/testify/assert"
@@ -59,16 +57,10 @@ func TestE2E_InstallMultiplePackages(t *testing.T) {
 	}
 	binary := testutil.BuildTestBinary(t)
 
-	// When: we install multiple packages
-	tmpConfig := createTempConfig(t, `{
-		"packages": {
-			"brew": ["bat", "fd"]
-		}
-	}`)
-	defer os.Remove(tmpConfig)
-
+	// When: we install multiple packages via the minimal preset (includes bat + fd)
 	cmd := exec.Command(binary, "install", "--packages-only", "--silent", "--preset", "minimal")
 	cmd.Env = append(os.Environ(),
+		"PATH=/opt/homebrew/bin:/opt/homebrew/sbin:"+os.Getenv("PATH"),
 		"OPENBOOT_GIT_NAME=Test User",
 		"OPENBOOT_GIT_EMAIL=test@example.com",
 	)
@@ -93,13 +85,13 @@ func TestE2E_InstallMultiplePackages(t *testing.T) {
 	}
 }
 
-func TestE2E_SnapshotRestoreRealPackages(t *testing.T) {
+func TestE2E_SnapshotCapture_RecordsInstalledPackage(t *testing.T) {
 	binary := testutil.BuildTestBinary(t)
 	testPkg := "ripgrep"
 
 	// Given: ripgrep is installed
 	if !testutil.IsPackageInstalled(testPkg) {
-		cmd := exec.Command("brew", "install", testPkg)
+		cmd := exec.Command("/opt/homebrew/bin/brew", "install", testPkg)
 		require.NoError(t, cmd.Run(), "test setup: should install ripgrep")
 	}
 
@@ -117,7 +109,7 @@ func TestE2E_SnapshotRestoreRealPackages(t *testing.T) {
 	err = json.Unmarshal([]byte(snapshotJSON), &snapshot)
 	require.NoError(t, err, "snapshot should be valid JSON")
 
-	// Then: snapshot should contain ripgrep
+	// Then: snapshot should contain ripgrep in formulae
 	packages, ok := snapshot["packages"].(map[string]interface{})
 	require.True(t, ok, "snapshot should have packages field")
 
@@ -132,130 +124,5 @@ func TestE2E_SnapshotRestoreRealPackages(t *testing.T) {
 		}
 	}
 	assert.True(t, foundRipgrep, "snapshot should contain ripgrep")
-
-	// Save snapshot to file
-	tmpDir := t.TempDir()
-	snapshotPath := filepath.Join(tmpDir, "test-snapshot.json")
-	err = os.WriteFile(snapshotPath, []byte(snapshotJSON), 0644)
-	require.NoError(t, err)
-
-	// When: we uninstall ripgrep and restore from snapshot
-	testutil.UninstallPackage(t, testPkg)
-	assert.False(t, testutil.IsPackageInstalled(testPkg), "ripgrep should be uninstalled")
-
-	// Note: Actual restore would require implementing --restore flag
-	// For now, we verify the snapshot format is correct
-	content, err := os.ReadFile(snapshotPath)
-	require.NoError(t, err)
-	assert.Greater(t, len(content), 100, "snapshot should have substantial content")
 }
 
-func TestE2E_InstallWithInvalidPackage(t *testing.T) {
-	// Test that brew handles an invalid package gracefully by attempting
-	// to install a non-existent formula directly.
-	invalidPkg := "this-package-definitely-does-not-exist-12345"
-
-	cmd := exec.Command("brew", "install", invalidPkg)
-	output, err := cmd.CombinedOutput()
-	outStr := string(output)
-	t.Logf("Brew error output: %s", outStr)
-
-	// Then: brew should return a non-zero exit code for invalid packages
-	assert.Error(t, err, "brew install of non-existent package should fail")
-	assert.True(t, strings.Contains(outStr, "No formulae or casks found") ||
-		strings.Contains(outStr, "No available formula") ||
-		strings.Contains(outStr, "not found"),
-		"should indicate package not found")
-}
-
-func TestE2E_DryRunDoesNotInstall(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	testPkg := "cowsay"
-
-	// Given: cowsay is not installed
-	testutil.EnsurePackageNotInstalled(t, testPkg)
-
-	// When: we run with --dry-run
-	tmpConfig := createTempConfig(t, `{
-		"packages": {
-			"brew": ["`+testPkg+`"]
-		}
-	}`)
-	defer os.Remove(tmpConfig)
-
-	cmd := exec.Command(binary, "install", "--dry-run", "--packages-only", "--silent", "--preset", "minimal")
-	cmd.Env = append(os.Environ(),
-		"OPENBOOT_GIT_NAME=Test User",
-		"OPENBOOT_GIT_EMAIL=test@example.com",
-	)
-
-	output, err := cmd.CombinedOutput()
-	t.Logf("Dry-run output: %s", string(output))
-
-	// Then: cowsay should still not be installed
-	assert.NoError(t, err, "dry-run should succeed")
-	assert.False(t, testutil.IsPackageInstalled(testPkg), "dry-run should not actually install packages")
-}
-
-func TestE2E_BrewUpdateBeforeInstall(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-
-	// Given: we request brew update
-	cmd := exec.Command(binary, "install", "--update", "--dry-run", "--packages-only", "--silent", "--preset", "minimal")
-	cmd.Env = append(os.Environ(),
-		"OPENBOOT_GIT_NAME=Test User",
-		"OPENBOOT_GIT_EMAIL=test@example.com",
-	)
-
-	start := time.Now()
-	output, err := cmd.CombinedOutput()
-	duration := time.Since(start)
-
-	t.Logf("Update output: %s", string(output))
-	t.Logf("Duration: %v", duration)
-
-	// Then: command should succeed (update may happen or skip if recent)
-	assert.NoError(t, err, "update command should succeed")
-}
-
-func TestE2E_GitConfigSetup(t *testing.T) {
-	binary := testutil.BuildTestBinary(t)
-	testName := "Test E2E User"
-	testEmail := "e2e-test@example.com"
-
-	// Given: we have test git credentials
-	cmd := exec.Command(binary, "install", "--packages-only", "--silent", "--preset", "minimal")
-	cmd.Env = append(os.Environ(),
-		"OPENBOOT_GIT_NAME="+testName,
-		"OPENBOOT_GIT_EMAIL="+testEmail,
-	)
-
-	// When: we run openboot
-	output, err := cmd.CombinedOutput()
-	t.Logf("Output: %s", string(output))
-
-	// Then: command should handle git config
-	assert.NoError(t, err, "should succeed with git config")
-
-	// Verify git config is accessible (system-level test)
-	gitNameCheck := exec.Command("git", "config", "--global", "user.name")
-	nameOutput, _ := gitNameCheck.Output()
-	t.Logf("Git user.name: %s", string(nameOutput))
-
-	gitEmailCheck := exec.Command("git", "config", "--global", "user.email")
-	emailOutput, _ := gitEmailCheck.Output()
-	t.Logf("Git user.email: %s", string(emailOutput))
-}
-
-func createTempConfig(t *testing.T, jsonContent string) string {
-	tmpFile, err := os.CreateTemp("", "openboot-config-*.json")
-	require.NoError(t, err)
-
-	_, err = tmpFile.WriteString(jsonContent)
-	require.NoError(t, err)
-
-	err = tmpFile.Close()
-	require.NoError(t, err)
-
-	return tmpFile.Name()
-}

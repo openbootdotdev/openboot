@@ -21,6 +21,7 @@ TARGET="$1"
 
 BASE="${OPENBOOT_VM_BASE:-macos-tahoe-base}"
 KEEP="${OPENBOOT_VM_KEEP:-0}"
+VM_TEST="${OPENBOOT_VM_TEST:-}"
 VM="openboot-ephemeral-$$"
 
 # Pre-flight — all checks before we create any disk state.
@@ -78,12 +79,18 @@ tart exec "$VM" sh -c '/opt/homebrew/bin/mise install go@latest && /opt/homebrew
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 rsync -az --delete \
   --exclude='/.git/objects' \
-  --exclude='/openboot' \
   --exclude='/coverage.out' \
   --exclude='/coverage.html' \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o IdentitiesOnly=yes -i $SSH_KEY" \
   "$REPO_ROOT/" "admin@${VM_IP}:/Users/admin/openboot/"
 
-# Execute target inside VM — use mise exec to put Go on PATH
+# Execute target inside VM — use mise exec to put Go on PATH.
+# When OPENBOOT_VM_TEST is set, run only the matching tests; single-quote the
+# value so that regexp metacharacters (| [ ]) survive the remote shell intact.
+if [ -n "$VM_TEST" ]; then
+  MAKE_CMD="test-vm-inner-run TEST='${VM_TEST}'"
+else
+  MAKE_CMD="${TARGET}"
+fi
 ssh_exec "$VM_IP" "$SSH_KEY" \
-  "cd /Users/admin/openboot && CI=true OPENBOOT_IN_VM=1 /opt/homebrew/bin/mise exec go -- make ${TARGET}"
+  "cd /Users/admin/openboot && CI=true OPENBOOT_IN_VM=1 /opt/homebrew/bin/mise exec go -- make ${MAKE_CMD}"

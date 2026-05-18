@@ -41,6 +41,11 @@ pkg_dir=$(dirname "$rel_path")
 
 # Run go vet on just the touched package — fast (<1s warm).
 if ! out=$(go vet "./$pkg_dir/..." 2>&1); then
+  # "matched no packages" means the package uses build constraints that exclude
+  # the default build (e.g. //go:build e2e && vm). Not a real vet failure.
+  case "$out" in
+    *"matched no packages"*) exit 0 ;;
+  esac
   printf '[openboot post-tool-use] go vet failed for ./%s:\n%s\n' "$pkg_dir" "$out" >&2
   exit 2
 fi

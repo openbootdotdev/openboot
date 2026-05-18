@@ -1,7 +1,7 @@
-//go:build e2e && vm
+//go:build e2e && !vm
 
-// Package e2e contains VM-based E2E tests for the snapshot publish and import
-// commands exercised via the compiled binary.
+// Package e2e contains E2E tests for the snapshot publish and import
+// commands exercised via the compiled binary against a local mock HTTP server.
 //
 // Gaps filled:
 //   - `snapshot --publish`: HTTP POST/PUT path was never run end-to-end;
@@ -43,19 +43,11 @@ import (
 //
 // Gap: the PUT path (update existing config) was never exercised via the binary.
 func TestE2E_Snapshot_Publish_UpdatesExistingConfig(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
-	}
+	binary := testutil.BuildTestBinary(t)
+	home := t.TempDir()
 
-	vm := testutil.NewMacHost(t)
-	vmInstallHomebrew(t, vm)
-	bin := vmCopyDevBinary(t, vm)
-	tmpHome := t.TempDir()
-
-	// Pre-write auth and sync source so the binary skips the login flow and
-	// resolves the target slug from the stored sync source.
-	writePublishAuthFile(t, tmpHome, "obt_pub_token", "pubuser")
-	writePublishSyncSource(t, tmpHome, "pubuser", "my-existing-config")
+	writePublishAuthFile(t, home, "obt_pub_token", "pubuser")
+	writePublishSyncSource(t, home, "pubuser", "my-existing-config")
 
 	var receivedMethod string
 	var receivedAuth string
@@ -69,17 +61,13 @@ func TestE2E_Snapshot_Publish_UpdatesExistingConfig(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]string{"slug": "my-existing-config"}) //nolint:errcheck // test helper
 		default:
-			// Return an empty packages list so any background catalog fetch succeeds.
 			json.NewEncoder(w).Encode(map[string]interface{}{"packages": []interface{}{}}) //nolint:errcheck // test helper
 		}
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 
-	cmd := fmt.Sprintf(
-		"HOME=%q OPENBOOT_API_URL=%q OPENBOOT_DISABLE_AUTOUPDATE=1 PATH=%q %s snapshot --publish",
-		tmpHome, srv.URL, brewPath, bin,
-	)
-	output, err := vm.Run(cmd)
+	stdout, stderr, err := runBinary(t, binary, isolatedEnv(home, srv.URL), "snapshot", "--publish")
+	output := stdout + stderr
 	t.Logf("publish output:\n%s", output)
 	require.NoError(t, err, "snapshot --publish should succeed")
 
@@ -102,16 +90,10 @@ func TestE2E_Snapshot_Publish_UpdatesExistingConfig(t *testing.T) {
 //
 // verifying that an explicit --slug forces PUT even without a stored sync source.
 func TestE2E_Snapshot_Publish_ExplicitSlugUpdate(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
-	}
+	binary := testutil.BuildTestBinary(t)
+	home := t.TempDir()
 
-	vm := testutil.NewMacHost(t)
-	vmInstallHomebrew(t, vm)
-	bin := vmCopyDevBinary(t, vm)
-	tmpHome := t.TempDir()
-
-	writePublishAuthFile(t, tmpHome, "obt_slug_token", "sluguser")
+	writePublishAuthFile(t, home, "obt_slug_token", "sluguser")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -122,13 +104,10 @@ func TestE2E_Snapshot_Publish_ExplicitSlugUpdate(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"packages": []interface{}{}}) //nolint:errcheck // test helper
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 
-	cmd := fmt.Sprintf(
-		"HOME=%q OPENBOOT_API_URL=%q OPENBOOT_DISABLE_AUTOUPDATE=1 PATH=%q %s snapshot --publish --slug my-config",
-		tmpHome, srv.URL, brewPath, bin,
-	)
-	output, err := vm.Run(cmd)
+	stdout, stderr, err := runBinary(t, binary, isolatedEnv(home, srv.URL), "snapshot", "--publish", "--slug", "my-config")
+	output := stdout + stderr
 	t.Logf("publish --slug output:\n%s", output)
 	require.NoError(t, err, "snapshot --publish --slug should succeed")
 	assert.True(t,
@@ -143,17 +122,11 @@ func TestE2E_Snapshot_Publish_ExplicitSlugUpdate(t *testing.T) {
 //
 // Gap: slug conflicts were never exercised via the compiled binary.
 func TestE2E_Snapshot_Publish_ConflictError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
-	}
+	binary := testutil.BuildTestBinary(t)
+	home := t.TempDir()
 
-	vm := testutil.NewMacHost(t)
-	vmInstallHomebrew(t, vm)
-	bin := vmCopyDevBinary(t, vm)
-	tmpHome := t.TempDir()
-
-	writePublishAuthFile(t, tmpHome, "obt_conflict_token", "conflictuser")
-	writePublishSyncSource(t, tmpHome, "conflictuser", "existing-slug")
+	writePublishAuthFile(t, home, "obt_conflict_token", "conflictuser")
+	writePublishSyncSource(t, home, "conflictuser", "existing-slug")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -164,13 +137,10 @@ func TestE2E_Snapshot_Publish_ConflictError(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"packages": []interface{}{}}) //nolint:errcheck // test helper
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 
-	cmd := fmt.Sprintf(
-		"HOME=%q OPENBOOT_API_URL=%q OPENBOOT_DISABLE_AUTOUPDATE=1 PATH=%q %s snapshot --publish",
-		tmpHome, srv.URL, brewPath, bin,
-	)
-	output, err := vm.Run(cmd)
+	stdout, stderr, err := runBinary(t, binary, isolatedEnv(home, srv.URL), "snapshot", "--publish")
+	output := stdout + stderr
 	t.Logf("conflict output:\n%s", output)
 	assert.Error(t, err, "snapshot --publish should fail on 409")
 	assert.True(t,
@@ -190,21 +160,13 @@ func TestE2E_Snapshot_Publish_ConflictError(t *testing.T) {
 // Gap: only the internal/cli unit test covered this; the binary's error path
 // was never exercised.
 func TestE2E_Snapshot_Import_InsecureHTTP_Rejected(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
-	}
+	binary := testutil.BuildTestBinary(t)
+	home := t.TempDir()
 
-	vm := testutil.NewMacHost(t)
-	bin := vmCopyDevBinary(t, vm)
-	tmpHome := t.TempDir()
-
-	// http:// (not https://) must be rejected before any network connection.
 	insecureURL := "http://127.0.0.1:19998/snap.json"
-	cmd := fmt.Sprintf(
-		"HOME=%q OPENBOOT_DISABLE_AUTOUPDATE=1 PATH=%q %s snapshot --import %q --dry-run",
-		tmpHome, brewPath, bin, insecureURL,
-	)
-	output, err := vm.Run(cmd)
+	stdout, stderr, err := runBinary(t, binary, isolatedEnv(home, ""),
+		"snapshot", "--import", insecureURL, "--dry-run")
+	output := stdout + stderr
 	t.Logf("insecure import output:\n%s", output)
 	assert.Error(t, err, "importing from http:// should fail")
 	assert.True(t,
@@ -216,21 +178,13 @@ func TestE2E_Snapshot_Import_InsecureHTTP_Rejected(t *testing.T) {
 // TestE2E_Snapshot_Import_DownloadError verifies that the binary returns a
 // meaningful error when an HTTPS download fails (e.g., server not found).
 func TestE2E_Snapshot_Import_DownloadError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping e2e test in short mode")
-	}
-
-	vm := testutil.NewMacHost(t)
-	bin := vmCopyDevBinary(t, vm)
-	tmpHome := t.TempDir()
+	binary := testutil.BuildTestBinary(t)
+	home := t.TempDir()
 
 	// This host / port does not exist so the TLS handshake fails.
 	badURL := "https://127.0.0.1:19997/snap.json"
-	cmd := fmt.Sprintf(
-		"HOME=%q OPENBOOT_DISABLE_AUTOUPDATE=1 PATH=%q %s snapshot --import %q",
-		tmpHome, brewPath, bin, badURL,
-	)
-	output, err := vm.Run(cmd)
+	stdout, stderr, err := runBinary(t, binary, isolatedEnv(home, ""), "snapshot", "--import", badURL)
+	output := stdout + stderr
 	t.Logf("download error output:\n%s", output)
 	assert.Error(t, err, "import from unreachable URL should fail")
 	assert.True(t,
@@ -244,9 +198,9 @@ func TestE2E_Snapshot_Import_DownloadError(t *testing.T) {
 // =============================================================================
 
 // writePublishAuthFile writes a valid non-expired auth.json for publish tests.
-func writePublishAuthFile(t *testing.T, tmpHome, token, username string) {
+func writePublishAuthFile(t *testing.T, home, token, username string) {
 	t.Helper()
-	authDir := filepath.Join(tmpHome, ".openboot")
+	authDir := filepath.Join(home, ".openboot")
 	require.NoError(t, os.MkdirAll(authDir, 0700))
 
 	stored := auth.StoredAuth{
@@ -262,9 +216,9 @@ func writePublishAuthFile(t *testing.T, tmpHome, token, username string) {
 
 // writePublishSyncSource writes a sync_source.json so the binary can resolve a
 // target slug without interactive prompts.
-func writePublishSyncSource(t *testing.T, tmpHome, username, slug string) {
+func writePublishSyncSource(t *testing.T, home, username, slug string) {
 	t.Helper()
-	dir := filepath.Join(tmpHome, ".openboot")
+	dir := filepath.Join(home, ".openboot")
 	require.NoError(t, os.MkdirAll(dir, 0700))
 
 	src := syncpkg.SyncSource{

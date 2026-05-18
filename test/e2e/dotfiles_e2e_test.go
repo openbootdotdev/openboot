@@ -61,7 +61,7 @@ func TestVM_Journey_DotfilesClonedAndLinked(t *testing.T) {
 	symsBefore := strings.TrimSpace(beforeOut)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --dotfiles clone --shell skip --macos skip")
+		"install --preset minimal --silent --dotfiles clone --shell skip --macos skip")
 	t.Logf("dotfiles setup output:\n%s", output)
 	require.NoError(t, err, "install with --dotfiles clone should succeed")
 
@@ -104,7 +104,7 @@ func TestVM_Journey_DotfilesClonedAndLinked(t *testing.T) {
 
 	t.Run("second_install_is_idempotent", func(t *testing.T) {
 		_, err := vmRunDevBinaryWithGit(t, vm, bin,
-			"--preset minimal --silent --dotfiles clone --shell skip --macos skip")
+			"install --preset minimal --silent --dotfiles clone --shell skip --macos skip")
 		assert.NoError(t, err,
 			"running --dotfiles clone a second time should not fail")
 	})
@@ -127,14 +127,14 @@ func TestVM_Journey_DotfilesLink_OnlyLinks(t *testing.T) {
 
 	// Pre-clone so the dotfiles directory exists.
 	_, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --dotfiles clone --shell skip --macos skip")
+		"install --preset minimal --silent --dotfiles clone --shell skip --macos skip")
 	require.NoError(t, err, "pre-clone should succeed")
 
 	// Record the current origin commit to confirm link-only does not fetch.
 	commitBefore, _ := vm.Run("git -C ~/.dotfiles rev-parse HEAD 2>/dev/null")
 
 	_, err = vmRunDevBinaryWithGit(t, vm, bin,
-		"--preset minimal --silent --dotfiles link --shell skip --macos skip")
+		"install --preset minimal --silent --dotfiles link --shell skip --macos skip")
 	require.NoError(t, err, "--dotfiles link should succeed when repo exists")
 
 	t.Run("repo_commit_unchanged", func(t *testing.T) {

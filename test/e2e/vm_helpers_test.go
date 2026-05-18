@@ -15,8 +15,8 @@ import (
 
 const brewPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-// vmInstallViaBrewTap installs Homebrew and openboot via brew tap in the VM.
-// This mirrors the real `curl | bash` user journey.
+// vmInstallViaBrewTap installs openboot via the install.sh script (curl | bash).
+// Requires a TTY — prefer vmInstallViaBrew for non-interactive contexts.
 // Returns the installed openboot version string.
 func vmInstallViaBrewTap(t *testing.T, vm *testutil.MacHost) string {
 	t.Helper()
@@ -31,6 +31,29 @@ func vmInstallViaBrewTap(t *testing.T, vm *testutil.MacHost) string {
 	t.Logf("install output:\n%s", output)
 	if err != nil {
 		t.Fatalf("failed to install openboot via brew: %v", err)
+	}
+
+	version, _ := vm.Run(fmt.Sprintf("export PATH=%q && openboot version", brewPath))
+	return strings.TrimSpace(version)
+}
+
+// vmInstallViaBrew installs openboot via `brew tap && brew install` — no TTY required.
+// Use this instead of vmInstallViaBrewTap when running over SSH without -t.
+// Returns the installed openboot version string.
+func vmInstallViaBrew(t *testing.T, vm *testutil.MacHost) string {
+	t.Helper()
+	vmInstallHomebrew(t, vm)
+
+	script := strings.Join([]string{
+		fmt.Sprintf("export PATH=%q", brewPath),
+		"brew tap openbootdotdev/openboot 2>/dev/null || true",
+		"brew install openboot",
+	}, " && ")
+
+	output, err := vm.Run(script)
+	t.Logf("brew install openboot:\n%s", output)
+	if err != nil {
+		t.Fatalf("failed to install openboot via brew tap: %v", err)
 	}
 
 	version, _ := vm.Run(fmt.Sprintf("export PATH=%q && openboot version", brewPath))
@@ -107,8 +130,12 @@ func vmRunDevBinaryWithGit(t *testing.T, vm *testutil.MacHost, binaryPath, args 
 }
 
 // installOhMyZsh installs Oh-My-Zsh non-interactively in the VM.
+// Idempotent: skips if ~/.oh-my-zsh already exists.
 func installOhMyZsh(t *testing.T, vm *testutil.MacHost) {
 	t.Helper()
+	if _, err := vm.Run("test -d ~/.oh-my-zsh"); err == nil {
+		return
+	}
 	script := `sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended`
 	output, err := vm.Run(script)
 	t.Logf("oh-my-zsh install: %s", output)
