@@ -172,7 +172,7 @@ func TestVM_Journey_FullSetupConfiguresEverything(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"install --preset minimal --silent --shell install --dotfiles clone --macos configure")
+		"install --preset test-e2e-fixture --silent --shell install --dotfiles clone --macos configure")
 	t.Logf("full setup:\n%s", output)
 	require.NoError(t, err)
 

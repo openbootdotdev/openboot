@@ -33,7 +33,7 @@ func TestVM_Edge_ShellActuallyWorks(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	// Install with shell setup
-	_, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset minimal --silent --shell install --dotfiles skip --macos skip")
+	_, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset test-e2e-fixture --silent --shell install --dotfiles skip --macos skip")
 	require.NoError(t, err)
 
 	t.Run("zsh_login_shell_starts", func(t *testing.T) {
