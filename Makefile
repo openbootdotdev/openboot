@@ -3,9 +3,9 @@
        install-hooks uninstall-hooks
 
 # VM A: install/journey tests that touch real system state (longest-running).
-VM_A_TESTS := TestVM_Journey_FirstTimeUser|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Journey_FullSetupConfiguresEverything|TestVM_Interactive_InstallScript
+VM_A_TESTS := TestVM_Journey_FirstTimeUser|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Interactive_InstallScript
 # VM B: all other VM tests — dotfiles, macOS, edge cases, smoke, real-install, sync.
-VM_B_TESTS := TestVM_Journey_Dotfiles|TestVM_Journey_MacOS|TestVM_Edge_|TestSmoke_|TestE2E_
+VM_B_TESTS := TestVM_Journey_Dotfiles|TestVM_Journey_MacOS|TestVM_Journey_FullSetupConfiguresEverything|TestVM_Edge_|TestSmoke_|TestE2E_
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
