@@ -9,20 +9,32 @@ branch protection rules configured at:
 If the two ever drift, **GitHub is authoritative** — file a PR against
 this doc to bring it back in sync.
 
-## Required checks on `main`
+## CI stages
 
-A PR cannot be merged unless every one of these checks reports success on
-the merge commit's tip:
+CI is split into two stages to keep PR feedback fast.
+
+### Pre-merge (required — blocks merge)
+
+Runs on every PR. Must pass before merge.
 
 | Check | Workflow | Why required |
 |---|---|---|
 | `lint` | Test | Catches gofmt / gosec / staticcheck issues that block release builds. |
 | `unit (L1)` | Test | Unit + integration + contract: faked-runner Go tests *and* real `brew` / `git` / `npm` against temp dirs. Includes `internal/archtest` fitness rules. |
-| `contract schema (L2)` | Test | Validates remote-config / snapshot JSON against the `openboot-contract` schemas. Breaking the contract breaks live users. |
-| `curl\|bash smoke` | Test | Confirms `scripts/install.sh` still bootstraps the CLI against a mock server. |
-| `old-cli compat` | Test | Runs the **previous** release binary against the **current** mock server. Catches server-side changes that would break already-shipped CLIs in the field. |
 
-## Not required (and why)
+### Post-merge (runs on push to `main`)
+
+Does not block merge. Catches regressions on the merged state before
+the auto-release sensor can tag. Runs on `workflow_dispatch` and
+`repository_dispatch` too.
+
+| Check | Workflow | Why post-merge |
+|---|---|---|
+| `contract schema (L2)` | Test | Clones external repo + pip install — too slow for every PR. Validates remote-config / snapshot JSON against the `openboot-contract` schemas. |
+| `curl\|bash smoke` | Test | Builds binary + starts mock server — too slow for every PR. Confirms `scripts/install.sh` still bootstraps the CLI. |
+| `old-cli compat` | Test | Downloads previous release from GitHub — too slow and network-dependent for every PR. Catches server-side changes that would break already-shipped CLIs. |
+
+### Not required (and why)
 
 | Check | Status | Reason |
 |---|---|---|
@@ -44,7 +56,7 @@ the merge commit's tip:
   add it to this list. Promote a check to required by editing this doc
   and updating branch protection in the same PR.
 
-## Why these five
+## Why these two
 
 Each required check covers a class of regression that has shipped to
 users in past commits:
@@ -53,13 +65,11 @@ users in past commits:
 - `unit (L1)` is the broadest behaviour check — covers both faked-runner
   unit logic and real-subprocess integration drift (brew flag changes,
   `git` exit-code shifts between macOS versions).
-- `contract schema (L2)` is the contract with the openboot.dev API — any
-  drift breaks every CLI in the field.
-- `curl|bash smoke` covers the **primary install path** for new users.
-  Breaking this is a silent acquisition disaster.
-- `old-cli compat` is the contract with *already-installed* CLIs.
-  Server-side changes that break this strand users on the version they
-  have until they upgrade — which they may never do.
+
+The three heavier checks (`contract schema (L2)`, `curl|bash smoke`,
+`old-cli compat`) still run on every merge to `main` — they just don't
+block PRs, because they're too slow or network-dependent to require on
+every push to a feature branch.
 
 ## How to change this policy
 

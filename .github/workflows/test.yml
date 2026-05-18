@@ -70,6 +70,7 @@ jobs:
 
   contract:
     name: contract schema (L2)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -104,6 +105,7 @@ jobs:
 
   curl-bash-smoke:
     name: curl|bash smoke
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -135,6 +137,7 @@ jobs:
 
   cli-compat:
     name: old-cli compat
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     steps:
       - name: Checkout code

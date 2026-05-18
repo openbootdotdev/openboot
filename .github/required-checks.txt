@@ -10,6 +10,3 @@
 
 lint
 unit (L1)
-contract schema (L2)
-curl|bash smoke
-old-cli compat
