@@ -181,7 +181,7 @@ jobs:
           - [ ] \`git tag -a ${NEW_TAG} -m "..."\` and \`git push origin ${NEW_TAG}\`
           - [ ] close this issue
 
-          Skipping \`make test-vm\` is allowed (it is not a hard gate),
+          Skipping \`make test-vm-parallel\` is allowed (it is not a hard gate),
           but \`feat:\` changes carry more risk than \`fix:\` patches.
           EOF
           )

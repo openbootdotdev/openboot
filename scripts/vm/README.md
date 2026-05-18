@@ -1,7 +1,7 @@
 # Tart VM e2e
 
 The `scripts/vm/run.sh` driver spins up an ephemeral Tart VM for the
-destructive e2e suite (`make test-vm`). The 12 test files in `test/e2e/`
+destructive e2e suite (`make test-vm-parallel`). The 12 test files in `test/e2e/`
 run inside it.
 
 ## One-time setup
