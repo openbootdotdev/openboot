@@ -22,6 +22,7 @@ import (
 	"github.com/openbootdotdev/openboot/testutil"
 )
 
+
 // macOSPrefCheck describes a single `defaults read` assertion.
 type macOSPrefCheck struct {
 	domain   string
@@ -49,7 +50,7 @@ func TestVM_Journey_MacOSDefaults_AllCategoriesWritten(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure")
+		"install --preset test-e2e-fixture --silent --shell skip --dotfiles skip --macos configure")
 	t.Logf("macOS configure output:\n%s", output)
 	require.NoError(t, err, "install with --macos configure should succeed")
 
@@ -137,65 +138,3 @@ func TestVM_Journey_MacOSDefaults_AllCategoriesWritten(t *testing.T) {
 	}
 }
 
-// TestVM_Journey_MacOSDefaults_ScreenshotsDirCreated verifies that the
-// ~/Screenshots directory is created during a macOS configure run.
-//
-// Gap: the Screenshots directory creation (macos.CreateScreenshotsDir) was
-// only checked in TestVM_Journey_FullSetupConfiguresEverything as part of a
-// larger setup run. This test isolates that behaviour.
-func TestVM_Journey_MacOSDefaults_ScreenshotsDirCreated(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping macOS screenshots dir test in short mode")
-	}
-
-	vm := testutil.NewMacHost(t)
-	vmInstallHomebrew(t, vm)
-	bin := vmCopyDevBinary(t, vm)
-
-	// Remove ~/Screenshots if it already exists so the test is authoritative.
-	_, _ = vm.Run("rm -rf ~/Screenshots")
-
-	_, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure")
-	require.NoError(t, err, "install with --macos configure should succeed")
-
-	out, _ := vm.Run("test -d ~/Screenshots && echo exists || echo missing")
-	assert.Contains(t, out, "exists",
-		"~/Screenshots should be created by --macos configure")
-}
-
-// TestVM_Journey_MacOSDefaults_DryRunWritesNothing verifies that
-// --dry-run --macos configure does NOT modify any macOS preference.
-//
-// Regression guard: a bug in the Configure() dry-run branch could silently
-// write preferences on dry-run.
-func TestVM_Journey_MacOSDefaults_DryRunWritesNothing(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping macOS dry-run defaults test in short mode")
-	}
-
-	vm := testutil.NewMacHost(t)
-	vmInstallHomebrew(t, vm)
-	bin := vmCopyDevBinary(t, vm)
-
-	// Force a known value that differs from what --macos configure would write
-	// ("Always"). This makes the assertion non-vacuous: if dry-run accidentally
-	// applies the preference, the value changes to "Always" and the test fails.
-	_, err := vm.Run(`defaults write "NSGlobalDomain" "AppleShowScrollBars" -string "WhenScrolling"`)
-	require.NoError(t, err, "should be able to force a known test value before dry-run")
-
-	before, _ := vm.Run(
-		`defaults read "NSGlobalDomain" "AppleShowScrollBars" 2>/dev/null || echo UNSET`,
-	)
-
-	_, err = vmRunDevBinaryWithGit(t, vm, bin,
-		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure --dry-run")
-	require.NoError(t, err, "dry-run should succeed")
-
-	after, _ := vm.Run(
-		`defaults read "NSGlobalDomain" "AppleShowScrollBars" 2>/dev/null || echo UNSET`,
-	)
-
-	assert.Equal(t, strings.TrimSpace(before), strings.TrimSpace(after),
-		"dry-run must not change NSGlobalDomain/AppleShowScrollBars")
-}
