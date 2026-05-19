@@ -30,6 +30,9 @@ func TestVM_Edge_ShellActuallyWorks(t *testing.T) {
 
 	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
+	// Remove any pre-existing oh-my-zsh so openboot's shell install actually
+	// runs the installer rather than finding it already present.
+	vm.Run("rm -rf ~/.oh-my-zsh")
 	bin := vmCopyDevBinary(t, vm)
 
 	// Install with shell setup

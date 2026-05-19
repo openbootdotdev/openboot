@@ -57,9 +57,35 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 
 	// Step 3: Run openboot with minimal preset
 	t.Run("minimal_preset_installs_usable_tools", func(t *testing.T) {
+		// Snapshot brew formulae before so we can assert openboot actually managed them.
+		beforeFormulae := vmBrewList(t, vm)
+
 		output, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset minimal --silent --packages-only")
 		t.Logf("install output:\n%s", output)
 		require.NoError(t, err, "minimal preset should succeed")
+
+		afterFormulae := vmBrewList(t, vm)
+
+		// Log the diff for debugging.
+		beforeSet := make(map[string]bool, len(beforeFormulae))
+		for _, f := range beforeFormulae {
+			beforeSet[f] = true
+		}
+		var newlyInstalled []string
+		for _, f := range afterFormulae {
+			if !beforeSet[f] {
+				newlyInstalled = append(newlyInstalled, f)
+			}
+		}
+		t.Logf("newly installed formulae: %v", newlyInstalled)
+
+		// All minimal preset formulae must be tracked by brew after install.
+		// Binary name → formula name: rg → ripgrep; all others match.
+		minimalFormulae := []string{"jq", "ripgrep", "fd", "bat", "fzf", "htop", "tree", "gh"}
+		for _, formula := range minimalFormulae {
+			assert.Contains(t, afterFormulae, formula,
+				"openboot must ensure %s is brew-managed after install", formula)
+		}
 
 		// User expectation: every tool should be USABLE, not just "in PATH"
 		toolChecks := map[string]string{
