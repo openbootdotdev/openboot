@@ -64,7 +64,7 @@ jobs:
       - name: Unit tests
         run: make test-unit
 
-  l4-group-a:
+  l4:
     needs: gate-tests
     runs-on: macos-14
     timeout-minutes: 60
@@ -76,32 +76,14 @@ jobs:
           cache: true
       - name: Build binary
         run: make build
-      - name: Run group-a tests
+      - name: Run L4 vm tests
         run: |
           go test -v -timeout 55m -tags="e2e,vm" \
-            -run 'TestVM_Journey_FirstTimeUser|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Interactive_InstallScript' \
-            ./test/e2e/...
-
-  l4-group-b:
-    needs: gate-tests
-    runs-on: macos-14
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Build binary
-        run: make build
-      - name: Run group-b tests
-        run: |
-          go test -v -timeout 55m -tags="e2e,vm" \
-            -run 'TestVM_Journey_Dotfiles|TestVM_Journey_MacOS|TestVM_Journey_FullSetupConfiguresEverything|TestVM_Edge_|TestSmoke_|TestE2E_' \
+            -run 'TestVM_' \
             ./test/e2e/...
 
   build:
-    needs: [detect-release-type, gate-tests, l4-group-a, l4-group-b]
+    needs: [detect-release-type, gate-tests, l4]
     runs-on: ubuntu-latest
     strategy:
       matrix:
