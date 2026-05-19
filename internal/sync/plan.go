@@ -96,16 +96,23 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 		executeSyncStep(plan.InstallTaps, "taps", func() error {
 			return brew.InstallTaps(plan.InstallTaps, dryRun)
 		}),
-		executeSyncStep(plan.InstallFormulae, "formulae", func() error {
-			return brew.Install(plan.InstallFormulae, dryRun)
-		}),
-		executeSyncStep(plan.InstallCasks, "casks", func() error {
-			return brew.InstallCask(plan.InstallCasks, dryRun)
-		}),
+	}
+	// Run formulae+casks through one shared StickyProgress bar — same flow
+	// the wizard path uses. Skipping this and calling brew.Install /
+	// brew.InstallCask separately would lose the byte-level progress bar.
+	if len(plan.InstallFormulae) > 0 || len(plan.InstallCasks) > 0 {
+		_, _, err := brew.InstallWithProgress(plan.InstallFormulae, plan.InstallCasks, dryRun)
+		step := stepResult{label: "brew", err: err}
+		if err == nil {
+			step.count = len(plan.InstallFormulae) + len(plan.InstallCasks)
+		}
+		installSteps = append(installSteps, step)
+	}
+	installSteps = append(installSteps,
 		executeSyncStep(plan.InstallNpm, "npm", func() error {
 			return npm.Install(plan.InstallNpm, dryRun)
 		}),
-	}
+	)
 	for _, s := range installSteps {
 		if s.err != nil {
 			errs = append(errs, fmt.Errorf("install %s: %w", s.label, s.err))
