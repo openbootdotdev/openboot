@@ -36,12 +36,33 @@ func TestCacheTrackerReportsFileSize(t *testing.T) {
 	assert.EqualValues(t, 1024, observed.Load())
 }
 
-func TestCacheTrackerPrefersIncompleteWhileDownloading(t *testing.T) {
+func TestCacheTrackerReadsIncompleteWhileDownloading(t *testing.T) {
 	dir := t.TempDir()
 	final := filepath.Join(dir, "abc123--Docker.dmg")
 	// While downloading brew writes to <final>.incomplete; only after the
-	// download completes does it rename to <final>. We should report the
-	// larger of the two so the bar advances during the download.
+	// download completes does it rename to <final>. The tracker reads the
+	// partial so the bar advances during the download.
+	require.NoError(t, os.WriteFile(final+".incomplete", make([]byte, 5000), 0o644))
+
+	tracker := &CacheTracker{
+		finalPath: final,
+		interval:  10 * time.Millisecond,
+	}
+
+	var observed atomic.Int64
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	tracker.Run(ctx, func(bytes int64) { observed.Store(bytes) })
+	assert.EqualValues(t, 5000, observed.Load())
+}
+
+func TestCacheTrackerReportsLargerWhenBothExist(t *testing.T) {
+	// Edge case: a stale final file from a prior install plus an in-flight
+	// .incomplete. The tracker must report the larger so the bar reflects
+	// the actual download progress, not the stale leftover.
+	dir := t.TempDir()
+	final := filepath.Join(dir, "abc123--Docker.dmg")
+	require.NoError(t, os.WriteFile(final, make([]byte, 100), 0o644))
 	require.NoError(t, os.WriteFile(final+".incomplete", make([]byte, 5000), 0o644))
 
 	tracker := &CacheTracker{
