@@ -64,7 +64,7 @@ jobs:
       - name: Unit tests
         run: make test-unit
 
-  l4:
+  vm-e2e:
     needs: gate-tests
     runs-on: macos-14
     timeout-minutes: 60
@@ -76,14 +76,14 @@ jobs:
           cache: true
       - name: Build binary
         run: make build
-      - name: Run L4 vm tests
+      - name: Run vm e2e tests
         run: |
           go test -v -timeout 55m -tags="e2e,vm" \
             -run 'TestVM_' \
             ./test/e2e/...
 
   build:
-    needs: [detect-release-type, gate-tests, l4]
+    needs: [detect-release-type, gate-tests, vm-e2e]
     runs-on: ubuntu-latest
     strategy:
       matrix:
