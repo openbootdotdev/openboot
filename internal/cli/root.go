@@ -55,7 +55,11 @@ shell configuration, and macOS preferences.`,
 		// network overhead.
 		if cmd.Name() == "install" {
 			updater.AutoUpgrade(version)
-			config.RefreshPackagesFromRemote()
+			if installCfg.DryRun {
+				config.RefreshPackagesFromRemoteDryRun()
+			} else {
+				config.RefreshPackagesFromRemote()
+			}
 		}
 
 		return nil

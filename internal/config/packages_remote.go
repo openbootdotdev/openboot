@@ -38,7 +38,18 @@ type packagesCacheEntry struct {
 // into the global Categories slice. Safe to call multiple times; it is a no-op
 // if the cache is fresh. Falls back to the embedded packages.yaml silently.
 func RefreshPackagesFromRemote() {
-	pkgs, err := loadRemotePackages()
+	refreshPackages(false)
+}
+
+// RefreshPackagesFromRemoteDryRun is identical to RefreshPackagesFromRemote
+// but suppresses writing the on-disk cache. Use during --dry-run so the
+// command has zero side effects on ~/.openboot/.
+func RefreshPackagesFromRemoteDryRun() {
+	refreshPackages(true)
+}
+
+func refreshPackages(dryRun bool) {
+	pkgs, err := loadRemotePackages(dryRun)
 	if err != nil || len(pkgs) == 0 {
 		return // keep embedded fallback
 	}
@@ -47,7 +58,7 @@ func RefreshPackagesFromRemote() {
 	mergeRemotePackages(pkgs)
 }
 
-func loadRemotePackages() ([]remotePackage, error) {
+func loadRemotePackages(dryRun bool) ([]remotePackage, error) {
 	// Try disk cache first.
 	if pkgs, err := readPackagesCache(); err == nil {
 		return pkgs, nil
@@ -59,8 +70,10 @@ func loadRemotePackages() ([]remotePackage, error) {
 		return nil, err
 	}
 
-	// Write cache (best-effort).
-	_ = writePackagesCache(pkgs)
+	// Write cache (best-effort) — skip during dry-run to avoid disk side effects.
+	if !dryRun {
+		_ = writePackagesCache(pkgs)
+	}
 	return pkgs, nil
 }
 
