@@ -20,6 +20,9 @@ func TestVM_Sync_Shell_CaptureShell(t *testing.T) {
 	}
 
 	vm := testutil.NewMacHost(t)
+	// Remove any pre-existing oh-my-zsh so installOhMyZsh actually runs the
+	// install script rather than skipping via the idempotency guard.
+	vm.Run("rm -rf ~/.oh-my-zsh")
 	installOhMyZsh(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
@@ -38,6 +41,9 @@ func TestVM_Sync_Shell_CaptureShell(t *testing.T) {
 	snapshotOut, err := vmRunDevBinary(t, vm, bin, "snapshot --json")
 	require.NoError(t, err, "snapshot should succeed, output: %s", snapshotOut)
 	assert.NotEmpty(t, snapshotOut)
+	// Snapshot must capture the shell config we set — not just return empty JSON.
+	assert.Contains(t, snapshotOut, "agnoster", "snapshot JSON should capture the zsh theme")
+	assert.Contains(t, snapshotOut, "docker", "snapshot JSON should capture the zsh plugins")
 
 	_, err = vm.Run("test -d ~/.oh-my-zsh")
 	assert.NoError(t, err, "~/.oh-my-zsh should exist after install")
@@ -51,6 +57,9 @@ func TestVM_Sync_Shell_NoPanic(t *testing.T) {
 	}
 
 	vm := testutil.NewMacHost(t)
+	// Remove any pre-existing oh-my-zsh so installOhMyZsh actually runs the
+	// install script rather than skipping via the idempotency guard.
+	vm.Run("rm -rf ~/.oh-my-zsh")
 	installOhMyZsh(t, vm)
 	bin := vmCopyDevBinary(t, vm)
 
