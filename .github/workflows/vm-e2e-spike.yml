@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Mirrors VM_A in make test-vm-parallel:
-  # long-running journey tests that install packages and modify system state.
+  # Group A: long-running journey tests that install packages and modify system state.
   group-a:
     runs-on: macos-14
     timeout-minutes: 60
@@ -28,8 +27,7 @@ jobs:
             -run 'TestVM_Journey_FirstTimeUser|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Interactive_InstallScript' \
             ./test/e2e/...
 
-  # Mirrors VM_B in make test-vm-parallel:
-  # dotfiles, macOS defaults, edge cases, sync, and non-destructive e2e.
+  # Group B: dotfiles, macOS defaults, edge cases, sync, and non-destructive e2e.
   group-b:
     runs-on: macos-14
     timeout-minutes: 60
