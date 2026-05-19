@@ -54,8 +54,9 @@ jobs:
       - name: Install deadcode
         run: go install golang.org/x/tools/cmd/deadcode@latest
       - name: Run deadcode
-        # -test flag also considers test-only entry points.
-        run: deadcode -test ./...
+        # -test includes test-only entry points; e2e,vm tags expose callers
+        # in the destructive e2e suite (testutil.BuildTestBinary etc.).
+        run: deadcode -test -tags="e2e,vm" ./...
 
   mod-tidy:
     name: go mod tidy diff (drift)
