@@ -3,35 +3,34 @@ package brew
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
 
-// CacheTracker polls the brew downloads directory for the partial file
-// matching a cask name and reports its current size.
+// CacheTracker polls the exact brew download path for a cask and reports the
+// partial file's current size. During download brew writes to
+// `<finalPath>.incomplete`, then renames to `<finalPath>` on success — we
+// stat both and report the larger.
 type CacheTracker struct {
-	cacheDir string
-	match    string
-	interval time.Duration
+	finalPath string
+	interval  time.Duration
 }
 
-// NewCacheTracker builds a tracker for the given cask. cacheDir is resolved
-// via `brew --cache --cask <name>` (parent dir).
+// NewCacheTracker builds a tracker for the given cask. The exact cache path
+// is resolved via `brew --cache --cask <name>`.
 func NewCacheTracker(caskName string) (*CacheTracker, error) {
-	dir, err := resolveBrewCacheDir(caskName)
+	path, err := resolveBrewCachePath(caskName)
 	if err != nil {
 		return nil, err
 	}
 	return &CacheTracker{
-		cacheDir: dir,
-		match:    caskName,
-		interval: 500 * time.Millisecond,
+		finalPath: path,
+		interval:  500 * time.Millisecond,
 	}, nil
 }
 
-// Run polls every interval and invokes onProgress with the current matched
-// file size. Stops when ctx is done. Always emits at least one final value
+// Run polls every interval and invokes onProgress with the current file
+// size. Stops when ctx is done. Always emits at least one final value
 // before returning.
 func (t *CacheTracker) Run(ctx context.Context, onProgress func(bytes int64)) {
 	ticker := time.NewTicker(t.interval)
@@ -51,18 +50,9 @@ func (t *CacheTracker) Run(ctx context.Context, onProgress func(bytes int64)) {
 }
 
 func (t *CacheTracker) currentSize() int64 {
-	entries, err := os.ReadDir(t.cacheDir)
-	if err != nil {
-		return 0
-	}
 	var largest int64
-	needle := strings.ToLower(t.match)
-	for _, e := range entries {
-		name := strings.ToLower(e.Name())
-		if !strings.Contains(name, needle) {
-			continue
-		}
-		info, err := e.Info()
+	for _, p := range []string{t.finalPath, t.finalPath + ".incomplete"} {
+		info, err := os.Stat(p)
 		if err != nil {
 			continue
 		}
@@ -73,10 +63,12 @@ func (t *CacheTracker) currentSize() int64 {
 	return largest
 }
 
-// resolveBrewCacheDir asks brew where it stores downloads for the given cask
-// and returns the containing directory. (`brew --cache --cask X` returns the
-// expected full path; we use its parent so we can glob multiple candidates.)
-func resolveBrewCacheDir(caskName string) (string, error) {
+// resolveBrewCachePath returns the exact path brew uses for the cask's
+// download. Matching the previous substring-based approach against the cask
+// name is unreliable: brew names the cached file after the URL's basename
+// (e.g. `google-chrome` → `…--googlechrome.dmg`), so the cask name often
+// doesn't appear in it.
+func resolveBrewCachePath(caskName string) (string, error) {
 	out, err := currentRunner().Output("--cache", "--cask", caskName)
 	if err != nil {
 		return "", err
@@ -85,5 +77,5 @@ func resolveBrewCacheDir(caskName string) (string, error) {
 	if path == "" {
 		return "", os.ErrNotExist
 	}
-	return filepath.Dir(path), nil
+	return path, nil
 }
