@@ -19,9 +19,8 @@ func TestCacheTrackerReportsFileSize(t *testing.T) {
 	require.NoError(t, os.WriteFile(caskFile, make([]byte, 1024), 0o644))
 
 	tracker := &CacheTracker{
-		cacheDir: dir,
-		match:    "Docker",
-		interval: 10 * time.Millisecond,
+		finalPath: caskFile,
+		interval:  10 * time.Millisecond,
 	}
 
 	var observed atomic.Int64
@@ -37,23 +36,23 @@ func TestCacheTrackerReportsFileSize(t *testing.T) {
 	assert.EqualValues(t, 1024, observed.Load())
 }
 
-func TestCacheTrackerPicksLargestMatchingFile(t *testing.T) {
+func TestCacheTrackerPrefersIncompleteWhileDownloading(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "old--Docker.dmg"), make([]byte, 100), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "new--Docker.dmg.incomplete"), make([]byte, 5000), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "unrelated--Rectangle.dmg"), make([]byte, 9999), 0o644))
+	final := filepath.Join(dir, "abc123--Docker.dmg")
+	// While downloading brew writes to <final>.incomplete; only after the
+	// download completes does it rename to <final>. We should report the
+	// larger of the two so the bar advances during the download.
+	require.NoError(t, os.WriteFile(final+".incomplete", make([]byte, 5000), 0o644))
 
 	tracker := &CacheTracker{
-		cacheDir: dir,
-		match:    "Docker",
-		interval: 10 * time.Millisecond,
+		finalPath: final,
+		interval:  10 * time.Millisecond,
 	}
 
 	var observed atomic.Int64
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	tracker.Run(ctx, func(bytes int64) { observed.Store(bytes) })
-	// Picks the largest matching file (the .incomplete download).
 	assert.EqualValues(t, 5000, observed.Load())
 }
 
@@ -62,9 +61,8 @@ func TestCacheTrackerNoMatchReportsZero(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "unrelated--Other.dmg"), make([]byte, 100), 0o644))
 
 	tracker := &CacheTracker{
-		cacheDir: dir,
-		match:    "Docker",
-		interval: 10 * time.Millisecond,
+		finalPath: filepath.Join(dir, "abc123--Docker.dmg"),
+		interval:  10 * time.Millisecond,
 	}
 
 	var observed atomic.Int64
