@@ -20,19 +20,7 @@ func TestVM_Interactive_InstallScript(t *testing.T) {
 	}
 
 	vm := testutil.NewMacHost(t)
-
-	// This test exercises install.sh's reinstall prompt, which requires openboot
-	// to be registered with Homebrew (`brew list openboot`). Skip if the formula
-	// isn't available — that means we're in a pre-release CI environment where
-	// the tap has no published formula yet.
-	tapScript := fmt.Sprintf(
-		"export PATH=%q && brew tap openbootdotdev/openboot 2>/dev/null; brew info openboot &>/dev/null",
-		brewPath,
-	)
-	if _, err := vm.Run(tapScript); err != nil {
-		t.Skip("openboot Homebrew formula not available — skipping brew-dependent interactive test")
-	}
-	vmInstallViaBrew(t, vm) // Install first (no TTY required)
+	vmInstallViaBrew(t, vm) // taps openbootdotdev/openboot and installs openboot
 
 	// expect is required for interactive tests.
 	if _, err := vm.Run(fmt.Sprintf("export PATH=%q && command -v expect", brewPath)); err != nil {
