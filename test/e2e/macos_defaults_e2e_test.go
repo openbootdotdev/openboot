@@ -49,7 +49,7 @@ func TestVM_Journey_MacOSDefaults_AllCategoriesWritten(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	output, err := vmRunDevBinaryWithGit(t, vm, bin,
-		"install --preset test-e2e-fixture --silent --shell skip --dotfiles skip --macos configure")
+		"install --preset minimal --silent --shell skip --dotfiles skip --macos configure")
 	t.Logf("macOS configure output:\n%s", output)
 	require.NoError(t, err, "install with --macos configure should succeed")
 

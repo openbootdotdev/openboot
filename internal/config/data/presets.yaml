@@ -29,15 +29,6 @@ presets:
       - stats
       - rectangle
 
-  test-e2e-fixture:
-    name: test-e2e-fixture
-    description: "Minimal fixture for VM e2e tests — not for real use"
-    cli:
-      - jq
-      - bat
-      - ripgrep
-    cask: []
-
   developer:
     name: developer
     description: Ready-to-code Mac setup (Node, Go, Docker, VS Code)
