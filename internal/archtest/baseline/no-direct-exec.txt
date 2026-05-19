@@ -2,7 +2,7 @@
 # Each line is <file>:<line> of a known existing violation.
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
 internal/auth/login.go:191
-internal/brew/brew_install.go:400
+internal/brew/brew_install.go:433
 internal/cli/snapshot.go:21
 internal/diff/compare.go:247
 internal/diff/compare.go:253

@@ -249,7 +249,7 @@ func TestStickyProgressBytesETAUsesSpeed(t *testing.T) {
 	sp.currentBytes = 100_000_000
 	sp.totalBytes = 500_000_000
 	sp.speed = 10_000_000 // 10 MB/s
-	eta := sp.estimateCurrentCaskETA()
+	eta := sp.estimateCurrentETA()
 	// 400MB / 10 MB/s = 40s.
 	assert.Equal(t, "~40s", eta)
 }
@@ -260,8 +260,44 @@ func TestStickyProgressEstimatingPlaceholder(t *testing.T) {
 	sp.currentBytes = 0
 	sp.totalBytes = 100_000_000
 	sp.speed = 0
-	eta := sp.estimateCurrentCaskETA()
+	eta := sp.estimateCurrentETA()
 	assert.Equal(t, "estimating...", eta)
+}
+
+func TestStickyProgressFormatHeadShowsBytesSpeedETA(t *testing.T) {
+	// The head must be identical in shape for formula and cask phases —
+	// the prior split (formula = count only, cask = bytes/speed/ETA) was
+	// the visible inconsistency users noticed during longer formula
+	// downloads like vhs.
+	for _, phase := range []Phase{PhaseFormula, PhaseCask} {
+		sp := NewStickyProgress(5)
+		sp.SetPhase(phase)
+		sp.currentPkg = "vhs"
+		sp.completed = 1
+		sp.currentBytes = 12 * 1024 * 1024
+		sp.totalBytes = 28 * 1024 * 1024
+		sp.speed = 5 * 1024 * 1024
+
+		head := sp.formatHead()
+		assert.Contains(t, head, "[1/5]")
+		assert.Contains(t, head, "vhs")
+		assert.Contains(t, head, "12M/28M")
+		assert.Contains(t, head, "5M/s")
+		// 16M remaining / 5M/s ≈ 3s.
+		assert.Contains(t, head, "~3s")
+	}
+}
+
+func TestStickyProgressFormatHeadFallsBackToDashes(t *testing.T) {
+	// HEAD pre-fetch failed (size unknown) and tracker hasn't seeded speed
+	// yet → all three data columns show "—" instead of bogus zeros.
+	sp := NewStickyProgress(3)
+	sp.currentPkg = "wget"
+	sp.completed = 0
+
+	head := sp.formatHead()
+	assert.Contains(t, head, "wget")
+	assert.Contains(t, head, "— · — · —")
 }
 
 func TestStickyProgressFallsBackWhenScrollRegionUnsupported(t *testing.T) {

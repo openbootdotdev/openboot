@@ -196,13 +196,7 @@ func (sp *StickyProgress) renderInline() {
 // the data row so it visually separates the scrolling output from the
 // status line at the very last terminal row.
 func (sp *StickyProgress) formatLines() []string {
-	var head string
-	switch sp.phase {
-	case PhaseCask:
-		head = sp.formatCaskHead()
-	default:
-		head = sp.formatFormulaHead()
-	}
+	head := sp.formatHead()
 
 	cols := 80
 	if sp.region != nil {
@@ -232,12 +226,11 @@ func (sp *StickyProgress) formatLines() []string {
 	return []string{divider, status}
 }
 
-func (sp *StickyProgress) formatFormulaHead() string {
-	pkg := truncate(sp.currentPkg, 24)
-	return fmt.Sprintf("[%d/%d] %-24s", sp.completed, sp.total, pkg)
-}
-
-func (sp *StickyProgress) formatCaskHead() string {
+// formatHead renders the status-line prefix for both formula and cask phases.
+// Columns: [completed/total] pkg  bytes/total · speed · ETA. Each column falls
+// back to "—" when the underlying data is unavailable (HEAD pre-fetch failed,
+// tracker hasn't polled yet, or speed EMA not yet established).
+func (sp *StickyProgress) formatHead() string {
 	pkg := truncate(sp.currentPkg, 18)
 	bytes := "—"
 	speed := "—"
@@ -247,7 +240,7 @@ func (sp *StickyProgress) formatCaskHead() string {
 	if sp.speed > 0 {
 		speed = fmt.Sprintf("%s/s", humanBytes(int64(sp.speed)))
 	}
-	eta := sp.estimateCurrentCaskETA()
+	eta := sp.estimateCurrentETA()
 	if eta == "" {
 		eta = "—"
 	}
@@ -362,7 +355,7 @@ func (sp *StickyProgress) observeBytesAt(current int64, now time.Time) {
 	sp.lastTime = now
 }
 
-func (sp *StickyProgress) estimateCurrentCaskETA() string {
+func (sp *StickyProgress) estimateCurrentETA() string {
 	if sp.speed <= 0 || sp.totalBytes <= 0 || sp.currentBytes >= sp.totalBytes {
 		if sp.totalBytes > 0 && sp.currentBytes < sp.totalBytes {
 			return "estimating..."

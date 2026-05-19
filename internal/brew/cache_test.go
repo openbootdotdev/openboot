@@ -77,6 +77,31 @@ func TestCacheTrackerReportsLargerWhenBothExist(t *testing.T) {
 	assert.EqualValues(t, 5000, observed.Load())
 }
 
+func TestNewCacheTrackerPassesKindFlag(t *testing.T) {
+	cases := []struct {
+		name     string
+		kind     CacheKind
+		wantFlag string
+	}{
+		{"cask uses --cask", CacheKindCask, "--cask"},
+		{"formula uses --formula", CacheKindFormula, "--formula"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var captured []string
+			withFakeBrew(t, func(args []string) ([]byte, error) {
+				captured = append([]string(nil), args...)
+				return []byte("/tmp/abc--pkg\n"), nil
+			})
+
+			tracker, err := NewCacheTracker("pkg", tc.kind)
+			require.NoError(t, err)
+			require.NotNil(t, tracker)
+			assert.Equal(t, []string{"--cache", tc.wantFlag, "pkg"}, captured)
+		})
+	}
+}
+
 func TestCacheTrackerNoMatchReportsZero(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "unrelated--Other.dmg"), make([]byte, 100), 0o644))
