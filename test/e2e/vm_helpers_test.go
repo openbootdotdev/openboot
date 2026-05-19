@@ -24,7 +24,7 @@ func vmInstallViaBrew(t *testing.T, vm *testutil.MacHost) string {
 
 	script := strings.Join([]string{
 		fmt.Sprintf("export PATH=%q", brewPath),
-		"brew tap openbootdotdev/openboot 2>/dev/null || true",
+		"brew tap openbootdotdev/tap 2>/dev/null || true",
 		"brew install openboot",
 	}, " && ")
 
