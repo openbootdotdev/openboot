@@ -12,9 +12,9 @@ import (
 	"github.com/openbootdotdev/openboot/testutil"
 )
 
-// TestE2E_Sync_Shell_CaptureShell verifies that CaptureShell works correctly
+// TestVM_Sync_Shell_CaptureShell verifies that CaptureShell works correctly
 // in a real macOS environment: detects Oh-My-Zsh and reads theme/plugins from .zshrc.
-func TestE2E_Sync_Shell_CaptureShell(t *testing.T) {
+func TestVM_Sync_Shell_CaptureShell(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping VM test in short mode")
 	}
@@ -43,9 +43,9 @@ func TestE2E_Sync_Shell_CaptureShell(t *testing.T) {
 	assert.NoError(t, err, "~/.oh-my-zsh should exist after install")
 }
 
-// TestE2E_Sync_Shell_NoPanic verifies that the binary handles a remote config
+// TestVM_Sync_Shell_NoPanic verifies that the binary handles a remote config
 // with shell settings without panicking.
-func TestE2E_Sync_Shell_NoPanic(t *testing.T) {
+func TestVM_Sync_Shell_NoPanic(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping VM test in short mode")
 	}
