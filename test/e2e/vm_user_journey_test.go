@@ -41,10 +41,10 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 
 	vm := testutil.NewMacHost(t)
 	vmInstallHomebrew(t, vm)
-	// Uninstall the minimal preset packages so openboot actually installs them
-	// rather than finding them pre-installed on the GHA runner image.
+	// Remove the brew-installed openboot (left by TestVM_Interactive_InstallScript)
+	// and the minimal preset packages so openboot actually installs them.
 	vm.Run(fmt.Sprintf(
-		"export PATH=%q && brew uninstall --ignore-dependencies jq ripgrep fd bat fzf htop tree gh 2>/dev/null || true",
+		"export PATH=%q && brew uninstall --ignore-dependencies openboot jq ripgrep fd bat fzf htop tree gh 2>/dev/null || true",
 		brewPath,
 	))
 	bin := vmCopyDevBinary(t, vm)
