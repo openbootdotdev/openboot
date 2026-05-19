@@ -168,6 +168,9 @@ func (sp *StickyProgress) renderInline() {
 		pct = float64(sp.completed) / float64(sp.total)
 	}
 	filled := int(pct * float64(sp.barWidth))
+	if pct > 0 && filled == 0 {
+		filled = 1
+	}
 	empty := sp.barWidth - filled
 
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
@@ -217,6 +220,9 @@ func (sp *StickyProgress) formatLines() []string {
 
 	pct := sp.pctForBar()
 	filled := int(pct * float64(barWidth))
+	if pct > 0 && filled == 0 {
+		filled = 1
+	}
 	empty := barWidth - filled
 	bar := progressBarStyle.Render(strings.Repeat("█", filled)) +
 		progressBgStyle.Render(strings.Repeat("░", empty))
