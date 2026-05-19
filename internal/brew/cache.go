@@ -7,19 +7,31 @@ import (
 	"time"
 )
 
-// CacheTracker polls the exact brew download path for a cask and reports the
-// partial file's current size. During download brew writes to
+// CacheKind disambiguates the brew --cache lookup. Formulae and casks share
+// a global name space where some tokens collide (e.g. `docker` is both), so
+// we must pass --formula or --cask explicitly when resolving the cache path.
+type CacheKind int
+
+const (
+	CacheKindCask CacheKind = iota
+	CacheKindFormula
+)
+
+// CacheTracker polls the exact brew download path for a package and reports
+// the partial file's current size. During download brew writes to
 // `<finalPath>.incomplete`, then renames to `<finalPath>` on success — we
-// stat both and report the larger.
+// stat both and report the larger. Works for both formula bottles and cask
+// downloads — they follow the same .incomplete → rename convention.
 type CacheTracker struct {
 	finalPath string
 	interval  time.Duration
 }
 
-// NewCacheTracker builds a tracker for the given cask. The exact cache path
-// is resolved via `brew --cache --cask <name>`.
-func NewCacheTracker(caskName string) (*CacheTracker, error) {
-	path, err := resolveBrewCachePath(caskName)
+// NewCacheTracker builds a tracker for the given package. The exact cache
+// path is resolved via `brew --cache --cask <name>` or
+// `brew --cache --formula <name>` per kind.
+func NewCacheTracker(name string, kind CacheKind) (*CacheTracker, error) {
+	path, err := resolveBrewCachePath(name, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -63,13 +75,17 @@ func (t *CacheTracker) currentSize() int64 {
 	return largest
 }
 
-// resolveBrewCachePath returns the exact path brew uses for the cask's
-// download. Matching the previous substring-based approach against the cask
-// name is unreliable: brew names the cached file after the URL's basename
-// (e.g. `google-chrome` → `…--googlechrome.dmg`), so the cask name often
-// doesn't appear in it.
-func resolveBrewCachePath(caskName string) (string, error) {
-	out, err := currentRunner().Output("--cache", "--cask", caskName)
+// resolveBrewCachePath returns the exact path brew uses for the package's
+// download. Matching the previous substring-based approach against the
+// package name is unreliable: brew names the cached file after the URL's
+// basename (e.g. `google-chrome` → `…--googlechrome.dmg`, formula bottles
+// embed sha + platform), so the name often doesn't appear in it.
+func resolveBrewCachePath(name string, kind CacheKind) (string, error) {
+	flag := "--cask"
+	if kind == CacheKindFormula {
+		flag = "--formula"
+	}
+	out, err := currentRunner().Output("--cache", flag, name)
 	if err != nil {
 		return "", err
 	}

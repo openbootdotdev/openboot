@@ -232,7 +232,7 @@ func installCasksWithProgress(pkgs []string, sizes map[string]int64, progress *u
 		var trackerCancel context.CancelFunc
 		var trackerDone chan struct{}
 		if size, ok := sizes[pkg]; ok && size > 0 {
-			tracker, err := NewCacheTracker(pkg)
+			tracker, err := NewCacheTracker(pkg, CacheKindCask)
 			if err == nil {
 				ctx, cancel := context.WithCancel(context.Background())
 				trackerCancel = cancel
@@ -351,9 +351,42 @@ func runSerialInstallWithProgress(pkgs []string, sizes map[string]int64, progres
 	for _, pkg := range pkgs {
 		job := installJob{name: pkg, isCask: false}
 		progress.SetCurrent(job.name)
+
+		// Seed totalBytes immediately so the head shows "0B/<size>" instead
+		// of "—" while the tracker's first poll lands. Formulae with unknown
+		// size pass 0 and the head's bytes column stays "—".
+		progress.SetCurrentBytes(0, sizes[pkg])
+
+		// Start a CacheTracker for the formula bottle. Mirrors the cask path:
+		// brew writes to <path>.incomplete during download then renames, and
+		// we poll the file size at 500ms intervals. trackerDone gates on the
+		// goroutine's final emit so stale bytes can't bleed into the next pkg.
+		var trackerCancel context.CancelFunc
+		var trackerDone chan struct{}
+		if size, ok := sizes[pkg]; ok && size > 0 {
+			tracker, err := NewCacheTracker(pkg, CacheKindFormula)
+			if err == nil {
+				ctx, cancel := context.WithCancel(context.Background())
+				trackerCancel = cancel
+				trackerDone = make(chan struct{})
+				go func() {
+					defer close(trackerDone)
+					tracker.Run(ctx, func(b int64) {
+						progress.SetCurrentBytes(b, size)
+					})
+				}()
+			}
+		}
+
 		start := time.Now()
 		errMsg := installFormulaWithError(job.name)
 		elapsed := time.Since(start)
+
+		if trackerCancel != nil {
+			trackerCancel()
+			<-trackerDone
+		}
+
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
