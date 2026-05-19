@@ -22,7 +22,6 @@ import (
 	"github.com/openbootdotdev/openboot/testutil"
 )
 
-
 // macOSPrefCheck describes a single `defaults read` assertion.
 type macOSPrefCheck struct {
 	domain   string
