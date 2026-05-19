@@ -15,28 +15,6 @@ import (
 
 const brewPath = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-// vmInstallViaBrewTap installs openboot via the install.sh script (curl | bash).
-// Requires a TTY — prefer vmInstallViaBrew for non-interactive contexts.
-// Returns the installed openboot version string.
-func vmInstallViaBrewTap(t *testing.T, vm *testutil.MacHost) string {
-	t.Helper()
-
-	script := strings.Join([]string{
-		"export NONINTERACTIVE=1",
-		fmt.Sprintf("export PATH=%q", brewPath),
-		`/bin/bash -c "$(curl -fsSL https://openboot.dev/install.sh)" -- --help`,
-	}, " && ")
-
-	output, err := vm.Run(script)
-	t.Logf("install output:\n%s", output)
-	if err != nil {
-		t.Fatalf("failed to install openboot via brew: %v", err)
-	}
-
-	version, _ := vm.Run(fmt.Sprintf("export PATH=%q && openboot version", brewPath))
-	return strings.TrimSpace(version)
-}
-
 // vmInstallViaBrew installs openboot via `brew tap && brew install` — no TTY required.
 // Use this instead of vmInstallViaBrewTap when running over SSH without -t.
 // Returns the installed openboot version string.
@@ -107,17 +85,6 @@ func vmRunDevBinary(t *testing.T, vm *testutil.MacHost, binaryPath, args string)
 	return vm.Run(cmd)
 }
 
-// vmRunOpenbootWithGit runs openboot with git identity env vars set.
-func vmRunOpenbootWithGit(t *testing.T, vm *testutil.MacHost, args string) (string, error) {
-	t.Helper()
-	env := map[string]string{
-		"PATH":               brewPath,
-		"OPENBOOT_GIT_NAME":  "E2E Test User",
-		"OPENBOOT_GIT_EMAIL": "e2e@openboot.test",
-	}
-	return vm.RunWithEnv(env, "openboot "+args)
-}
-
 // vmRunDevBinaryWithGit runs the dev binary with git identity env vars set.
 func vmRunDevBinaryWithGit(t *testing.T, vm *testutil.MacHost, binaryPath, args string) (string, error) {
 	t.Helper()
@@ -183,26 +150,3 @@ func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
-// vmWriteTestSnapshot writes a minimal valid snapshot JSON to a path on the VM.
-func vmWriteTestSnapshot(t *testing.T, vm *testutil.MacHost, remotePath string, formulae, casks, npm []string) {
-	t.Helper()
-
-	toJSON := func(ss []string) string {
-		if len(ss) == 0 {
-			return "[]"
-		}
-		quoted := make([]string, len(ss))
-		for i, s := range ss {
-			quoted[i] = fmt.Sprintf("%q", s)
-		}
-		return "[" + strings.Join(quoted, ",") + "]"
-	}
-
-	json := fmt.Sprintf(
-		`{"version":1,"captured_at":"2026-01-01T00:00:00Z","hostname":"test-vm","packages":{"formulae":%s,"casks":%s,"taps":[],"npm":%s},"macos_prefs":[],"shell":{},"git":{},"dotfiles":{},"dev_tools":[],"matched_preset":"","catalog_match":{},"health":{"failed_steps":[],"partial":false}}`,
-		toJSON(formulae), toJSON(casks), toJSON(npm),
-	)
-
-	_, err := vm.Run(fmt.Sprintf("cat > %s << 'SNAPEOF'\n%s\nSNAPEOF", remotePath, json))
-	require.NoError(t, err, "failed to write test snapshot to VM")
-}

@@ -24,8 +24,7 @@ make build-release VERSION=0.25.0    # optimized + UPX
 # Test — full tier table in CONTRIBUTING.md
 make test-unit                       # L1 (~75s) — unit + integration + contract; pre-push hook
 make test-e2e                        # L3 compiled binary
-make test-vm-inner                   # L4 — full destructive e2e suite (runs in CI on macos-14; locally on a spare machine only)
-make test-vm-inner-run TEST=Foo      # L4 — single test
+                                     # L4 — destructive e2e runs in CI only (vm-e2e-spike.yml on macos-14)
 make test-coverage                   # coverage.out + coverage.html
 
 # Single test

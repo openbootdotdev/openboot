@@ -48,25 +48,3 @@ func findProjectRoot(t *testing.T) string {
 	}
 }
 
-func IsPackageInstalled(packageName string) bool {
-	cmd := exec.Command("which", packageName)
-	err := cmd.Run()
-	return err == nil
-}
-
-func UninstallPackage(t *testing.T, packageName string) {
-	if !IsPackageInstalled(packageName) {
-		return
-	}
-	cmd := exec.Command("brew", "uninstall", "--force", packageName)
-	if err := cmd.Run(); err != nil {
-		t.Logf("warning: failed to uninstall %s: %v", packageName, err)
-	}
-}
-
-func EnsurePackageNotInstalled(t *testing.T, packageName string) {
-	UninstallPackage(t, packageName)
-	if IsPackageInstalled(packageName) {
-		t.Fatalf("failed to ensure %s is not installed", packageName)
-	}
-}

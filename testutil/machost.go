@@ -102,9 +102,6 @@ func (h *MacHost) CopyFile(src, dst string) error {
 	return nil
 }
 
-// Destroy is a no-op — the CI runner is the sandbox.
-func (h *MacHost) Destroy() {}
-
 func shellescape(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }

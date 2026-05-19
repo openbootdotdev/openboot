@@ -81,8 +81,8 @@ These are loaded automatically when Claude runs in this repo.
 - `git push --force` against `main` or release tags.
 - `git commit --amend` on commits already pushed.
 - `git reset --hard` discarding uncommitted work.
-- Running `make test-vm-inner` (or `test-vm-inner-run`) outside a throwaway
-  machine — these install real packages onto the current host.
+- Triggering L4 e2e tests outside CI — they install real packages onto the
+  current host. L4 runs only in GitHub Actions (`vm-e2e-spike.yml`).
 - Anything that modifies the user's `~/.zshrc`, Homebrew install, or
   macOS `defaults`.
 
