@@ -4,8 +4,8 @@
 internal/auth/login.go:106
 internal/cli/snapshot_import.go:70
 internal/cli/snapshot_publish.go:142
-internal/config/packages_remote.go:69
-internal/config/packages_remote.go:74
+internal/config/packages_remote.go:82
+internal/config/packages_remote.go:87
 internal/config/remote.go:56
 internal/config/remote.go:75
 internal/config/remote.go:233

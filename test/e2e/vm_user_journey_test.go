@@ -14,7 +14,6 @@
 package e2e
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -40,9 +39,8 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 	}
 
 	vm := testutil.NewMacHost(t)
-
-	// Clean up any openboot left over from a prior test run.
-	vm.Run(fmt.Sprintf("export PATH=%q && brew uninstall openboot 2>/dev/null || true", brewPath)) //nolint:errcheck // best-effort cleanup
+	vmInstallHomebrew(t, vm)
+	bin := vmCopyDevBinary(t, vm)
 
 	// Step 1: openboot shouldn't leak in from a prior step.
 	t.Run("bare_system_has_no_openboot", func(t *testing.T) {
@@ -50,28 +48,29 @@ func TestVM_Journey_FirstTimeUser(t *testing.T) {
 		assert.Contains(t, out, "not-found", "openboot should not exist before install")
 	})
 
-	// Step 2: Install via brew tap (no TTY required; mirrors the curl|bash tap path).
-	t.Run("installs_via_brew_tap", func(t *testing.T) {
-		version := vmInstallViaBrew(t, vm)
-		assert.Contains(t, version, "OpenBoot v", "should report version after install")
+	// Step 2: Dev binary runs and reports a version.
+	t.Run("binary_is_available", func(t *testing.T) {
+		out, err := vm.Run(bin + " version")
+		require.NoError(t, err)
+		assert.Contains(t, out, "OpenBoot", "binary should report version")
 	})
 
 	// Step 3: Run openboot with minimal preset
 	t.Run("minimal_preset_installs_usable_tools", func(t *testing.T) {
-		output, err := vmRunOpenbootWithGit(t, vm, "install --preset minimal --silent --packages-only")
+		output, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset minimal --silent --packages-only")
 		t.Logf("install output:\n%s", output)
 		require.NoError(t, err, "minimal preset should succeed")
 
 		// User expectation: every tool should be USABLE, not just "in PATH"
 		toolChecks := map[string]string{
-			"jq":   `echo '{"a":1}' | jq '.a'`,          // Can it parse JSON?
-			"rg":   `echo 'hello world' | rg 'hello'`,   // Can it search?
-			"fd":   `fd --version`,                      // Does it run?
-			"bat":  `echo 'test' | bat --plain`,         // Can it display?
-			"fzf":  `echo 'a\nb\nc' | fzf --filter 'b'`, // Can it filter?
-			"htop": `htop --version`,                    // Does it run?
-			"tree": `tree --version`,                    // Does it run?
-			"gh":   `gh --version`,                      // Does it run?
+			"jq":   `echo '{"a":1}' | jq '.a'`,
+			"rg":   `echo 'hello world' | rg 'hello'`,
+			"fd":   `fd --version`,
+			"bat":  `echo 'test' | bat --plain`,
+			"fzf":  `echo 'a\nb\nc' | fzf --filter 'b'`,
+			"htop": `htop --version`,
+			"tree": `tree --version`,
+			"gh":   `gh --version`,
 		}
 
 		for name, cmd := range toolChecks {

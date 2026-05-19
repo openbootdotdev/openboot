@@ -1,11 +1,6 @@
 .PHONY: test-unit test-e2e test-coverage test-all \
-       test-vm test-vm-run test-vm-parallel test-vm-inner test-vm-inner-run \
+       test-vm-inner test-vm-inner-run \
        install-hooks uninstall-hooks
-
-# VM A: install/journey tests that touch real system state (longest-running).
-VM_A_TESTS := TestVM_Journey_FirstTimeUser|TestVM_Journey_DryRunIsCompletelySafe|TestVM_Journey_FullSetupConfiguresEverything|TestVM_Interactive_InstallScript
-# VM B: all other VM tests — dotfiles, macOS, edge cases, smoke, real-install, sync.
-VM_B_TESTS := TestVM_Journey_Dotfiles|TestVM_Journey_MacOS|TestVM_Edge_|TestSmoke_|TestE2E_
 
 BINARY_NAME=openboot
 BINARY_PATH=./$(BINARY_NAME)
@@ -34,38 +29,17 @@ test-all:
 	$(MAKE) test-coverage
 
 # =============================================================================
-# Tart VM e2e — destructive tests run inside a throwaway Tart VM provisioned
-# by scripts/vm/run.sh. Files tagged `e2e,vm` run via `make test-vm-inner`;
-# files tagged `e2e && !vm` (auth, snapshot_api) run as L3 on the host.
-#
-# Requires Apple Silicon + Tart installed locally. See scripts/vm/README.md
-# for one-time setup. The relevant targets are defined immediately below
-# this header: test-vm, test-vm-run, test-vm-inner, test-vm-inner-run.
+# L4 VM e2e — destructive tests tagged `e2e,vm`. Run directly on any clean
+# macOS host (Apple Silicon). In CI this is a GitHub Actions macos-14 runner
+# (see .github/workflows/vm-e2e-spike.yml). Locally, run on a throwaway
+# machine or a Tart VM — do NOT run on your primary dev machine.
 # =============================================================================
 
-# Developer-facing: provisions a Tart VM and runs the full e2e suite inside.
-test-vm: build
-	scripts/vm/run.sh test-vm-inner
-
-# Developer-facing: runs one named test inside a Tart VM.
-test-vm-run: build
-	scripts/vm/run.sh "test-vm-inner-run TEST=$(TEST)"
-
-# Developer-facing: runs e2e in two parallel VMs — VM A (system tests) and
-# VM B (mock-server tests). Requires ~16 GB RAM and 8 cores free.
-# Exit code is non-zero if either VM fails.
-test-vm-parallel: build
-	@OPENBOOT_VM_TEST='$(VM_A_TESTS)' scripts/vm/run.sh test-vm-inner & PID_A=$$!; \
-	OPENBOOT_VM_TEST='$(VM_B_TESTS)' scripts/vm/run.sh test-vm-inner & PID_B=$$!; \
-	A_EXIT=0; B_EXIT=0; \
-	wait $$PID_A || A_EXIT=$$?; \
-	wait $$PID_B || B_EXIT=$$?; \
-	[ $$A_EXIT -eq 0 ] && [ $$B_EXIT -eq 0 ]
-
-# In-VM: invoked over SSH by run.sh — not called by developers directly.
+# Run the full L4 suite (same command CI uses).
 test-vm-inner:
 	go test -v -timeout 60m -tags="e2e,vm" ./test/e2e/...
 
+# Run a single L4 test by name: make test-vm-inner-run TEST=TestVM_Journey_FirstTimeUser
 test-vm-inner-run:
 	go test -v -timeout 45m -tags="e2e,vm" -run '$(TEST)' ./test/e2e/...
 

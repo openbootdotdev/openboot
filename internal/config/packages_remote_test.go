@@ -291,7 +291,7 @@ func TestLoadRemotePackages_UsesCacheThenFallsToNetwork(t *testing.T) {
 
 	// No cache, no server → error.
 	t.Setenv("OPENBOOT_API_URL", "http://localhost:1")
-	_, err := loadRemotePackages()
+	_, err := loadRemotePackages(false)
 	assert.Error(t, err)
 
 	// Write fresh cache.
@@ -303,7 +303,7 @@ func TestLoadRemotePackages_UsesCacheThenFallsToNetwork(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, packagesCacheFile), data, 0600)
 
 	// Cache hit → no network call needed.
-	pkgs, err := loadRemotePackages()
+	pkgs, err := loadRemotePackages(false)
 	require.NoError(t, err)
 	assert.Equal(t, "cached-pkg", pkgs[0].Name)
 }

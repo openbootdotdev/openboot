@@ -176,13 +176,13 @@ jobs:
           **not** auto-tag. Run the destructive e2e suite locally, then
           cut the release manually:
 
-          - [ ] \`make test-vm\` passes (Apple Silicon + Tart required — see scripts/vm/README.md)
+          - [ ] L4 CI (\`vm-e2e-spike.yml\`) is green on the latest commit on \`main\`
           - [ ] sanity-check the curl|bash smoke and cli-compat results in the most recent test.yml run on main
           - [ ] \`git tag -a ${NEW_TAG} -m "..."\` and \`git push origin ${NEW_TAG}\`
           - [ ] close this issue
 
-          Skipping \`make test-vm\` is allowed (it is not a hard gate),
-          but \`feat:\` changes carry more risk than \`fix:\` patches.
+          L4 CI is not yet a hard merge gate, but \`feat:\` changes carry
+          more risk than \`fix:\` patches — verify it before tagging.
           EOF
           )
 
