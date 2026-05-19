@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  l4:
+  vm-e2e:
     runs-on: macos-14
     timeout-minutes: 60
     steps:
