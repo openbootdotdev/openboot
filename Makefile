@@ -1,5 +1,4 @@
 .PHONY: test-unit test-e2e test-coverage test-all \
-       test-vm-inner test-vm-inner-run \
        install-hooks uninstall-hooks
 
 BINARY_NAME=openboot
@@ -27,21 +26,6 @@ test-all:
 	@echo "Running all tests..."
 	$(MAKE) test-unit
 	$(MAKE) test-coverage
-
-# =============================================================================
-# L4 VM e2e — destructive tests tagged `e2e,vm`. Run directly on any clean
-# macOS host (Apple Silicon). In CI this is a GitHub Actions macos-14 runner
-# (see .github/workflows/vm-e2e-spike.yml). Locally, run on a throwaway
-# machine or a Tart VM — do NOT run on your primary dev machine.
-# =============================================================================
-
-# Run the full L4 suite (same command CI uses).
-test-vm-inner:
-	go test -v -timeout 60m -tags="e2e,vm" ./test/e2e/...
-
-# Run a single L4 test by name: make test-vm-inner-run TEST=TestVM_Journey_FirstTimeUser
-test-vm-inner-run:
-	go test -v -timeout 45m -tags="e2e,vm" -run '$(TEST)' ./test/e2e/...
 
 build:
 	go build -ldflags="$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/openboot
