@@ -58,15 +58,6 @@ fi
 if [ "$1" = "list" ] && [ "$2" = "--cask" ]; then
   exit 0
 fi
-if [ "$1" = "info" ] && [ "$2" = "--json=v2" ] && [ "$3" = "--cask" ]; then
-  # Cask size pre-fetch — return v2 envelope with token + URL so FetchCaskSizes
-  # has something to parse. The URL points nowhere reachable; HEAD will
-  # fail and size stays 0, which is fine for this test.
-  cat <<'EOF'
-{"formulae":[],"casks":[{"token":"firefox","url":"http://127.0.0.1:1/firefox.dmg"}]}
-EOF
-  exit 0
-fi
 if [ "$1" = "info" ]; then
   shift 2
   for arg in "$@"; do
@@ -104,27 +95,17 @@ exit 0
 	logContent, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 
-	var formulaInfo, caskInfo []string
+	var formulaInfo []string
 	for _, line := range strings.Split(strings.TrimSpace(string(logContent)), "\n") {
-		switch {
-		case strings.HasPrefix(line, "info --json=v2 --cask"):
-			caskInfo = append(caskInfo, line)
-		case strings.HasPrefix(line, "info --json"):
+		if strings.HasPrefix(line, "info --json") {
 			formulaInfo = append(formulaInfo, line)
 		}
 	}
 
-	// Two formula info calls are expected: one for alias resolution, one for
-	// size pre-fetch (FetchFormulaSizes). Both share the same arg shape —
-	// they're separate consumers of the same brew metadata.
-	require.Len(t, formulaInfo, 2, "expected one alias-resolution + one size pre-fetch call")
-	for _, line := range formulaInfo {
-		assert.Equal(t, "info --json postgresql kubectl", line)
-		assert.NotContains(t, line, "firefox", "formula info must never include cask names")
-	}
-
-	require.Len(t, caskInfo, 1, "cask size pre-fetch should be a single batch")
-	assert.Equal(t, "info --json=v2 --cask firefox", caskInfo[0])
+	// One formula info call: alias resolution only (size pre-fetch removed).
+	require.Len(t, formulaInfo, 1, "expected exactly one alias-resolution call")
+	assert.Equal(t, "info --json postgresql kubectl", formulaInfo[0])
+	assert.NotContains(t, formulaInfo[0], "firefox", "formula info must never include cask names")
 }
 
 func TestInstallWithProgress_RetrySuccessTracksCanonicalNames(t *testing.T) {
@@ -197,7 +178,7 @@ exit 0
 
 	logContent, err := os.ReadFile(logPath)
 	require.NoError(t, err)
-	// Two `info --json foo` calls: alias resolution + size pre-fetch.
-	assert.Equal(t, 2, strings.Count(string(logContent), "info --json foo"))
+	// One `info --json foo` call: alias resolution only (size pre-fetch removed).
+	assert.Equal(t, 1, strings.Count(string(logContent), "info --json foo"))
 	assert.Equal(t, 2, strings.Count(string(logContent), "install foo"))
 }
