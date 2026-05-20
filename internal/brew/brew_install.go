@@ -1,7 +1,6 @@
 package brew
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -152,35 +151,14 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return installedFormulae, installedCasks, preErr
 	}
 
-	// Pre-flight HEAD all download URLs (formula bottles + cask downloads)
-	// upfront so the progress bar can be byte-proportional across the WHOLE
-	// install — formula and cask share one continuous bar instead of two
-	// algorithms with a jump in between. Bounded so a slow CDN can't stall
-	// the install phase. Unknown sizes (HEAD failures) contribute 0 and
-	// simply don't advance the bar for that package.
-	sizeCtx, sizeCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	formulaSizes := FetchFormulaSizes(sizeCtx, newCli)
-	caskSizes := FetchCaskSizes(sizeCtx, newCask)
-	sizeCancel()
-
-	var installTotalBytes int64
-	for _, s := range formulaSizes {
-		installTotalBytes += s
-	}
-	for _, s := range caskSizes {
-		installTotalBytes += s
-	}
-
 	progress := ui.NewStickyProgress(len(newCli) + len(newCask))
 	progress.SetSkipped(skipped)
-	progress.SetTotalBytes(installTotalBytes)
 	progress.Start()
 
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
-		progress.SetPhase(ui.PhaseFormula)
-		failed := runSerialInstallWithProgress(newCli, formulaSizes, progress)
+		failed := runSerialInstallWithProgress(newCli, progress)
 		failedSet := make(map[string]bool, len(failed))
 		for _, f := range failed {
 			failedSet[f.name] = true
@@ -194,7 +172,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	}
 
 	if len(newCask) > 0 {
-		caskInstalled, caskFailed := installCasksWithProgress(newCask, caskSizes, progress)
+		caskInstalled, caskFailed := installCasksWithProgress(newCask, progress)
 		installedCasks = append(installedCasks, caskInstalled...)
 		allFailed = append(allFailed, caskFailed...)
 	}
@@ -208,60 +186,21 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	return installedFormulae, installedCasks, nil
 }
 
-// installCasksWithProgress installs cask packages one by one with progress
-// reporting. Sizes are pre-fetched by the caller (InstallWithProgress) so
-// the bar's byte total can span formula + cask phases. Returns successful
+// installCasksWithProgress installs cask packages one by one, letting brew's
+// own output (download progress, etc.) scroll through. Returns successful
 // installs and failed jobs.
-func installCasksWithProgress(pkgs []string, sizes map[string]int64, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
-	progress.SetPhase(ui.PhaseCask)
-
+func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
 	for _, pkg := range pkgs {
 		progress.SetCurrent(pkg)
 		progress.PrintLine("  Installing %s...", pkg)
-
-		// Seed totalBytes for this cask immediately so the head shows
-		// "0B/<size>" instead of "—" for the ~500ms before the cache
-		// tracker's first poll lands. Casks with unknown size pass 0 and
-		// the head's bytes column stays "—" (correct — we have nothing
-		// to show).
-		progress.SetCurrentBytes(0, sizes[pkg])
-
-		// Start tracker for this cask (skip if size unknown — no bar, just spinner).
-		// trackerDone closes only after the goroutine has emitted its final
-		// reading, so we never let a stale byte value bleed into the next cask.
-		var trackerCancel context.CancelFunc
-		var trackerDone chan struct{}
-		if size, ok := sizes[pkg]; ok && size > 0 {
-			tracker, err := NewCacheTracker(pkg, CacheKindCask)
-			if err == nil {
-				ctx, cancel := context.WithCancel(context.Background())
-				trackerCancel = cancel
-				trackerDone = make(chan struct{})
-				go func() {
-					defer close(trackerDone)
-					tracker.Run(ctx, func(b int64) {
-						progress.SetCurrentBytes(b, size)
-					})
-				}()
-			}
-		}
 
 		start := time.Now()
 		errMsg := installCaskWithProgress(pkg)
 		elapsed := time.Since(start)
 
-		if trackerCancel != nil {
-			trackerCancel()
-			<-trackerDone
-		}
-
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
-			// Advance the byte-based bar by this cask's known size. Casks
-			// with unknown sizes (HEAD failed) pass 0 here — they advance the
-			// count but not the bar's byte fill.
-			progress.AddCompletedBytes(sizes[pkg])
 			progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
 			installed = append(installed, pkg)
 		} else {
@@ -342,7 +281,7 @@ func handleFailedJobs(failed []failedJob) {
 	}
 }
 
-func runSerialInstallWithProgress(pkgs []string, sizes map[string]int64, progress *ui.StickyProgress) []failedJob {
+func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []failedJob {
 	if len(pkgs) == 0 {
 		return nil
 	}
@@ -352,48 +291,13 @@ func runSerialInstallWithProgress(pkgs []string, sizes map[string]int64, progres
 		job := installJob{name: pkg, isCask: false}
 		progress.SetCurrent(job.name)
 
-		// Seed totalBytes immediately so the head shows "0B/<size>" instead
-		// of "—" while the tracker's first poll lands. Formulae with unknown
-		// size pass 0 and the head's bytes column stays "—".
-		progress.SetCurrentBytes(0, sizes[pkg])
-
-		// Start a CacheTracker for the formula bottle. Mirrors the cask path:
-		// brew writes to <path>.incomplete during download then renames, and
-		// we poll the file size at 500ms intervals. trackerDone gates on the
-		// goroutine's final emit so stale bytes can't bleed into the next pkg.
-		var trackerCancel context.CancelFunc
-		var trackerDone chan struct{}
-		if size, ok := sizes[pkg]; ok && size > 0 {
-			tracker, err := NewCacheTracker(pkg, CacheKindFormula)
-			if err == nil {
-				ctx, cancel := context.WithCancel(context.Background())
-				trackerCancel = cancel
-				trackerDone = make(chan struct{})
-				go func() {
-					defer close(trackerDone)
-					tracker.Run(ctx, func(b int64) {
-						progress.SetCurrentBytes(b, size)
-					})
-				}()
-			}
-		}
-
 		start := time.Now()
 		errMsg := installFormulaWithError(job.name)
 		elapsed := time.Since(start)
 
-		if trackerCancel != nil {
-			trackerCancel()
-			<-trackerDone
-		}
-
 		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
 		if errMsg == "" {
-			// Advance the byte-based bar by this formula's bottle size.
-			// Formulae with unknown sizes pass 0; the bar just doesn't move
-			// for them but the count still advances.
-			progress.AddCompletedBytes(sizes[pkg])
 			progress.PrintLine("  %s %s", ui.Green("✔ "+job.name), ui.Cyan("("+duration+")"))
 			continue
 		}
