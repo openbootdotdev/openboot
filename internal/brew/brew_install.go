@@ -186,13 +186,11 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	return installedFormulae, installedCasks, nil
 }
 
-// installCasksWithProgress installs cask packages one by one, letting brew's
-// own output (download progress, etc.) scroll through. Returns successful
-// installs and failed jobs.
+// installCasksWithProgress installs cask packages one by one with brew output
+// suppressed. Returns successful installs and failed jobs.
 func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
 	for _, pkg := range pkgs {
 		progress.SetCurrent(pkg)
-		progress.PrintLine("  Installing %s...", pkg)
 
 		start := time.Now()
 		errMsg := installCaskWithProgress(pkg)
@@ -313,18 +311,11 @@ func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []
 }
 
 func installCaskWithProgress(pkg string) string {
-	cmd := brewInstallCmd("install", "--cask", pkg)
-	tty, opened := system.OpenTTY()
-	if opened {
-		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
+	output, err := brewCombinedOutputWithTTY("install", "--cask", pkg)
+	if err == nil {
+		return ""
 	}
-	cmd.Stdin = tty
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return "install failed"
-	}
-	return ""
+	return parseBrewError(output)
 }
 
 // Runner-exempt: this helper sets HOMEBREW_NO_AUTO_UPDATE=1 and returns a raw
