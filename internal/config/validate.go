@@ -13,7 +13,7 @@ const (
 )
 
 var (
-	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.-]+$`)
+	pkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9@/_.+-]+$`)
 	tapNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
 	// macOS preference domains never contain spaces; keys may (e.g. "NSStatusItem Visible Sound").
 	domainRe = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
