@@ -133,6 +133,16 @@ func TestRemoteConfig_WithValidPackages(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// Homebrew casks can contain '+' (e.g. logi-options+, gtk+). See issue #101.
+func TestRemoteConfig_AllowsPlusInPackageNames(t *testing.T) {
+	rc := &RemoteConfig{
+		Packages: PackageEntryList{{Name: "gtk+"}},
+		Casks:    PackageEntryList{{Name: "logi-options+"}},
+	}
+	err := rc.Validate()
+	assert.NoError(t, err)
+}
+
 func TestRemoteConfig_InvalidPackageName(t *testing.T) {
 	rc := &RemoteConfig{
 		Packages: PackageEntryList{{Name: "bad name with spaces"}},
