@@ -379,10 +379,10 @@ func TestPlanFromSnapshot_DotfilesSkipFlag(t *testing.T) {
 func TestPlanFromSnapshot_DotfilesFromSnapshot(t *testing.T) {
 	cfg := &config.Config{
 		InstallOptions: config.InstallOptions{
-			DryRun:   true,
-			Silent:   true,
-			Shell:    "skip",
-			Macos:    "skip",
+			DryRun: true,
+			Silent: true,
+			Shell:  "skip",
+			Macos:  "skip",
 		},
 		InstallState: config.InstallState{
 			SnapshotDotfiles: "https://github.com/user/dotfiles",

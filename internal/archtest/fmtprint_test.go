@@ -9,7 +9,7 @@ import (
 // directly. internal/ui owns the output helpers and internal/archtest itself
 // uses fmt.Fprintf to write baselines.
 var fmtPrintAllowedPaths = []string{
-	"internal/ui",      // owns the output helpers
+	"internal/ui",       // owns the output helpers
 	"internal/archtest", // uses fmt.Fprintf internally for baseline writes
 }
 
