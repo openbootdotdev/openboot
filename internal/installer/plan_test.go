@@ -236,9 +236,11 @@ func TestPlanMacOSDecision_DryRunNoTTY(t *testing.T) {
 
 func TestPlanInteractive_PackagesOnly_DryRun(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:       true,
-		PackagesOnly: true,
-		Preset:       "minimal",
+		InstallOptions: config.InstallOptions{
+			DryRun:       true,
+			PackagesOnly: true,
+			Preset:       "minimal",
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -258,13 +260,14 @@ func TestPlanInteractive_Silent_Preset_Minimal(t *testing.T) {
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		Silent: true,
-		Preset: "minimal",
-		Shell:  "skip",
-		Macos:  "skip",
-		// GitName/GitEmail populated or left empty — silent path handles it.
-		GitName:  "CI User",
-		GitEmail: "ci@example.com",
+		InstallOptions: config.InstallOptions{
+			Silent:   true,
+			Preset:   "minimal",
+			Shell:    "skip",
+			Macos:    "skip",
+			GitName:  "CI User",
+			GitEmail: "ci@example.com",
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -279,11 +282,13 @@ func TestPlanInteractive_DryRun_Minimal_AllSkipped(t *testing.T) {
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		DryRun:   true,
-		Preset:   "minimal",
-		Shell:    "skip",
-		Macos:    "skip",
-		Dotfiles: "skip",
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Preset:   "minimal",
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -305,12 +310,16 @@ func TestPlanInteractive_DryRun_Minimal_AllSkipped(t *testing.T) {
 
 func TestPlanFromSnapshot_GitNil_SetsSkipGit(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:      true,
-		Silent:      true,
-		Shell:       "skip",
-		Macos:       "skip",
-		Dotfiles:    "skip",
-		SnapshotGit: nil,
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotGit: nil,
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -323,14 +332,18 @@ func TestPlanFromSnapshot_GitNil_SetsSkipGit(t *testing.T) {
 
 func TestPlanFromSnapshot_GitPresent_PopulatesNameEmail(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:   true,
-		Silent:   true,
-		Shell:    "skip",
-		Macos:    "skip",
-		Dotfiles: "skip",
-		SnapshotGit: &config.SnapshotGitConfig{
-			UserName:  "Snap User",
-			UserEmail: "snap@example.com",
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotGit: &config.SnapshotGitConfig{
+				UserName:  "Snap User",
+				UserEmail: "snap@example.com",
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -344,12 +357,16 @@ func TestPlanFromSnapshot_GitPresent_PopulatesNameEmail(t *testing.T) {
 
 func TestPlanFromSnapshot_DotfilesSkipFlag(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:           true,
-		Silent:           true,
-		Shell:            "skip",
-		Macos:            "skip",
-		Dotfiles:         "skip",
-		SnapshotDotfiles: "https://github.com/user/dotfiles",
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotDotfiles: "https://github.com/user/dotfiles",
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -361,11 +378,15 @@ func TestPlanFromSnapshot_DotfilesSkipFlag(t *testing.T) {
 
 func TestPlanFromSnapshot_DotfilesFromSnapshot(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:           true,
-		Silent:           true,
-		Shell:            "skip",
-		Macos:            "skip",
-		SnapshotDotfiles: "https://github.com/user/dotfiles",
+		InstallOptions: config.InstallOptions{
+			DryRun: true,
+			Silent: true,
+			Shell:  "skip",
+			Macos:  "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotDotfiles: "https://github.com/user/dotfiles",
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -376,13 +397,17 @@ func TestPlanFromSnapshot_DotfilesFromSnapshot(t *testing.T) {
 
 func TestPlanFromSnapshot_ShellRestored(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:               true,
-		Silent:               true,
-		Macos:                "skip",
-		Dotfiles:             "skip",
-		SnapshotShellOhMyZsh: true,
-		SnapshotShellTheme:   "robbyrussell",
-		SnapshotShellPlugins: []string{"git", "kubectl"},
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotShellOhMyZsh: true,
+			SnapshotShellTheme:   "robbyrussell",
+			SnapshotShellPlugins: []string{"git", "kubectl"},
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -395,13 +420,17 @@ func TestPlanFromSnapshot_ShellRestored(t *testing.T) {
 
 func TestPlanFromSnapshot_ShellSkipFlag(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:               true,
-		Silent:               true,
-		Shell:                "skip",
-		Macos:                "skip",
-		Dotfiles:             "skip",
-		SnapshotShellOhMyZsh: true,
-		SnapshotShellTheme:   "robbyrussell",
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotShellOhMyZsh: true,
+			SnapshotShellTheme:   "robbyrussell",
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -412,12 +441,16 @@ func TestPlanFromSnapshot_ShellSkipFlag(t *testing.T) {
 
 func TestPlanFromSnapshot_MacOSPrefsFromSnapshot(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:   true,
-		Silent:   true,
-		Shell:    "skip",
-		Dotfiles: "skip",
-		SnapshotMacOS: []config.RemoteMacOSPref{
-			{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true"},
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotMacOS: []config.RemoteMacOSPref{
+				{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true"},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -431,13 +464,17 @@ func TestPlanFromSnapshot_MacOSPrefsFromSnapshot(t *testing.T) {
 
 func TestPlanFromSnapshot_MacOSSkipFlag(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:   true,
-		Silent:   true,
-		Shell:    "skip",
-		Dotfiles: "skip",
-		Macos:    "skip",
-		SnapshotMacOS: []config.RemoteMacOSPref{
-			{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true"},
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Dotfiles: "skip",
+			Macos:    "skip",
+		},
+		InstallState: config.InstallState{
+			SnapshotMacOS: []config.RemoteMacOSPref{
+				{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true"},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -449,15 +486,19 @@ func TestPlanFromSnapshot_MacOSSkipFlag(t *testing.T) {
 
 func TestPlanFromSnapshot_PackageCategorizationFromSelectedPkgs(t *testing.T) {
 	cfg := &config.Config{
-		DryRun:   true,
-		Silent:   true,
-		Shell:    "skip",
-		Macos:    "skip",
-		Dotfiles: "skip",
-		// Use packages that are known to the local catalog so they get
-		// categorized correctly without a remote config.
-		SelectedPkgs: map[string]bool{
-			"curl": true,
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			// Use packages that are known to the local catalog so they get
+			// categorized correctly without a remote config.
+			SelectedPkgs: map[string]bool{
+				"curl": true,
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()

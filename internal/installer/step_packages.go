@@ -9,7 +9,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/npm"
 	"github.com/openbootdotdev/openboot/internal/system"
-	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 type categorizedPackages struct {
@@ -70,97 +69,6 @@ func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallS
 		}
 	}
 	return result
-}
-
-func stepPresetSelection(opts *config.InstallOptions, st *config.InstallState) error {
-	ui.Header("Step 2: Preset Selection")
-	fmt.Println()
-
-	if opts.Preset == "" {
-		if opts.Silent || (opts.DryRun && !system.HasTTY()) {
-			opts.Preset = "minimal"
-		} else {
-			var err error
-			opts.Preset, err = ui.SelectPreset()
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// Handle "scratch" as special case - use minimal but show full catalog
-	if opts.Preset == "scratch" {
-		ui.Success("Selected: scratch (choose from full catalog)")
-		ui.Muted("You'll be able to search and select individual packages")
-		fmt.Println()
-		return nil
-	}
-
-	preset, ok := config.GetPreset(opts.Preset)
-	if !ok {
-		return fmt.Errorf("invalid preset: %s", opts.Preset)
-	}
-
-	ui.Success(fmt.Sprintf("Selected preset: %s", preset.Name))
-	ui.Info(fmt.Sprintf("CLI packages: %d", len(preset.CLI)))
-	ui.Info(fmt.Sprintf("GUI applications: %d", len(preset.Cask)))
-	if len(preset.Npm) > 0 {
-		ui.Info(fmt.Sprintf("npm packages: %d", len(preset.Npm)))
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func stepPackageCustomization(opts *config.InstallOptions, st *config.InstallState) error {
-	ui.Header("Step 3: Package Selection")
-	fmt.Println()
-
-	if opts.Silent || (opts.DryRun && !system.HasTTY()) {
-		st.SelectedPkgs = config.GetPackagesForPreset(opts.Preset)
-		total := len(st.SelectedPkgs)
-		ui.Info(fmt.Sprintf("Using preset packages: %d selected", total))
-		fmt.Println()
-		return nil
-	}
-
-	ui.Info("Customize your packages (based on preset: " + opts.Preset + ")")
-	ui.Muted("Use Tab to switch categories, Space to toggle, Enter to confirm")
-	fmt.Println()
-
-	selected, onlinePkgs, confirmed, err := ui.RunSelector(opts.Preset)
-	if err != nil {
-		return err
-	}
-
-	if !confirmed {
-		ui.Muted("Installation cancelled.")
-		return ErrUserCancelled
-	}
-
-	st.SelectedPkgs = selected
-	st.OnlinePkgs = onlinePkgs
-
-	if st.RemoteConfig != nil && len(st.RemoteConfig.Packages) > 0 {
-		for _, pkg := range st.RemoteConfig.Packages {
-			st.SelectedPkgs[pkg.Name] = true
-		}
-	}
-	if st.RemoteConfig != nil && len(st.RemoteConfig.Casks) > 0 {
-		for _, cask := range st.RemoteConfig.Casks {
-			st.SelectedPkgs[cask.Name] = true
-		}
-	}
-
-	count := 0
-	for _, v := range selected {
-		if v {
-			count++
-		}
-	}
-	ui.Success(fmt.Sprintf("Selected %d packages", count))
-	fmt.Println()
-	return nil
 }
 
 func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orchestrates multiple package categories; splitting would obscure the install sequence

@@ -337,7 +337,7 @@ func TestConfirmInstallation_DryRunSkipsPrompt(t *testing.T) {
 func TestSaveSyncSourceIfRemote_NilRemoteConfigNoOp(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	c := &config.Config{RemoteConfig: nil}
+	c := &config.Config{}
 	// Should be a no-op — no panic, no file written.
 	saveSyncSourceIfRemote(c)
 
@@ -350,10 +350,12 @@ func TestSaveSyncSourceIfRemote_WithRemoteConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	c := &config.Config{
-		User: "alice/dev-setup",
-		RemoteConfig: &config.RemoteConfig{
-			Username: "alice",
-			Slug:     "dev-setup",
+		InstallOptions: config.InstallOptions{User: "alice/dev-setup"},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "alice",
+				Slug:     "dev-setup",
+			},
 		},
 	}
 	saveSyncSourceIfRemote(c)

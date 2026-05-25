@@ -12,22 +12,26 @@ import (
 func TestToInstallOptions_AllFields(t *testing.T) {
 	rc := &RemoteConfig{Username: "alice", Slug: "setup"}
 	cfg := &Config{
-		Version:          "1.2.3",
-		Preset:           "developer",
-		User:             "alice",
-		DryRun:           true,
-		Silent:           true,
-		PackagesOnly:     true,
-		Update:           true,
-		Shell:            "install",
-		Macos:            "configure",
-		Dotfiles:         "clone",
-		GitName:          "Alice",
-		GitEmail:         "alice@example.com",
-		PostInstall:      "mise install",
-		AllowPostInstall: true,
-		DotfilesURL:      "https://github.com/alice/dotfiles",
-		RemoteConfig:     rc,
+		InstallOptions: InstallOptions{
+			Version:          "1.2.3",
+			Preset:           "developer",
+			User:             "alice",
+			DryRun:           true,
+			Silent:           true,
+			PackagesOnly:     true,
+			Update:           true,
+			Shell:            "install",
+			Macos:            "configure",
+			Dotfiles:         "clone",
+			GitName:          "Alice",
+			GitEmail:         "alice@example.com",
+			PostInstall:      "mise install",
+			AllowPostInstall: true,
+			DotfilesURL:      "https://github.com/alice/dotfiles",
+		},
+		InstallState: InstallState{
+			RemoteConfig: rc,
+		},
 	}
 
 	opts := cfg.ToInstallOptions()
@@ -82,16 +86,18 @@ func TestToInstallState_AllFields(t *testing.T) {
 	}
 
 	cfg := &Config{
-		SelectedPkgs:         map[string]bool{"git": true, "curl": false},
-		OnlinePkgs:           []Package{{Name: "git", Description: "VCS"}},
-		SnapshotTaps:         []string{"homebrew/core"},
-		RemoteConfig:         rc,
-		SnapshotGit:          git,
-		SnapshotMacOS:        macOSPrefs,
-		SnapshotDotfiles:     "https://github.com/bob/dotfiles",
-		SnapshotShellOhMyZsh: true,
-		SnapshotShellTheme:   "agnoster",
-		SnapshotShellPlugins: []string{"git", "z"},
+		InstallState: InstallState{
+			SelectedPkgs:         map[string]bool{"git": true, "curl": false},
+			OnlinePkgs:           []Package{{Name: "git", Description: "VCS"}},
+			SnapshotTaps:         []string{"homebrew/core"},
+			RemoteConfig:         rc,
+			SnapshotGit:          git,
+			SnapshotMacOS:        macOSPrefs,
+			SnapshotDotfiles:     "https://github.com/bob/dotfiles",
+			SnapshotShellOhMyZsh: true,
+			SnapshotShellTheme:   "agnoster",
+			SnapshotShellPlugins: []string{"git", "z"},
+		},
 	}
 
 	state := cfg.ToInstallState()
@@ -167,9 +173,11 @@ func TestApplyState_AllFields(t *testing.T) {
 
 func TestApplyState_ZeroState(t *testing.T) {
 	cfg := &Config{
-		SelectedPkgs:         map[string]bool{"old": true},
-		SnapshotDotfiles:     "https://github.com/old/dotfiles",
-		SnapshotShellOhMyZsh: true,
+		InstallState: InstallState{
+			SelectedPkgs:         map[string]bool{"old": true},
+			SnapshotDotfiles:     "https://github.com/old/dotfiles",
+			SnapshotShellOhMyZsh: true,
+		},
 	}
 
 	state := &InstallState{}
@@ -186,14 +194,16 @@ func TestApplyState_ZeroState(t *testing.T) {
 func TestInstallState_RoundTrip(t *testing.T) {
 	rc := &RemoteConfig{Username: "eve", Slug: "workstation"}
 	original := &Config{
-		SelectedPkgs:         map[string]bool{"fd": true, "bat": true},
-		OnlinePkgs:           []Package{{Name: "fd"}, {Name: "bat"}},
-		SnapshotTaps:         []string{"homebrew/core", "homebrew/cask"},
-		RemoteConfig:         rc,
-		SnapshotDotfiles:     "https://github.com/eve/dots",
-		SnapshotShellOhMyZsh: true,
-		SnapshotShellTheme:   "robbyrussell",
-		SnapshotShellPlugins: []string{"git"},
+		InstallState: InstallState{
+			SelectedPkgs:         map[string]bool{"fd": true, "bat": true},
+			OnlinePkgs:           []Package{{Name: "fd"}, {Name: "bat"}},
+			SnapshotTaps:         []string{"homebrew/core", "homebrew/cask"},
+			RemoteConfig:         rc,
+			SnapshotDotfiles:     "https://github.com/eve/dots",
+			SnapshotShellOhMyZsh: true,
+			SnapshotShellTheme:   "robbyrussell",
+			SnapshotShellPlugins: []string{"git"},
+		},
 	}
 
 	state := original.ToInstallState()
@@ -214,8 +224,10 @@ func TestInstallState_RoundTrip(t *testing.T) {
 // ToInstallOptions does NOT include state fields (runtime-only fields).
 func TestToInstallOptions_DoesNotLeakStateFields(t *testing.T) {
 	cfg := &Config{
-		SelectedPkgs: map[string]bool{"git": true},
-		OnlinePkgs:   []Package{{Name: "git"}},
+		InstallState: InstallState{
+			SelectedPkgs: map[string]bool{"git": true},
+			OnlinePkgs:   []Package{{Name: "git"}},
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	// InstallOptions has no SelectedPkgs or OnlinePkgs — simply confirm it compiles

@@ -90,8 +90,10 @@ func TestFindMatchingPackages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				SelectedPkgs: tt.selectedPkgs,
-				OnlinePkgs:   tt.onlinePkgs,
+				InstallState: config.InstallState{
+					SelectedPkgs: tt.selectedPkgs,
+					OnlinePkgs:   tt.onlinePkgs,
+				},
 			}
 			result := findMatchingPackages(cfg.ToInstallOptions(), cfg.ToInstallState(), tt.triggerPkgs)
 			assert.Len(t, result, tt.wantCount)

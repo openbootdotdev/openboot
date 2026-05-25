@@ -40,7 +40,9 @@ func TestEstimateInstallMinutes(t *testing.T) {
 
 func TestCategorizeSelectedPackages_EmptySelection(t *testing.T) {
 	cfg := &config.Config{
-		SelectedPkgs: map[string]bool{},
+		InstallState: config.InstallState{
+			SelectedPkgs: map[string]bool{},
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -52,15 +54,17 @@ func TestCategorizeSelectedPackages_EmptySelection(t *testing.T) {
 
 func TestCategorizeSelectedPackages_RemoteConfig(t *testing.T) {
 	cfg := &config.Config{
-		RemoteConfig: &config.RemoteConfig{
-			Casks: config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "firefox"}},
-			Npm:   config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
-		},
-		SelectedPkgs: map[string]bool{
-			"git":                true,
-			"visual-studio-code": true,
-			"typescript":         true,
-			"curl":               true,
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Casks: config.PackageEntryList{{Name: "visual-studio-code"}, {Name: "firefox"}},
+				Npm:   config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
+			},
+			SelectedPkgs: map[string]bool{
+				"git":                true,
+				"visual-studio-code": true,
+				"typescript":         true,
+				"curl":               true,
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -75,13 +79,15 @@ func TestCategorizeSelectedPackages_RemoteConfig(t *testing.T) {
 
 func TestCategorizeSelectedPackages_RemoteConfig_NoCasks(t *testing.T) {
 	cfg := &config.Config{
-		RemoteConfig: &config.RemoteConfig{
-			Casks: config.PackageEntryList{},
-			Npm:   config.PackageEntryList{},
-		},
-		SelectedPkgs: map[string]bool{
-			"git":  true,
-			"curl": true,
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Casks: config.PackageEntryList{},
+				Npm:   config.PackageEntryList{},
+			},
+			SelectedPkgs: map[string]bool{
+				"git":  true,
+				"curl": true,
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -95,11 +101,13 @@ func TestCategorizeSelectedPackages_RemoteConfig_NoCasks(t *testing.T) {
 
 func TestCategorizeSelectedPackages_WithOnlinePkgs(t *testing.T) {
 	cfg := &config.Config{
-		SelectedPkgs: map[string]bool{},
-		OnlinePkgs: []config.Package{
-			{Name: "my-formula", IsCask: false, IsNpm: false},
-			{Name: "my-cask", IsCask: true, IsNpm: false},
-			{Name: "my-npm-pkg", IsCask: false, IsNpm: true},
+		InstallState: config.InstallState{
+			SelectedPkgs: map[string]bool{},
+			OnlinePkgs: []config.Package{
+				{Name: "my-formula", IsCask: false, IsNpm: false},
+				{Name: "my-cask", IsCask: true, IsNpm: false},
+				{Name: "my-npm-pkg", IsCask: false, IsNpm: true},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -113,8 +121,10 @@ func TestCategorizeSelectedPackages_WithOnlinePkgs(t *testing.T) {
 
 func TestRun_UpdateRoute(t *testing.T) {
 	cfg := &config.Config{
-		Update: true,
-		DryRun: true,
+		InstallOptions: config.InstallOptions{
+			Update: true,
+			DryRun: true,
+		},
 	}
 	err := Run(cfg)
 	assert.NoError(t, err)
@@ -122,7 +132,7 @@ func TestRun_UpdateRoute(t *testing.T) {
 
 func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
+		InstallOptions: config.InstallOptions{DryRun: true},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -132,13 +142,15 @@ func TestCheckDependencies_DryRunSkipsEverything(t *testing.T) {
 
 func TestRunInstall_DryRunRemoteConfig(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Packages: config.PackageEntryList{{Name: "git"}, {Name: "curl"}},
-			Casks:    config.PackageEntryList{{Name: "firefox"}},
-			Taps:     []string{"homebrew/cask"},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				Packages: config.PackageEntryList{{Name: "git"}, {Name: "curl"}},
+				Casks:    config.PackageEntryList{{Name: "firefox"}},
+				Taps:     []string{"homebrew/cask"},
+			},
 		},
 	}
 
@@ -264,104 +276,9 @@ func TestErrUserCancelled(t *testing.T) {
 	assert.Equal(t, "user cancelled", ErrUserCancelled.Error())
 }
 
-func TestStepGitConfig_DryRunNoTTY(t *testing.T) {
-	cfg := &config.Config{
-		DryRun:   true,
-		GitName:  "Test",
-		GitEmail: "test@example.com",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepGitConfig(opts, st)
-	assert.NoError(t, err)
-}
-
-func TestStepGitConfig_SilentMode_MissingFields(t *testing.T) {
-	cfg := &config.Config{
-		Silent:   true,
-		GitName:  "",
-		GitEmail: "",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-
-	err := stepGitConfig(opts, st)
-	if err != nil {
-		assert.Contains(t, err.Error(), "required in silent mode")
-	}
-}
-
-func TestStepPresetSelection_PresetAlreadySet(t *testing.T) {
-	cfg := &config.Config{
-		Preset: "minimal",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPresetSelection(opts, st)
-	assert.NoError(t, err)
-}
-
-func TestStepPresetSelection_ScratchPreset(t *testing.T) {
-	cfg := &config.Config{
-		Preset: "scratch",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPresetSelection(opts, st)
-	assert.NoError(t, err)
-}
-
-func TestStepPresetSelection_InvalidPreset(t *testing.T) {
-	cfg := &config.Config{
-		Preset: "nonexistent_preset",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPresetSelection(opts, st)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid preset")
-}
-
-func TestStepPresetSelection_SilentDefaultsToMinimal(t *testing.T) {
-	cfg := &config.Config{
-		Silent: true,
-		Preset: "",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPresetSelection(opts, st)
-	assert.NoError(t, err)
-	assert.Equal(t, "minimal", opts.Preset)
-}
-
-func TestStepPackageCustomization_Silent(t *testing.T) {
-	cfg := &config.Config{
-		Silent: true,
-		Preset: "minimal",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPackageCustomization(opts, st)
-	assert.NoError(t, err)
-	assert.NotNil(t, st.SelectedPkgs)
-	assert.Greater(t, len(st.SelectedPkgs), 0)
-}
-
-func TestStepPackageCustomization_DryRunNoTTY(t *testing.T) {
-	cfg := &config.Config{
-		DryRun: true,
-		Preset: "developer",
-	}
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	err := stepPackageCustomization(opts, st)
-	assert.NoError(t, err)
-	assert.NotNil(t, st.SelectedPkgs)
-}
-
 func TestStepShell_Skip(t *testing.T) {
 	cfg := &config.Config{
-		Shell: "skip",
+		InstallOptions: config.InstallOptions{Shell: "skip"},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -371,7 +288,7 @@ func TestStepShell_Skip(t *testing.T) {
 
 func TestStepDotfiles_Skip(t *testing.T) {
 	cfg := &config.Config{
-		Dotfiles: "skip",
+		InstallOptions: config.InstallOptions{Dotfiles: "skip"},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -381,7 +298,7 @@ func TestStepDotfiles_Skip(t *testing.T) {
 
 func TestStepMacOS_Skip(t *testing.T) {
 	cfg := &config.Config{
-		Macos: "skip",
+		InstallOptions: config.InstallOptions{Macos: "skip"},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -392,8 +309,10 @@ func TestStepMacOS_Skip(t *testing.T) {
 func TestStepMacOS_ConfigureFlag_DryRun(t *testing.T) {
 	// --macos configure bypasses the TUI and applies all defaults directly.
 	cfg := &config.Config{
-		Macos:  "configure",
-		DryRun: true,
+		InstallOptions: config.InstallOptions{
+			Macos:  "configure",
+			DryRun: true,
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -404,8 +323,10 @@ func TestStepMacOS_ConfigureFlag_DryRun(t *testing.T) {
 func TestStepMacOS_Silent_DryRun(t *testing.T) {
 	// Silent mode bypasses the TUI and applies all defaults directly.
 	cfg := &config.Config{
-		Silent: true,
-		DryRun: true,
+		InstallOptions: config.InstallOptions{
+			Silent: true,
+			DryRun: true,
+		},
 	}
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
@@ -439,10 +360,14 @@ func TestRunInstall_PackagesOnly_DryRun(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		DryRun:       true,
-		Preset:       "minimal",
-		PackagesOnly: true,
-		SelectedPkgs: map[string]bool{},
+		InstallOptions: config.InstallOptions{
+			DryRun:       true,
+			Preset:       "minimal",
+			PackagesOnly: true,
+		},
+		InstallState: config.InstallState{
+			SelectedPkgs: map[string]bool{},
+		},
 	}
 
 	opts := cfg.ToInstallOptions()
@@ -456,14 +381,18 @@ func TestRunFromSnapshot_SoftFailuresReturnError(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		DryRun:       true,
-		Silent:       true,
-		Preset:       "minimal",
-		Shell:        "skip",
-		Macos:        "skip",
-		Dotfiles:     "skip",
-		SelectedPkgs: map[string]bool{},
-		SnapshotGit:  nil,
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			Preset:   "minimal",
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			SelectedPkgs: map[string]bool{},
+			SnapshotGit:  nil,
+		},
 	}
 
 	err := RunFromSnapshot(cfg)
@@ -476,14 +405,18 @@ func TestApply_RemoteConfig_RunsShellDotfilesMacOS(t *testing.T) {
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		DryRun:       true,
-		PackagesOnly: true,
-		Shell:        "skip",
-		Macos:        "skip",
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Packages: config.PackageEntryList{{Name: "git"}},
+		InstallOptions: config.InstallOptions{
+			DryRun:       true,
+			PackagesOnly: true,
+			Shell:        "skip",
+			Macos:        "skip",
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				Packages: config.PackageEntryList{{Name: "git"}},
+			},
 		},
 	}
 
@@ -500,15 +433,19 @@ func TestPlan_RemoteConfig_DotfilesRepoPopulatesDotfilesURL(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		DryRun:   true,
-		Shell:    "skip",
-		Macos:    "skip",
-		Dotfiles: "skip",
-		RemoteConfig: &config.RemoteConfig{
-			Username:     "testuser",
-			Slug:         "default",
-			Packages:     config.PackageEntryList{{Name: "git"}},
-			DotfilesRepo: "https://github.com/testuser/dotfiles",
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Shell:    "skip",
+			Macos:    "skip",
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username:     "testuser",
+				Slug:         "default",
+				Packages:     config.PackageEntryList{{Name: "git"}},
+				DotfilesRepo: "https://github.com/testuser/dotfiles",
+			},
 		},
 	}
 
@@ -524,16 +461,20 @@ func TestApply_RemoteConfig_DotfilesFallsBackToDefault(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		DryRun:       true,
-		PackagesOnly: true,
-		Shell:        "skip",
-		Macos:        "skip",
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Packages: config.PackageEntryList{{Name: "git"}},
+		InstallOptions: config.InstallOptions{
+			DryRun:       true,
+			PackagesOnly: true,
+			Shell:        "skip",
+			Macos:        "skip",
+			Dotfiles:     "link",
 		},
-		Dotfiles: "link",
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				Packages: config.PackageEntryList{{Name: "git"}},
+			},
+		},
 	}
 
 	opts := cfg.ToInstallOptions()
@@ -550,9 +491,11 @@ func TestStepDotfiles_UsesDotfilesURLFromConfig(t *testing.T) {
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		DryRun:      true,
-		Dotfiles:    "clone",
-		DotfilesURL: "https://github.com/testuser/dotfiles",
+		InstallOptions: config.InstallOptions{
+			DryRun:      true,
+			Dotfiles:    "clone",
+			DotfilesURL: "https://github.com/testuser/dotfiles",
+		},
 	}
 
 	opts := cfg.ToInstallOptions()
@@ -571,9 +514,11 @@ func TestStepDotfiles_EnvVarTakesPriorityOverConfigURL(t *testing.T) {
 	os.Stdout = w
 
 	cfg := &config.Config{
-		DryRun:      true,
-		Dotfiles:    "clone",
-		DotfilesURL: "https://github.com/from-config/dotfiles",
+		InstallOptions: config.InstallOptions{
+			DryRun:      true,
+			Dotfiles:    "clone",
+			DotfilesURL: "https://github.com/from-config/dotfiles",
+		},
 	}
 
 	opts := cfg.ToInstallOptions()
@@ -592,9 +537,11 @@ func TestStepDotfiles_EnvVarTakesPriorityOverConfigURL(t *testing.T) {
 
 func TestStepPostInstall_SkipFlag(t *testing.T) {
 	cfg := &config.Config{
-		PostInstall: "skip",
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{"echo hello"},
+		InstallOptions: config.InstallOptions{PostInstall: "skip"},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				PostInstall: []string{"echo hello"},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -613,8 +560,10 @@ func TestStepPostInstall_NilRemoteConfig(t *testing.T) {
 
 func TestStepPostInstall_EmptyCommands(t *testing.T) {
 	cfg := &config.Config{
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				PostInstall: []string{},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -632,9 +581,11 @@ func TestStepPostInstall_DryRun(t *testing.T) {
 	os.Stdout = w
 
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{"mise install", "npm install -g pnpm"},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				PostInstall: []string{"mise install", "npm install -g pnpm"},
+			},
 		},
 	}
 
@@ -660,10 +611,14 @@ func TestStepPostInstall_RunsCommandsInSilentMode(t *testing.T) {
 
 	markerFile := tmpDir + "/post-install-ran"
 	cfg := &config.Config{
-		Silent:           true,
-		AllowPostInstall: true,
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{"touch " + markerFile},
+		InstallOptions: config.InstallOptions{
+			Silent:           true,
+			AllowPostInstall: true,
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				PostInstall: []string{"touch " + markerFile},
+			},
 		},
 	}
 
@@ -682,10 +637,14 @@ func TestStepPostInstall_CommandFailureReturnsSoftError(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	cfg := &config.Config{
-		Silent:           true,
-		AllowPostInstall: true,
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{"exit 1"},
+		InstallOptions: config.InstallOptions{
+			Silent:           true,
+			AllowPostInstall: true,
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				PostInstall: []string{"exit 1"},
+			},
 		},
 	}
 
@@ -703,14 +662,18 @@ func TestStepPostInstall_MultilineScriptRuns(t *testing.T) {
 
 	markerFile := tmpDir + "/multiline-ran"
 	cfg := &config.Config{
-		Silent:           true,
-		AllowPostInstall: true,
-		RemoteConfig: &config.RemoteConfig{
-			PostInstall: []string{
-				"ITEMS=(a b c)",
-				"for item in \"${ITEMS[@]}\"; do",
-				"  touch " + markerFile,
-				"done",
+		InstallOptions: config.InstallOptions{
+			Silent:           true,
+			AllowPostInstall: true,
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				PostInstall: []string{
+					"ITEMS=(a b c)",
+					"for item in \"${ITEMS[@]}\"; do",
+					"  touch " + markerFile,
+					"done",
+				},
 			},
 		},
 	}
@@ -803,15 +766,19 @@ func TestApply_RemoteConfig_WithPostInstallScript(t *testing.T) {
 	t.Setenv("OPENBOOT_DOTFILES", "")
 
 	cfg := &config.Config{
-		DryRun:       true,
-		PackagesOnly: true,
-		Shell:        "skip",
-		Macos:        "skip",
-		RemoteConfig: &config.RemoteConfig{
-			Username:    "testuser",
-			Slug:        "default",
-			Packages:    config.PackageEntryList{{Name: "git"}},
-			PostInstall: []string{"mise install", "npm install -g pnpm"},
+		InstallOptions: config.InstallOptions{
+			DryRun:       true,
+			PackagesOnly: true,
+			Shell:        "skip",
+			Macos:        "skip",
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username:    "testuser",
+				Slug:        "default",
+				Packages:    config.PackageEntryList{{Name: "git"}},
+				PostInstall: []string{"mise install", "npm install -g pnpm"},
+			},
 		},
 	}
 

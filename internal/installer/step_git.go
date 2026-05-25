@@ -3,9 +3,7 @@ package installer
 import (
 	"fmt"
 
-	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/system"
-	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 func applyGitConfig(plan InstallPlan, r Reporter) error {
@@ -32,61 +30,6 @@ func applyGitConfig(plan InstallPlan, r Reporter) error {
 			return err
 		}
 		r.Success(fmt.Sprintf("Git configured: %s <%s>", plan.GitName, plan.GitEmail))
-	}
-
-	fmt.Println()
-	return nil
-}
-
-func stepGitConfig(opts *config.InstallOptions, st *config.InstallState) error {
-	ui.Header("Step 1: Git Configuration")
-	fmt.Println()
-
-	// Smart detection: skip if already configured
-	existingName, existingEmail := system.GetExistingGitConfig()
-
-	if existingName != "" && existingEmail != "" {
-		ui.Success(fmt.Sprintf("✓ Already configured: %s <%s>", existingName, existingEmail))
-		fmt.Println()
-		return nil
-	}
-
-	var name, email string
-
-	if opts.DryRun && !system.HasTTY() {
-		name = opts.GitName
-		email = opts.GitEmail
-		if name == "" {
-			name = "Your Name"
-		}
-		if email == "" {
-			email = "you@example.com"
-		}
-	} else if opts.Silent {
-		name = opts.GitName
-		email = opts.GitEmail
-		if name == "" || email == "" {
-			return fmt.Errorf("OPENBOOT_GIT_NAME and OPENBOOT_GIT_EMAIL required in silent mode")
-		}
-	} else {
-		var err error
-		name, email, err = ui.InputGitConfig()
-		if err != nil {
-			return err
-		}
-	}
-
-	if name == "" || email == "" {
-		return fmt.Errorf("git name and email are required")
-	}
-
-	if opts.DryRun {
-		fmt.Printf("[DRY-RUN] Would configure git: %s <%s>\n", name, email)
-	} else {
-		if err := system.ConfigureGit(name, email); err != nil {
-			return err
-		}
-		ui.Success(fmt.Sprintf("Git configured: %s <%s>", name, email))
 	}
 
 	fmt.Println()
