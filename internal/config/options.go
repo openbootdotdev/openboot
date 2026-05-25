@@ -1,9 +1,11 @@
 package config
 
-// ToInstallOptions returns a pointer to the embedded InstallOptions within Config.
-// Zero-copy: callers receive a direct reference to the input fields.
+// ToInstallOptions returns a copy of the embedded InstallOptions.
+// Plan() may write to opts fields (e.g. opts.Preset) during planning;
+// returning a copy preserves the original Config values unchanged.
 func (c *Config) ToInstallOptions() *InstallOptions {
-	return &c.InstallOptions
+	opts := c.InstallOptions
+	return &opts
 }
 
 // ToInstallState returns a pointer to the embedded InstallState within Config.
