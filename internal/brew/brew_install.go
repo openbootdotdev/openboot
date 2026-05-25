@@ -1,6 +1,7 @@
 package brew
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,8 +16,8 @@ import (
 // sleepFunc is a test seam for retry delays.
 var sleepFunc = time.Sleep
 
-var brewCaskInstallFunc = func(pkg string) (string, error) {
-	return brewCombinedOutputWithTTY("install", "--cask", pkg)
+var brewCaskInstallFunc = func(ctx context.Context, pkg string) (string, error) {
+	return brewCombinedOutputWithTTY(ctx, "install", "--cask", pkg)
 }
 
 type installJob struct {
@@ -45,7 +46,7 @@ func Install(packages []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Installing %d CLI packages...", len(packages)))
 
 	args := append([]string{"install"}, packages...)
-	cmd := brewInstallCmd(args...)
+	cmd := brewInstallCmd(context.Background(), args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -90,13 +91,13 @@ func InstallCask(packages []string, dryRun bool) error {
 	ui.Info(fmt.Sprintf("Installing %d GUI applications...", len(packages)))
 
 	args := append([]string{"install", "--cask"}, packages...)
-	cmd := brewInstallCmd(args...)
+	cmd := brewInstallCmd(context.Background(), args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedFormulae []string, installedCasks []string, err error) {
+func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun bool) (installedFormulae []string, installedCasks []string, err error) {
 	total := len(cliPkgs) + len(caskPkgs)
 	if total == 0 {
 		return nil, nil, nil
@@ -151,7 +152,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 		return installedFormulae, installedCasks, nil
 	}
 
-	if preErr := PreInstallChecks(len(newCli) + len(newCask)); preErr != nil {
+	if preErr := PreInstallChecks(len(newCli), len(newCask)); preErr != nil {
 		return installedFormulae, installedCasks, preErr
 	}
 
@@ -162,7 +163,7 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
-		failed := runSerialInstallWithProgress(newCli, progress)
+		failed := runSerialInstallWithProgress(ctx, newCli, progress)
 		failedSet := make(map[string]bool, len(failed))
 		for _, f := range failed {
 			failedSet[f.name] = true
@@ -176,28 +177,36 @@ func InstallWithProgress(cliPkgs, caskPkgs []string, dryRun bool) (installedForm
 	}
 
 	if len(newCask) > 0 {
-		caskInstalled, caskFailed := installCasksWithProgress(newCask, progress)
+		caskInstalled, caskFailed := installCasksWithProgress(ctx, newCask, progress)
 		installedCasks = append(installedCasks, caskInstalled...)
 		allFailed = append(allFailed, caskFailed...)
 	}
 
 	progress.Finish()
 
-	allFailed = retryFailedJobs(allFailed, &installedFormulae, &installedCasks, aliasMap)
+	allFailed = retryFailedJobs(ctx, allFailed, &installedFormulae, &installedCasks, aliasMap)
 
 	handleFailedJobs(allFailed)
+
+	if len(allFailed) > 0 {
+		names := make([]string, len(allFailed))
+		for i, f := range allFailed {
+			names[i] = f.name
+		}
+		return installedFormulae, installedCasks, fmt.Errorf("%d package(s) failed to install: %s", len(allFailed), strings.Join(names, ", "))
+	}
 
 	return installedFormulae, installedCasks, nil
 }
 
 // installCasksWithProgress installs cask packages one by one with brew output
 // suppressed. Returns successful installs and failed jobs.
-func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
+func installCasksWithProgress(ctx context.Context, pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
 	for _, pkg := range pkgs {
 		progress.SetCurrent(pkg)
 
 		start := time.Now()
-		errMsg := installCaskWithProgress(pkg)
+		errMsg := installCaskWithProgress(ctx, pkg)
 		elapsed := time.Since(start)
 
 		progress.IncrementWithStatus(errMsg == "")
@@ -218,7 +227,7 @@ func installCasksWithProgress(pkgs []string, progress *ui.StickyProgress) (insta
 
 // retryFailedJobs retries any failed installations once and updates the installed
 // slices in-place. Returns the subset that still failed after the retry.
-func retryFailedJobs(allFailed []failedJob, installedFormulae, installedCasks *[]string, aliasMap map[string]string) []failedJob {
+func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormulae, installedCasks *[]string, aliasMap map[string]string) []failedJob {
 	if len(allFailed) == 0 {
 		return nil
 	}
@@ -228,9 +237,9 @@ func retryFailedJobs(allFailed []failedJob, installedFormulae, installedCasks *[
 	for _, f := range allFailed {
 		var errMsg string
 		if f.isCask {
-			errMsg = installSmartCaskWithError(f.name)
+			errMsg = installSmartCaskWithError(ctx, f.name)
 		} else {
-			errMsg = installFormulaWithError(f.name)
+			errMsg = installFormulaWithError(ctx, f.name)
 		}
 		if errMsg == "" {
 			fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)
@@ -283,7 +292,7 @@ func handleFailedJobs(failed []failedJob) {
 	}
 }
 
-func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []failedJob {
+func runSerialInstallWithProgress(ctx context.Context, pkgs []string, progress *ui.StickyProgress) []failedJob {
 	if len(pkgs) == 0 {
 		return nil
 	}
@@ -294,7 +303,7 @@ func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []
 		progress.SetCurrent(job.name)
 
 		start := time.Now()
-		errMsg := installFormulaWithError(job.name)
+		errMsg := installFormulaWithError(ctx, job.name)
 		elapsed := time.Since(start)
 
 		progress.IncrementWithStatus(errMsg == "")
@@ -314,8 +323,8 @@ func runSerialInstallWithProgress(pkgs []string, progress *ui.StickyProgress) []
 	return failed
 }
 
-func installCaskWithProgress(pkg string) string {
-	output, err := brewCombinedOutputWithTTY("install", "--cask", pkg)
+func installCaskWithProgress(ctx context.Context, pkg string) string {
+	output, err := brewCombinedOutputWithTTY(ctx, "install", "--cask", pkg)
 	if err == nil {
 		return ""
 	}
@@ -328,16 +337,16 @@ func installCaskWithProgress(pkg string) string {
 // express either of those cleanly, so Install / InstallCask /
 // installCaskWithProgress / brewCombinedOutputWithTTY / installFormulaWithError
 // / installSmartCaskWithError continue to use this helper directly.
-func brewInstallCmd(args ...string) *exec.Cmd {
-	cmd := exec.Command("brew", args...) //nolint:gosec // "brew" is a hardcoded binary; args are package names validated by caller
+func brewInstallCmd(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "brew", args...) //nolint:gosec // "brew" is a hardcoded binary; args are package names validated by caller
 	cmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	return cmd
 }
 
 // brewCombinedOutputWithTTY runs a brew command capturing combined output while
 // providing a TTY for stdin so that sudo password prompts work.
-func brewCombinedOutputWithTTY(args ...string) (string, error) {
-	cmd := brewInstallCmd(args...)
+func brewCombinedOutputWithTTY(ctx context.Context, args ...string) (string, error) {
+	cmd := brewInstallCmd(ctx, args...)
 	tty, opened := system.OpenTTY()
 	if opened {
 		cmd.Stdin = tty
@@ -347,10 +356,29 @@ func brewCombinedOutputWithTTY(args ...string) (string, error) {
 	return string(output), err
 }
 
-func installFormulaWithError(pkg string) string {
-	maxAttempts := 3
+// retryBrew calls action up to maxAttempts times, backing off on retryable errors.
+// action returns (output string, err error). Returns "" on success, errMsg on permanent failure.
+func retryBrew(action func() (string, error)) string {
+	const maxAttempts = 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		cmd := brewInstallCmd("install", pkg)
+		output, err := action()
+		if err == nil {
+			return ""
+		}
+		errMsg := parseBrewError(output)
+		if attempt < maxAttempts && isRetryableError(errMsg) {
+			sleepFunc(time.Duration(attempt) * 2 * time.Second)
+			continue
+		}
+		return errMsg
+	}
+	return "max retries exceeded"
+}
+
+func installFormulaWithError(ctx context.Context, pkg string) string {
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		cmd := brewInstallCmd(ctx, "install", pkg)
 		output, err := cmd.CombinedOutput()
 		if err == nil {
 			return ""
@@ -359,7 +387,7 @@ func installFormulaWithError(pkg string) string {
 		outputStr := string(output)
 		if strings.Contains(strings.ToLower(outputStr), "try again using") && strings.Contains(strings.ToLower(outputStr), "--cask") {
 			// Cask installs may need sudo for .pkg — use TTY stdin.
-			caskOutput, err2 := brewCombinedOutputWithTTY("install", "--cask", pkg)
+			caskOutput, err2 := brewCombinedOutputWithTTY(ctx, "install", "--cask", pkg)
 			if err2 == nil {
 				return ""
 			}
@@ -368,8 +396,7 @@ func installFormulaWithError(pkg string) string {
 
 		errMsg := parseBrewError(outputStr)
 		if attempt < maxAttempts && isRetryableError(errMsg) {
-			delay := time.Duration(attempt) * 2 * time.Second
-			sleepFunc(delay)
+			sleepFunc(time.Duration(attempt) * 2 * time.Second)
 			continue
 		}
 
@@ -397,25 +424,10 @@ func isRetryableError(errMsg string) bool {
 	return false
 }
 
-func installSmartCaskWithError(pkg string) string {
-	maxAttempts := 3
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		caskOutput, err := brewCaskInstallFunc(pkg)
-		if err == nil {
-			return ""
-		}
-
-		errMsg := parseBrewError(caskOutput)
-
-		if attempt < maxAttempts && isRetryableError(errMsg) {
-			delay := time.Duration(attempt) * 2 * time.Second
-			sleepFunc(delay)
-			continue
-		}
-
-		return errMsg
-	}
-	return "max retries exceeded"
+func installSmartCaskWithError(ctx context.Context, pkg string) string {
+	return retryBrew(func() (string, error) {
+		return brewCaskInstallFunc(ctx, pkg)
+	})
 }
 
 func parseBrewError(output string) string {
@@ -444,8 +456,8 @@ func parseBrewError(output string) string {
 		lines := strings.Split(output, "\n")
 		for _, line := range lines {
 			if strings.Contains(strings.ToLower(line), "error") {
-				if len(line) > 60 {
-					return line[:60] + "..."
+				if len(line) > 120 {
+					return line[:120] + "..."
 				}
 				return line
 			}

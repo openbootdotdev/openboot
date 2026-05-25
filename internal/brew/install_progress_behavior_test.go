@@ -2,6 +2,7 @@ package brew
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -87,7 +88,7 @@ exit 0
 	checkNetworkFunc = func() error { return nil }
 	t.Cleanup(func() { checkNetworkFunc = originalCheckNetwork })
 
-	formulae, casks, err := InstallWithProgress([]string{"postgresql", "kubectl"}, []string{"firefox"}, false)
+	formulae, casks, err := InstallWithProgress(context.Background(), []string{"postgresql", "kubectl"}, []string{"firefox"}, false)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"postgresql@16", "kubernetes-cli"}, formulae)
 	assert.Equal(t, []string{"firefox"}, casks)
@@ -167,7 +168,7 @@ exit 0
 	var formulae, casks []string
 	var err error
 	output := captureOutput(t, func() {
-		formulae, casks, err = InstallWithProgress([]string{"foo"}, nil, false)
+		formulae, casks, err = InstallWithProgress(context.Background(), []string{"foo"}, nil, false)
 	})
 
 	require.NoError(t, err)

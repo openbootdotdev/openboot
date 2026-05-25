@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -137,7 +138,7 @@ func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orc
 	r.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
 	fmt.Println()
 
-	installedCli, installedCask, brewErr := brew.InstallWithProgress(cliPkgs, caskPkgs, plan.DryRun)
+	installedCli, installedCask, brewErr := brew.InstallWithProgress(context.Background(), cliPkgs, caskPkgs, plan.DryRun)
 	if brewErr != nil {
 		r.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
 	}
