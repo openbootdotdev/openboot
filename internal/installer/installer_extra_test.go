@@ -366,10 +366,10 @@ func TestPlan_EnvVar_UsesDotfilesURL(t *testing.T) {
 	t.Setenv("OPENBOOT_GIT_EMAIL", "test@example.com")
 	cfg := &config.Config{
 		InstallOptions: config.InstallOptions{
-			DryRun:    true,
-			Silent:    true,
-			GitName:   "Test User",
-			GitEmail:  "test@example.com",
+			DryRun:   true,
+			Silent:   true,
+			GitName:  "Test User",
+			GitEmail: "test@example.com",
 		},
 	}
 	opts := cfg.ToInstallOptions()

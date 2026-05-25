@@ -89,4 +89,3 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	fmt.Println()
 	return nil
 }
-

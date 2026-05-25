@@ -94,4 +94,3 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 	fmt.Println()
 	return nil
 }
-
