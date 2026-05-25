@@ -15,6 +15,10 @@ import (
 // sleepFunc is a test seam for retry delays.
 var sleepFunc = time.Sleep
 
+var brewCaskInstallFunc = func(pkg string) (string, error) {
+	return brewCombinedOutputWithTTY("install", "--cask", pkg)
+}
+
 type installJob struct {
 	name   string
 	isCask bool
@@ -396,22 +400,12 @@ func isRetryableError(errMsg string) bool {
 func installSmartCaskWithError(pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		// Cask installs may need sudo for .pkg — use TTY stdin.
-		caskOutput, err := brewCombinedOutputWithTTY("install", "--cask", pkg)
+		caskOutput, err := brewCaskInstallFunc(pkg)
 		if err == nil {
 			return ""
 		}
 
-		cmd2 := brewInstallCmd("install", pkg)
-		output2, err2 := cmd2.CombinedOutput()
-		if err2 == nil {
-			return ""
-		}
-
 		errMsg := parseBrewError(caskOutput)
-		if errMsg == "unknown error" {
-			errMsg = parseBrewError(string(output2))
-		}
 
 		if attempt < maxAttempts && isRetryableError(errMsg) {
 			delay := time.Duration(attempt) * 2 * time.Second

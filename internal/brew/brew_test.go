@@ -1,8 +1,10 @@
 package brew
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -184,6 +186,48 @@ func TestCheckDiskSpace(t *testing.T) {
 	gb, err := CheckDiskSpace()
 	assert.NoError(t, err)
 	assert.Greater(t, gb, 0.0)
+}
+
+func TestInstallSmartCask_NeverFallsBackToFormula(t *testing.T) {
+	origCask := brewCaskInstallFunc
+	origSleep := sleepFunc
+	defer func() {
+		brewCaskInstallFunc = origCask
+		sleepFunc = origSleep
+	}()
+	sleepFunc = func(time.Duration) {}
+
+	brewCaskInstallFunc = func(pkg string) (string, error) {
+		return "Error: Cask 'docker' is unavailable", fmt.Errorf("exit 1")
+	}
+
+	result := installSmartCaskWithError("docker")
+
+	assert.NotEqual(t, "", result, "cask failure must not silently succeed via formula fallback")
+}
+
+func TestInstallSmartCask_RetriesOnTransientError(t *testing.T) {
+	origCask := brewCaskInstallFunc
+	origSleep := sleepFunc
+	defer func() {
+		brewCaskInstallFunc = origCask
+		sleepFunc = origSleep
+	}()
+	sleepFunc = func(time.Duration) {}
+
+	attempts := 0
+	brewCaskInstallFunc = func(pkg string) (string, error) {
+		attempts++
+		if attempts < 3 {
+			return "Error: connection timed out", fmt.Errorf("exit 1")
+		}
+		return "", nil
+	}
+
+	result := installSmartCaskWithError("firefox")
+
+	assert.Equal(t, "", result, "should succeed after transient errors clear")
+	assert.Equal(t, 3, attempts)
 }
 
 func TestHandleFailedJobs_WithFailures(t *testing.T) {
