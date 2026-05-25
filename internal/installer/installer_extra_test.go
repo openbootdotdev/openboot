@@ -225,12 +225,16 @@ func TestApply_DryRun_SkipGit(t *testing.T) {
 
 func TestPlan_RemoteConfig_Taps(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Packages: config.PackageEntryList{{Name: "git"}},
-			Taps:     []string{"homebrew/cask", "homebrew/core"},
+		InstallOptions: config.InstallOptions{
+			DryRun: true,
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				Packages: config.PackageEntryList{{Name: "git"}},
+				Taps:     []string{"homebrew/cask", "homebrew/core"},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -242,11 +246,13 @@ func TestPlan_RemoteConfig_Taps(t *testing.T) {
 
 func TestPlan_RemoteConfig_NpmPackages(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Npm:      config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				Npm:      config.PackageEntryList{{Name: "typescript"}, {Name: "eslint"}},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -259,11 +265,13 @@ func TestPlan_RemoteConfig_NpmPackages(t *testing.T) {
 
 func TestPlan_RemoteConfig_ShellOhMyZsh(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			Shell:    &config.RemoteShellConfig{OhMyZsh: true},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				Shell:    &config.RemoteShellConfig{OhMyZsh: true},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -275,12 +283,14 @@ func TestPlan_RemoteConfig_ShellOhMyZsh(t *testing.T) {
 
 func TestPlan_RemoteConfig_MacOSPrefs(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			MacOSPrefs: []config.RemoteMacOSPref{
-				{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true", Desc: "Auto-hide dock"},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				MacOSPrefs: []config.RemoteMacOSPref{
+					{Domain: "com.apple.dock", Key: "autohide", Type: "bool", Value: "true", Desc: "Auto-hide dock"},
+				},
 			},
 		},
 	}
@@ -296,12 +306,14 @@ func TestPlan_RemoteConfig_MacOSPrefs(t *testing.T) {
 func TestPlan_RemoteConfig_MacOSPrefs_InferredType(t *testing.T) {
 	// When Type is empty, planFromRemoteConfig should infer it.
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username: "testuser",
-			Slug:     "default",
-			MacOSPrefs: []config.RemoteMacOSPref{
-				{Domain: "com.apple.dock", Key: "autohide", Type: "", Value: "true"},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+				MacOSPrefs: []config.RemoteMacOSPref{
+					{Domain: "com.apple.dock", Key: "autohide", Type: "", Value: "true"},
+				},
 			},
 		},
 	}
@@ -316,11 +328,13 @@ func TestPlan_RemoteConfig_MacOSPrefs_InferredType(t *testing.T) {
 
 func TestPlan_RemoteConfig_PostInstall(t *testing.T) {
 	cfg := &config.Config{
-		DryRun: true,
-		RemoteConfig: &config.RemoteConfig{
-			Username:    "testuser",
-			Slug:        "default",
-			PostInstall: []string{"mise install", "npm install -g pnpm"},
+		InstallOptions: config.InstallOptions{DryRun: true},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username:    "testuser",
+				Slug:        "default",
+				PostInstall: []string{"mise install", "npm install -g pnpm"},
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()
@@ -333,12 +347,16 @@ func TestPlan_RemoteConfig_PostInstall(t *testing.T) {
 func TestPlan_RemoteConfig_DotfilesFromOpts(t *testing.T) {
 	// When RemoteConfig has no DotfilesRepo, fall back to opts.DotfilesURL.
 	cfg := &config.Config{
-		DryRun:      true,
-		DotfilesURL: "https://github.com/opts/dotfiles",
-		RemoteConfig: &config.RemoteConfig{
-			Username:     "testuser",
-			Slug:         "default",
-			DotfilesRepo: "",
+		InstallOptions: config.InstallOptions{
+			DryRun:      true,
+			DotfilesURL: "https://github.com/opts/dotfiles",
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username:     "testuser",
+				Slug:         "default",
+				DotfilesRepo: "",
+			},
 		},
 	}
 	opts := cfg.ToInstallOptions()

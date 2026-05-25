@@ -12,7 +12,7 @@ import (
 )
 
 func TestApplyEnvOverrides_SilentMode(t *testing.T) {
-	cfg := &config.Config{Silent: true}
+	cfg := &config.Config{InstallOptions: config.InstallOptions{Silent: true}}
 
 	t.Setenv("OPENBOOT_GIT_NAME", "Test User")
 	t.Setenv("OPENBOOT_GIT_EMAIL", "test@example.com")
@@ -26,7 +26,7 @@ func TestApplyEnvOverrides_SilentMode(t *testing.T) {
 }
 
 func TestApplyEnvOverrides_GitEnvIgnoredWhenNotSilent(t *testing.T) {
-	cfg := &config.Config{Silent: false}
+	cfg := &config.Config{InstallOptions: config.InstallOptions{Silent: false}}
 
 	t.Setenv("OPENBOOT_GIT_NAME", "Test User")
 	t.Setenv("OPENBOOT_GIT_EMAIL", "test@example.com")
@@ -48,7 +48,7 @@ func TestApplyEnvOverrides_UserFromEnv(t *testing.T) {
 }
 
 func TestApplyEnvOverrides_FlagTakesPrecedenceOverEnv(t *testing.T) {
-	cfg := &config.Config{Preset: "minimal", User: "bob"}
+	cfg := &config.Config{InstallOptions: config.InstallOptions{Preset: "minimal", User: "bob"}}
 
 	t.Setenv("OPENBOOT_PRESET", "full")
 	t.Setenv("OPENBOOT_USER", "alice")

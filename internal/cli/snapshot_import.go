@@ -164,7 +164,7 @@ func buildImportConfig(edited *snapshot.Snapshot, dryRun bool) *config.Config {
 		}
 	}
 
-	cfg := &config.Config{DryRun: dryRun}
+	cfg := &config.Config{InstallOptions: config.InstallOptions{DryRun: dryRun}}
 	cfg.SelectedPkgs = make(map[string]bool)
 
 	for _, name := range edited.Packages.Formulae {

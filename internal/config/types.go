@@ -5,12 +5,9 @@ import (
 	"fmt"
 )
 
-// Config holds all configuration for a single openboot run.
-// See InstallOptions and InstallState for the split representation used
-// internally by the installer package.
-type Config struct {
-	// --- Input (set by flags/env before run) ---
-
+// InstallOptions holds user-supplied inputs set from CLI flags and environment
+// variables. All fields are read-only after Run() is called.
+type InstallOptions struct {
 	Version          string // injected via -ldflags at build time
 	Preset           string // -p / OPENBOOT_PRESET
 	User             string // -u / OPENBOOT_USER
@@ -26,9 +23,11 @@ type Config struct {
 	PostInstall      string // --post-install
 	AllowPostInstall bool   // --allow-post-install
 	DotfilesURL      string // from remote config
+}
 
-	// --- Runtime state (populated during install) ---
-
+// InstallState holds runtime values populated during installation.
+// Fields are written by installer steps and read by subsequent steps.
+type InstallState struct {
 	SelectedPkgs         map[string]bool    // set by UI package selector
 	OnlinePkgs           []Package          // fetched from packages API
 	SnapshotTaps         []string           // from snapshot capture
@@ -41,39 +40,13 @@ type Config struct {
 	SnapshotShellPlugins []string           // from snapshot capture
 }
 
-// InstallOptions holds user-supplied inputs set from CLI flags and environment
-// variables. All fields are read-only after Run() is called.
-type InstallOptions struct {
-	Version          string
-	Preset           string
-	User             string
-	DryRun           bool
-	Silent           bool
-	PackagesOnly     bool
-	Update           bool
-	Shell            string
-	Macos            string
-	Dotfiles         string
-	GitName          string
-	GitEmail         string
-	PostInstall      string
-	AllowPostInstall bool
-	DotfilesURL      string
-}
-
-// InstallState holds runtime values populated during installation.
-// Fields are written by installer steps and read by subsequent steps.
-type InstallState struct {
-	SelectedPkgs         map[string]bool
-	OnlinePkgs           []Package
-	SnapshotTaps         []string
-	RemoteConfig         *RemoteConfig
-	SnapshotGit          *SnapshotGitConfig
-	SnapshotMacOS        []RemoteMacOSPref
-	SnapshotDotfiles     string
-	SnapshotShellOhMyZsh bool
-	SnapshotShellTheme   string
-	SnapshotShellPlugins []string
+// Config holds all configuration for a single openboot run.
+// It embeds InstallOptions (input fields) and InstallState (runtime state)
+// so that adding one field requires editing at most InstallOptions or
+// InstallState — not Config separately.
+type Config struct {
+	InstallOptions // all input fields (flags/env)
+	InstallState   // all runtime state (populated during install)
 }
 
 type SnapshotGitConfig struct {
