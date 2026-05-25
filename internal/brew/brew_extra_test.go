@@ -169,7 +169,7 @@ func TestPreInstallChecks_NetworkFails(t *testing.T) {
 	checkNetworkFunc = func() error { return errors.New("no route to host") }
 	t.Cleanup(func() { checkNetworkFunc = orig })
 
-	err := PreInstallChecks(5)
+	err := PreInstallChecks(3, 2)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "network check failed")
 }
@@ -183,7 +183,7 @@ func TestPreInstallChecks_NetworkOK(t *testing.T) {
 	setupFakeBrew(t, "#!/bin/sh\nexit 0\n")
 
 	// Should not error (disk space should be available on a dev machine).
-	err := PreInstallChecks(1)
+	err := PreInstallChecks(1, 0)
 	assert.NoError(t, err)
 }
 

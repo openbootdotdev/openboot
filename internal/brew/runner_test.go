@@ -117,7 +117,7 @@ func TestPreInstallChecks_UsesRunInteractiveForUpdate(t *testing.T) {
 	checkNetworkFunc = func() error { return nil }
 	t.Cleanup(func() { checkNetworkFunc = orig })
 
-	err := PreInstallChecks(1)
+	err := PreInstallChecks(1, 0)
 	require.NoError(t, err)
 
 	// The index-refresh `brew update` inside PreInstallChecks now routes

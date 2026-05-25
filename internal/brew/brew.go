@@ -306,13 +306,13 @@ func DoctorDiagnose() ([]string, error) {
 	return suggestions, nil
 }
 
-func PreInstallChecks(packageCount int) error {
+func PreInstallChecks(formulaeCount, caskCount int) error {
 	ui.Info("Checking network connectivity...")
 	if err := checkNetworkFunc(); err != nil {
 		return fmt.Errorf("network check failed: %v\nPlease check your internet connection and try again", err)
 	}
 
-	estimatedGB := float64(packageCount) * 0.2
+	estimatedGB := float64(formulaeCount)*0.1 + float64(caskCount)*0.5
 	if estimatedGB < 1.0 {
 		estimatedGB = 1.0
 	}

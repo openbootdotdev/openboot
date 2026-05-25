@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -174,7 +175,7 @@ func TestIntegration_Brew_InstallWithProgress_DryRun(t *testing.T) {
 	require.True(t, brew.IsInstalled(), "brew must be installed")
 
 	// When: we call InstallWithProgress with dry-run
-	formulae, casks, err := brew.InstallWithProgress([]string{"git"}, []string{"firefox"}, true)
+	formulae, casks, err := brew.InstallWithProgress(context.Background(), []string{"git"}, []string{"firefox"}, true)
 
 	// Then: no error; dry-run returns empty slices
 	assert.NoError(t, err)

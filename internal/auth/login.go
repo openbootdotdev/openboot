@@ -161,9 +161,13 @@ func pollForApproval(ctx context.Context, apiBase, codeID string) (*cliPollRespo
 }
 
 func pollOnce(pollURL string) (*cliPollResponse, bool, error) {
-	resp, err := httpClient.Get(pollURL)
+	req, err := http.NewRequest("GET", pollURL, nil)
 	if err != nil {
-		return nil, false, nil
+		return nil, false, nil // malformed URL is transient; keep polling
+	}
+	resp, err := httputil.Do(httpClient, req)
+	if err != nil {
+		return nil, false, nil // transient network error; keep polling
 	}
 	defer resp.Body.Close() //nolint:errcheck // best-effort; body already read
 

@@ -1,6 +1,7 @@
 package brew
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -86,9 +87,9 @@ func TestParseBrewError(t *testing.T) {
 }
 
 func TestParseBrewError_LongErrorLine(t *testing.T) {
-	longLine := "Error: " + strings.Repeat("x", 100)
+	longLine := "Error: " + strings.Repeat("x", 200)
 	result := parseBrewError(longLine)
-	assert.LessOrEqual(t, len(result), 63)
+	assert.LessOrEqual(t, len(result), 123) // 120 chars + "..."
 	assert.True(t, strings.HasSuffix(result, "..."))
 }
 
@@ -157,21 +158,21 @@ func TestInstallTaps_DryRun(t *testing.T) {
 }
 
 func TestInstallWithProgress_EmptyPackages(t *testing.T) {
-	formulae, casks, err := InstallWithProgress([]string{}, []string{}, false)
+	formulae, casks, err := InstallWithProgress(context.Background(), []string{}, []string{}, false)
 	assert.NoError(t, err)
 	assert.Empty(t, formulae)
 	assert.Empty(t, casks)
 }
 
 func TestInstallWithProgress_DryRun(t *testing.T) {
-	formulae, casks, err := InstallWithProgress([]string{"git", "curl"}, []string{"firefox"}, true)
+	formulae, casks, err := InstallWithProgress(context.Background(), []string{"git", "curl"}, []string{"firefox"}, true)
 	assert.NoError(t, err)
 	assert.Empty(t, formulae)
 	assert.Empty(t, casks)
 }
 
 func TestInstallWithProgress_DryRunReturnsNoInstalledPackages(t *testing.T) {
-	formulae, casks, err := InstallWithProgress([]string{"ripgrep", "fd"}, []string{"visual-studio-code"}, true)
+	formulae, casks, err := InstallWithProgress(context.Background(), []string{"ripgrep", "fd"}, []string{"visual-studio-code"}, true)
 	assert.NoError(t, err)
 	assert.Empty(t, formulae, "dry-run should not report packages as installed")
 	assert.Empty(t, casks, "dry-run should not report casks as installed")
@@ -197,11 +198,11 @@ func TestInstallSmartCask_NeverFallsBackToFormula(t *testing.T) {
 	}()
 	sleepFunc = func(time.Duration) {}
 
-	brewCaskInstallFunc = func(pkg string) (string, error) {
+	brewCaskInstallFunc = func(_ context.Context, pkg string) (string, error) {
 		return "Error: Cask 'docker' is unavailable", fmt.Errorf("exit 1")
 	}
 
-	result := installSmartCaskWithError("docker")
+	result := installSmartCaskWithError(context.Background(), "docker")
 
 	assert.NotEqual(t, "", result, "cask failure must not silently succeed via formula fallback")
 }
@@ -216,7 +217,7 @@ func TestInstallSmartCask_RetriesOnTransientError(t *testing.T) {
 	sleepFunc = func(time.Duration) {}
 
 	attempts := 0
-	brewCaskInstallFunc = func(pkg string) (string, error) {
+	brewCaskInstallFunc = func(_ context.Context, pkg string) (string, error) {
 		attempts++
 		if attempts < 3 {
 			return "Error: connection timed out", fmt.Errorf("exit 1")
@@ -224,7 +225,7 @@ func TestInstallSmartCask_RetriesOnTransientError(t *testing.T) {
 		return "", nil
 	}
 
-	result := installSmartCaskWithError("firefox")
+	result := installSmartCaskWithError(context.Background(), "firefox")
 
 	assert.Equal(t, "", result, "should succeed after transient errors clear")
 	assert.Equal(t, 3, attempts)

@@ -79,46 +79,6 @@ func TestCheckDependencies_DryRun_SilentAndPackagesOnly(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// hasDotfiles
-// ---------------------------------------------------------------------------
-
-func TestHasDotfiles_Skip_ReturnsFalse(t *testing.T) {
-	t.Setenv("OPENBOOT_DOTFILES", "")
-	opts := &config.InstallOptions{Dotfiles: "skip"}
-	st := &config.InstallState{}
-	assert.False(t, hasDotfiles(opts, st))
-}
-
-func TestHasDotfiles_OptsURLSet_ReturnsTrue(t *testing.T) {
-	t.Setenv("OPENBOOT_DOTFILES", "")
-	opts := &config.InstallOptions{DotfilesURL: "https://github.com/user/dotfiles"}
-	st := &config.InstallState{}
-	assert.True(t, hasDotfiles(opts, st))
-}
-
-func TestHasDotfiles_EnvVarSet_ReturnsTrue(t *testing.T) {
-	t.Setenv("OPENBOOT_DOTFILES", "https://github.com/envuser/dotfiles")
-	opts := &config.InstallOptions{}
-	st := &config.InstallState{}
-	assert.True(t, hasDotfiles(opts, st))
-}
-
-func TestHasDotfiles_NoURLAnywhere_ReturnsFalse(t *testing.T) {
-	t.Setenv("OPENBOOT_DOTFILES", "")
-	opts := &config.InstallOptions{DotfilesURL: ""}
-	st := &config.InstallState{}
-	assert.False(t, hasDotfiles(opts, st))
-}
-
-func TestHasDotfiles_SkipOverridesEnvVar(t *testing.T) {
-	t.Setenv("OPENBOOT_DOTFILES", "https://github.com/envuser/dotfiles")
-	opts := &config.InstallOptions{Dotfiles: "skip"}
-	st := &config.InstallState{}
-	// "skip" always wins, even when env var is set.
-	assert.False(t, hasDotfiles(opts, st))
-}
-
-// ---------------------------------------------------------------------------
 // showCompletionFromPlan (via Apply integration path)
 // ---------------------------------------------------------------------------
 
@@ -364,4 +324,57 @@ func TestPlan_RemoteConfig_DotfilesFromOpts(t *testing.T) {
 	plan, err := Plan(opts, st)
 	require.NoError(t, err)
 	assert.Equal(t, "https://github.com/opts/dotfiles", plan.DotfilesURL)
+}
+
+// ---------------------------------------------------------------------------
+// Plan — dotfiles URL resolution (replaces removed hasDotfiles tests)
+// ---------------------------------------------------------------------------
+
+// TestPlan_DotfilesSkip_EmptyURL verifies that opts.Dotfiles == "skip" causes
+// Plan to set DotfilesURL to "" (the applyDotfiles no-op sentinel).
+func TestPlan_DotfilesSkip_EmptyURL(t *testing.T) {
+	t.Setenv("OPENBOOT_DOTFILES", "")
+	cfg := &config.Config{
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Dotfiles: "skip",
+		},
+		InstallState: config.InstallState{
+			RemoteConfig: &config.RemoteConfig{
+				Username: "testuser",
+				Slug:     "default",
+			},
+		},
+	}
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	assert.Equal(t, "", plan.DotfilesURL)
+}
+
+// TestPlan_EnvVar_UsesDotfilesURL verifies that when OPENBOOT_DOTFILES is set
+// and the interactive planning path is taken (no RemoteConfig), Plan picks up
+// the env-var URL via planDotfilesDecision → dotfiles.GetDotfilesURL().
+func TestPlan_EnvVar_UsesDotfilesURL(t *testing.T) {
+	envURL := "https://github.com/envuser/dotfiles"
+	t.Setenv("OPENBOOT_DOTFILES", envURL)
+	// Silent+DryRun so no interactive prompts fire; no RemoteConfig so
+	// planInteractive (and planDotfilesDecision) is used.
+	// Git name/email required in silent mode.
+	t.Setenv("OPENBOOT_GIT_NAME", "Test User")
+	t.Setenv("OPENBOOT_GIT_EMAIL", "test@example.com")
+	cfg := &config.Config{
+		InstallOptions: config.InstallOptions{
+			DryRun:   true,
+			Silent:   true,
+			GitName:  "Test User",
+			GitEmail: "test@example.com",
+		},
+	}
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	assert.Equal(t, envURL, plan.DotfilesURL)
 }

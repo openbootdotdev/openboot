@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/openbootdotdev/openboot/internal/dotfiles"
 	"github.com/openbootdotdev/openboot/internal/macos"
 )
 
@@ -273,4 +274,74 @@ func TestApplyPostInstall_DryRun_TableDriven(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// applyShell
+// ---------------------------------------------------------------------------
+
+// TestApplyShell_NoOMZ verifies that when InstallOhMyZsh is false, applyShell
+// skips all Oh-My-Zsh work and returns nil.
+func TestApplyShell_NoOMZ_ReturnsNil(t *testing.T) {
+	plan := InstallPlan{
+		DryRun:         true,
+		InstallOhMyZsh: false,
+		// DotfilesURL empty → EnsureBrewShellenv would be called, but DryRun makes it a no-op.
+		DotfilesURL: "",
+	}
+	err := applyShell(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+// TestApplyShell_DryRun_WithOMZ verifies that DryRun=true with OMZ requested
+// returns nil without performing any real install.
+func TestApplyShell_DryRun_WithOMZ(t *testing.T) {
+	plan := InstallPlan{
+		DryRun:         true,
+		InstallOhMyZsh: true,
+		DotfilesURL:    "",
+	}
+	err := applyShell(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+// TestApplyShell_DotfilesURL_SkipsBrewShellenv verifies that when a custom
+// dotfiles URL is set (not the default), EnsureBrewShellenv is NOT called —
+// the dotfiles repo manages .zshrc itself.
+func TestApplyShell_DotfilesURL_SkipsBrewShellenv(t *testing.T) {
+	plan := InstallPlan{
+		DryRun:         true,
+		InstallOhMyZsh: false,
+		DotfilesURL:    "https://github.com/user/dotfiles", // custom, not DefaultDotfilesURL
+	}
+	// applyShell only calls EnsureBrewShellenv when DotfilesURL == "" or DefaultDotfilesURL.
+	// With a custom URL it should return nil without error.
+	err := applyShell(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+// ---------------------------------------------------------------------------
+// applyDotfiles
+// ---------------------------------------------------------------------------
+
+// TestApplyDotfiles_EmptyURL_ReturnsNil verifies that when DotfilesURL is ""
+// (the "skip" case), applyDotfiles is a no-op.
+func TestApplyDotfiles_EmptyURL_ReturnsNil(t *testing.T) {
+	plan := InstallPlan{
+		DryRun:      false,
+		DotfilesURL: "",
+	}
+	err := applyDotfiles(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+// TestApplyDotfiles_DryRun_WithURL verifies that DryRun=true with a URL set
+// returns nil — the dry-run path in dotfiles.Clone is a no-op.
+func TestApplyDotfiles_DryRun_WithURL(t *testing.T) {
+	plan := InstallPlan{
+		DryRun:      true,
+		DotfilesURL: dotfiles.DefaultDotfilesURL,
+	}
+	err := applyDotfiles(plan, NopReporter{})
+	assert.NoError(t, err)
 }
