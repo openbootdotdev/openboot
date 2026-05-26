@@ -113,12 +113,11 @@ internal/installer/step_packages.go:77
 internal/installer/step_packages.go:83
 internal/installer/step_packages.go:134
 internal/installer/step_packages.go:139
-internal/installer/step_packages.go:159
-internal/installer/step_packages.go:205
+internal/installer/step_packages.go:161
 internal/installer/step_packages.go:207
 internal/installer/step_packages.go:209
-internal/installer/step_packages.go:227
-internal/installer/step_packages.go:228
+internal/installer/step_packages.go:211
+internal/installer/step_packages.go:229
 internal/installer/step_shell.go:17
 internal/installer/step_shell.go:40
 internal/installer/step_shell.go:58

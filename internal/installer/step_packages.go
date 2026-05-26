@@ -3,13 +3,13 @@ package installer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/npm"
 	"github.com/openbootdotdev/openboot/internal/system"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 type categorizedPackages struct {
@@ -154,10 +154,12 @@ func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orc
 				r.Warn(fmt.Sprintf("Failed to track installed package %s: %v", pkg, err))
 			}
 		}
-		r.Success("Package installation complete")
+		if brewErr == nil {
+			r.Success("Package installation complete")
+		}
 	}
 	fmt.Println()
-	return nil
+	return brewErr
 }
 
 func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles npm batch + sequential fallback with per-package error tracking
@@ -225,10 +227,8 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 			continue
 		}
 		fmt.Println()
-		fmt.Printf("  Retry npm installation? [Y/n] ")
-		var response string
-		fmt.Scanln(&response) //nolint:errcheck,gosec // interactive prompt; empty input is valid
-		if strings.ToLower(strings.TrimSpace(response)) == "n" || strings.ToLower(strings.TrimSpace(response)) == "no" {
+		retry, err := ui.Confirm("Retry npm installation?", true)
+		if err != nil || !retry {
 			r.Muted("Skipping npm package retry")
 			return lastErr
 		}

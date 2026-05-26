@@ -99,7 +99,7 @@ func TestDoctorDiagnose_Suggestions(t *testing.T) {
 
 	suggestions, err := DoctorDiagnose()
 	require.NoError(t, err)
-	assert.Contains(t, suggestions, "Run: sudo rm -rf /usr/local/include")
+	assert.Contains(t, suggestions, "Run: brew doctor --list-checks (review unbrewed header files before removing)")
 	assert.Contains(t, suggestions, "Run: brew cleanup --prune=all")
 }
 
@@ -238,7 +238,7 @@ Warning: permission issues
 	assert.Contains(t, suggestions, "Run: brew update-reset")
 	assert.Contains(t, suggestions, "Run: xcode-select --install")
 	assert.Contains(t, suggestions, "Run: brew cleanup --prune=all")
-	assert.Contains(t, suggestions, "Run: sudo chown -R $(whoami) $(brew --prefix)/*")
+	assert.Contains(t, suggestions, "Run: brew doctor (review permission warnings before changing ownership)")
 }
 
 func TestDoctorDiagnose_UnknownWarnings(t *testing.T) {

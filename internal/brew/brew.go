@@ -275,7 +275,7 @@ func DoctorDiagnose() ([]string, error) {
 	lowerOutput := strings.ToLower(outputStr)
 
 	if strings.Contains(lowerOutput, "unbrewed header files") {
-		suggestions = append(suggestions, "Run: sudo rm -rf /usr/local/include")
+		suggestions = append(suggestions, "Run: brew doctor --list-checks (review unbrewed header files before removing)")
 	}
 	if strings.Contains(lowerOutput, "unbrewed dylibs") {
 		suggestions = append(suggestions, "Run: brew doctor --list-checks and review linked libraries")
@@ -296,7 +296,7 @@ func DoctorDiagnose() ([]string, error) {
 		suggestions = append(suggestions, "Run: brew update-reset")
 	}
 	if strings.Contains(lowerOutput, "permission") {
-		suggestions = append(suggestions, "Run: sudo chown -R $(whoami) $(brew --prefix)/*")
+		suggestions = append(suggestions, "Run: brew doctor (review permission warnings before changing ownership)")
 	}
 
 	if len(suggestions) == 0 && !strings.Contains(outputStr, "ready to brew") {
