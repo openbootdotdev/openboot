@@ -264,7 +264,7 @@ func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 func decodeRemoteConfig(r io.Reader) (*RemoteConfig, error) {
 	data, err := io.ReadAll(io.LimitReader(r, 1<<20))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read remote config: %w", err)
 	}
 	return UnmarshalRemoteConfigFlexible(data)
 }
@@ -284,7 +284,7 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 	// Extract packages as typed objects and convert to flat arrays.
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse remote config: %w", err)
 	}
 
 	pkgData, ok := raw["packages"]
@@ -341,7 +341,7 @@ func UnmarshalRemoteConfigFlexible(data []byte) (*RemoteConfig, error) {
 
 	var result RemoteConfig
 	if err := json.Unmarshal(normalised, &result); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal normalised config: %w", err)
 	}
 	normalizeRemoteConfig(&result)
 	backfillMacOSPrefsFromSnapshot(&result, data)

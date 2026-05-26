@@ -133,7 +133,7 @@ func runRollback() error {
 
 func runPinnedUpgrade(v string) error {
 	if err := updater.ValidateSemver(v); err != nil {
-		return err
+		return fmt.Errorf("validate version: %w", err)
 	}
 	if updateIsHomebrewInstall() {
 		ui.Warn("OpenBoot is managed by Homebrew — --version is not supported.")

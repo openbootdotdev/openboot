@@ -27,7 +27,7 @@ func applyGitConfig(plan InstallPlan, r Reporter) error {
 		fmt.Printf("[DRY-RUN] Would configure git: %s <%s>\n", plan.GitName, plan.GitEmail)
 	} else {
 		if err := system.ConfigureGit(plan.GitName, plan.GitEmail); err != nil {
-			return err
+			return fmt.Errorf("configure git: %w", err)
 		}
 		r.Success(fmt.Sprintf("Git configured: %s <%s>", plan.GitName, plan.GitEmail))
 	}

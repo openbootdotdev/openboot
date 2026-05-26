@@ -65,13 +65,13 @@ func ValidateDotfilesURL(rawURL string) error {
 
 func (rc *RemoteConfig) Validate() error {
 	if err := validatePackageLists(rc); err != nil {
-		return err
+		return fmt.Errorf("validate packages: %w", err)
 	}
 	if err := ValidateDotfilesURL(rc.DotfilesRepo); err != nil {
 		return fmt.Errorf("invalid dotfiles_repo: %w", err)
 	}
 	if err := validateMacOSPrefs(rc); err != nil {
-		return err
+		return fmt.Errorf("validate macos prefs: %w", err)
 	}
 	return validatePostInstall(rc)
 }

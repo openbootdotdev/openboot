@@ -133,7 +133,7 @@ func hostScopeLabel(host string) string {
 func CreateScreenshotsDir(dryRun bool) error {
 	home, err := system.HomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("create screenshots dir: %w", err)
 	}
 	dir := filepath.Join(home, "Screenshots")
 

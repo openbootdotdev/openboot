@@ -79,7 +79,7 @@ func runSnapshot(cmd *cobra.Command) error {
 	if localFlag || publishFlag {
 		snap, err := captureEnvironment()
 		if err != nil {
-			return err
+			return fmt.Errorf("capture environment: %w", err)
 		}
 		if dryRunFlag {
 			showSnapshotPreview(snap)
@@ -97,7 +97,7 @@ func runSnapshot(cmd *cobra.Command) error {
 		}
 		if publishFlag {
 			if err := publishSnapshot(cmd.Context(), snap, slugFlag); err != nil {
-				return err
+				return fmt.Errorf("publish snapshot: %w", err)
 			}
 		}
 		return nil
@@ -110,7 +110,7 @@ func runSnapshot(cmd *cobra.Command) error {
 
 	snap, err := captureEnvironment()
 	if err != nil {
-		return err
+		return fmt.Errorf("capture environment: %w", err)
 	}
 
 	if dryRunFlag {
@@ -123,7 +123,7 @@ func runSnapshot(cmd *cobra.Command) error {
 
 	edited, confirmed, err := reviewSnapshot(snap)
 	if err != nil {
-		return err
+		return fmt.Errorf("review snapshot: %w", err)
 	}
 	if !confirmed {
 		return nil
@@ -153,7 +153,7 @@ func interactiveSaveOrPublish(ctx context.Context, snap *snapshot.Snapshot) erro
 	}
 	choice, err := ui.SelectOption("What to do with this snapshot?", options)
 	if err != nil {
-		return err
+		return fmt.Errorf("select snapshot action: %w", err)
 	}
 
 	switch choice {
@@ -260,7 +260,7 @@ func captureJSONSnapshot() error {
 func captureEnvironment() (*snapshot.Snapshot, error) {
 	snap, err := captureWithUI()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("capture with ui: %w", err)
 	}
 	catalogMatch := snapshot.MatchPackages(snap)
 	snap.CatalogMatch = *catalogMatch
@@ -298,7 +298,7 @@ func captureWithUI() (*snapshot.Snapshot, error) {
 func reviewSnapshot(snap *snapshot.Snapshot) (*snapshot.Snapshot, bool, error) {
 	edited, confirmed, err := ui.RunSnapshotEditor(snap)
 	if err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("snapshot editor: %w", err)
 	}
 	if !confirmed {
 		fmt.Fprintln(os.Stderr)

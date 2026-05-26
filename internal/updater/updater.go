@@ -80,7 +80,7 @@ func LoadUserConfig() UserConfig {
 func getUserConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return filepath.Join(home, ".openboot", "config.json"), nil
 }
@@ -531,7 +531,7 @@ func SetBackupDirForTesting(dir string) {
 func backupCurrentBinary(binPath, currentVersion string) error {
 	dir, err := GetBackupDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("backup dir: %w", err)
 	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("mkdir backup dir: %w", err)
@@ -584,7 +584,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 func listBackupsSorted(dir string) ([]os.DirEntry, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, err // callers check os.IsNotExist and add their own context
 	}
 	// Filter to files only and sort by modtime descending.
 	files := entries[:0]
@@ -610,7 +610,7 @@ func listBackupsSorted(dir string) ([]os.DirEntry, error) {
 func pruneBackups(dir string, keep int) error {
 	files, err := listBackupsSorted(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("list backups: %w", err)
 	}
 	if len(files) <= keep {
 		return nil
@@ -629,7 +629,7 @@ func pruneBackups(dir string, keep int) error {
 func ListBackups() ([]string, error) {
 	dir, err := GetBackupDir()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list backups: %w", err)
 	}
 	files, err := listBackupsSorted(dir)
 	if err != nil {
@@ -653,7 +653,7 @@ func Rollback() error {
 	}
 	dir, err := GetBackupDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("rollback: %w", err)
 	}
 	files, err := listBackupsSorted(dir)
 	if err != nil {
@@ -791,14 +791,14 @@ func GetLatestVersion() (string, error) {
 	client := getHTTPClient()
 	req, err := http.NewRequest("GET", "https://api.github.com/repos/openbootdotdev/openboot/releases/latest", nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create version request: %w", err)
 	}
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fetch latest version: %w", err)
 	}
 	defer resp.Body.Close() //nolint:errcheck // standard HTTP body cleanup
 
@@ -808,7 +808,7 @@ func GetLatestVersion() (string, error) {
 
 	var release Release
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&release); err != nil {
-		return "", err
+		return "", fmt.Errorf("parse release response: %w", err)
 	}
 
 	return release.TagName, nil
@@ -827,17 +827,17 @@ func getCheckFilePath() (string, error) {
 func LoadState() (*CheckState, error) {
 	path, err := getCheckFilePath()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load update state: %w", err)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read update state: %w", err)
 	}
 
 	var state CheckState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse update state: %w", err)
 	}
 
 	return &state, nil
@@ -846,7 +846,7 @@ func LoadState() (*CheckState, error) {
 func SaveState(state *CheckState) error {
 	path, err := getCheckFilePath()
 	if err != nil {
-		return err
+		return fmt.Errorf("save update state: %w", err)
 	}
 
 	dir := filepath.Dir(path)
@@ -856,7 +856,7 @@ func SaveState(state *CheckState) error {
 
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal update state: %w", err)
 	}
 
 	return os.WriteFile(path, data, 0600)

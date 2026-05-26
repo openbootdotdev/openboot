@@ -65,13 +65,13 @@ func publishSnapshot(ctx context.Context, snap *snapshot.Snapshot, explicitSlug 
 		fmt.Fprintln(os.Stderr, "  Publishing as a new config on openboot.dev")
 		configName, configDesc, visibility, err = promptPushDetails("")
 		if err != nil {
-			return err
+			return fmt.Errorf("prompt publish details: %w", err)
 		}
 	}
 
 	resultSlug, err := postSnapshotToAPI(snap, configName, configDesc, visibility, stored.Token, apiBase, targetSlug)
 	if err != nil {
-		return err
+		return fmt.Errorf("publish snapshot: %w", err)
 	}
 
 	recordPublishResult(stored.Username, resultSlug, targetSlug, visibility, apiBase)

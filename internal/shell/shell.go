@@ -185,11 +185,11 @@ var restoreBlockRe = regexp.MustCompile(`(?s)# >>> OpenBoot-Restore\n.*?# <<< Op
 
 func buildRestoreBlock(theme string, plugins []string) (string, error) {
 	if err := validateShellIdentifier(theme, "ZSH_THEME"); err != nil {
-		return "", err
+		return "", fmt.Errorf("build restore block: %w", err)
 	}
 	for _, p := range plugins {
 		if err := validateShellIdentifier(p, "plugin"); err != nil {
-			return "", err
+			return "", fmt.Errorf("build restore block: %w", err)
 		}
 	}
 

@@ -17,7 +17,7 @@ import (
 func runSnapshotImport(importPath string, dryRun bool) error {
 	snap, err := loadSnapshot(importPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("load snapshot: %w", err)
 	}
 
 	if snap.Health.Partial {
@@ -29,7 +29,7 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 		fmt.Fprintln(os.Stderr)
 		proceed, err := ui.Confirm("Continue with partial snapshot?", false)
 		if err != nil {
-			return err
+			return fmt.Errorf("confirm partial snapshot: %w", err)
 		}
 		if !proceed {
 			fmt.Fprintln(os.Stderr)
@@ -43,7 +43,7 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 
 	edited, confirmed, err := ui.RunSnapshotEditor(snap)
 	if err != nil {
-		return err
+		return fmt.Errorf("snapshot editor: %w", err)
 	}
 	if !confirmed {
 		fmt.Fprintln(os.Stderr)
@@ -54,7 +54,7 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 
 	ok, err := confirmInstallation(edited, dryRun)
 	if err != nil {
-		return err
+		return fmt.Errorf("confirm installation: %w", err)
 	}
 	if !ok {
 		fmt.Fprintln(os.Stderr)
@@ -96,17 +96,17 @@ func loadSnapshot(importPath string) (*snapshot.Snapshot, error) {
 		fmt.Fprintf(os.Stderr, "  Downloading snapshot from %s...\n", importPath)
 		data, err := downloadSnapshotBytes(importPath, &http.Client{Timeout: apiRequestTimeout})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("download snapshot: %w", err)
 		}
 		s, err := snapshot.ParseBytes(data)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse snapshot: %w", err)
 		}
 		snap = s
 	default:
 		s, err := snapshot.LoadFile(importPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("load snapshot file: %w", err)
 		}
 		snap = s
 	}

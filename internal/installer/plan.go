@@ -122,32 +122,32 @@ func planInteractive(opts *config.InstallOptions, st *config.InstallState, plan 
 	if !opts.PackagesOnly {
 		name, email, err := planGitConfig(opts)
 		if err != nil {
-			return err
+			return fmt.Errorf("plan git config: %w", err)
 		}
 		plan.GitName = name
 		plan.GitEmail = email
 	}
 
 	if err := planPackages(opts, st, plan); err != nil {
-		return err
+		return fmt.Errorf("plan packages: %w", err)
 	}
 
 	if !opts.PackagesOnly {
 		installShell, err := planShellDecision(opts)
 		if err != nil {
-			return err
+			return fmt.Errorf("plan shell: %w", err)
 		}
 		plan.InstallOhMyZsh = installShell
 
 		dotfilesURL, err := planDotfilesDecision(opts)
 		if err != nil {
-			return err
+			return fmt.Errorf("plan dotfiles: %w", err)
 		}
 		plan.DotfilesURL = dotfilesURL
 
 		macOSPrefs, err := planMacOSDecision(opts)
 		if err != nil {
-			return err
+			return fmt.Errorf("plan macos: %w", err)
 		}
 		plan.MacOSPrefs = macOSPrefs
 	}
@@ -191,7 +191,7 @@ func planPackages(opts *config.InstallOptions, st *config.InstallState, plan *In
 			var err error
 			opts.Preset, err = ui.SelectPreset()
 			if err != nil {
-				return err
+				return fmt.Errorf("select preset: %w", err)
 			}
 		}
 	}
@@ -201,7 +201,7 @@ func planPackages(opts *config.InstallOptions, st *config.InstallState, plan *In
 	} else {
 		selected, onlinePkgs, confirmed, err := ui.RunSelector(opts.Preset)
 		if err != nil {
-			return err
+			return fmt.Errorf("run package selector: %w", err)
 		}
 		if !confirmed {
 			return ErrUserCancelled
@@ -252,12 +252,12 @@ func planDotfilesDecision(opts *config.InstallOptions) (string, error) {
 	if !opts.Silent && (!opts.DryRun || system.HasTTY()) {
 		setup, err := ui.Confirm("Do you have your own dotfiles repository?", false)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("confirm dotfiles: %w", err)
 		}
 		if setup {
 			url, err = ui.Input("Dotfiles repository URL (https:// only)", "https://github.com/username/dotfiles")
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("input dotfiles url: %w", err)
 			}
 			if url != "" {
 				if vErr := config.ValidateDotfilesURL(url); vErr != nil {
