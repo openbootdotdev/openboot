@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/openbootdotdev/openboot/internal/system"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 func applyGitConfig(plan InstallPlan, r Reporter) error {
@@ -24,7 +25,7 @@ func applyGitConfig(plan InstallPlan, r Reporter) error {
 	}
 
 	if plan.DryRun {
-		fmt.Printf("[DRY-RUN] Would configure git: %s <%s>\n", plan.GitName, plan.GitEmail)
+		ui.DryRunMsg("Would configure git: %s <%s>", plan.GitName, plan.GitEmail)
 	} else {
 		if err := system.ConfigureGit(plan.GitName, plan.GitEmail); err != nil {
 			return fmt.Errorf("configure git: %w", err)

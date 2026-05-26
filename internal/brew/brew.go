@@ -123,10 +123,7 @@ func Uninstall(packages []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would uninstall CLI packages:")
-		for _, p := range packages {
-			fmt.Printf("    brew uninstall %s\n", p)
-		}
+		ui.DryRunList("uninstall CLI packages", "brew uninstall %s", packages)
 		return nil
 	}
 
@@ -152,10 +149,7 @@ func UninstallCask(packages []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would uninstall GUI applications:")
-		for _, p := range packages {
-			fmt.Printf("    brew uninstall --cask %s\n", p)
-		}
+		ui.DryRunList("uninstall GUI applications", "brew uninstall --cask %s", packages)
 		return nil
 	}
 
@@ -181,10 +175,7 @@ func Untap(taps []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would remove taps:")
-		for _, t := range taps {
-			fmt.Printf("    brew untap %s\n", t)
-		}
+		ui.DryRunList("remove taps", "brew untap %s", taps)
 		return nil
 	}
 
@@ -206,7 +197,7 @@ func Untap(taps []string, dryRun bool) error {
 
 func Update(dryRun bool) error {
 	if dryRun {
-		ui.Info("Would run: brew update && brew upgrade")
+		ui.DryRunMsg("Would run: brew update && brew upgrade")
 		return nil
 	}
 

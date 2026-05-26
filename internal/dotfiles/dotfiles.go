@@ -59,7 +59,7 @@ func Clone(repoURL string, dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Printf("[DRY-RUN] Would clone %s to %s\n", repoURL, dotfilesPath)
+		ui.DryRunMsg("Would clone %s to %s", repoURL, dotfilesPath)
 		return nil
 	}
 
@@ -103,7 +103,7 @@ func checkRemoteChanged(dotfilesPath, repoURL string) (currentURL string, change
 // can proceed. Returns (true, nil) on success so the caller continues with cloning.
 func backupForReclone(dotfilesPath, repoURL, currentURL string, dryRun bool) (needsClone bool, err error) {
 	if dryRun {
-		fmt.Printf("[DRY-RUN] Would backup %s and re-clone from %s\n", dotfilesPath, repoURL)
+		ui.DryRunMsg("Would backup %s and re-clone from %s", dotfilesPath, repoURL)
 		return false, nil
 	}
 	backupPath := dotfilesPath + ".openboot.bak"
@@ -124,7 +124,7 @@ func backupForReclone(dotfilesPath, repoURL, currentURL string, dryRun bool) (ne
 // working tree, prompting the user if there are local uncommitted changes.
 func syncExistingDotfiles(dotfilesPath string, dryRun bool) error {
 	if dryRun {
-		fmt.Printf("[DRY-RUN] Would sync latest dotfiles at %s\n", dotfilesPath)
+		ui.DryRunMsg("Would sync latest dotfiles at %s", dotfilesPath)
 		return nil
 	}
 	fmt.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
@@ -219,7 +219,7 @@ func Link(dryRun bool) error {
 
 	if _, err := os.Stat(dotfilesPath); os.IsNotExist(err) {
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would link dotfiles from %s\n", dotfilesPath)
+			ui.DryRunMsg("Would link dotfiles from %s", dotfilesPath)
 			return nil
 		}
 		return fmt.Errorf("dotfiles directory not found: %s", dotfilesPath)
@@ -277,7 +277,7 @@ func ensureStow(dryRun bool) error {
 		return nil
 	}
 	if dryRun {
-		fmt.Println("[DRY-RUN] Would install stow via Homebrew")
+		ui.DryRunMsg("Would install stow via Homebrew")
 		return nil
 	}
 	ui.Info("Installing stow via Homebrew...")
@@ -358,7 +358,7 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 
 		pkg := entry.Name()
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would stow package: %s\n", pkg)
+			ui.DryRunMsg("Would stow package: %s", pkg)
 			continue
 		}
 
@@ -422,7 +422,7 @@ func linkDirect(dotfilesPath string, dryRun bool) error {
 		dst := filepath.Join(home, name)
 
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would symlink %s -> %s\n", dst, src)
+			ui.DryRunMsg("Would symlink %s -> %s", dst, src)
 			continue
 		}
 

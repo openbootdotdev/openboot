@@ -14,6 +14,7 @@ import (
 
 	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 // knownOMZInstallHash is the SHA256 of the Oh-My-Zsh install script pinned on
@@ -54,7 +55,7 @@ func InstallOhMyZsh(dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("[DRY-RUN] Would install Oh-My-Zsh")
+		ui.DryRunMsg("Would install Oh-My-Zsh")
 		return nil
 	}
 
@@ -126,7 +127,7 @@ func EnsureBrewShellenv(dryRun bool) error {
 	// Create .zshrc if it doesn't exist.
 	if _, err := os.Stat(zshrcPath); os.IsNotExist(err) {
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would create %s with Homebrew shellenv\n", zshrcPath)
+			ui.DryRunMsg("Would create %s with Homebrew shellenv", zshrcPath)
 			return nil
 		}
 		if err := os.WriteFile(zshrcPath, []byte(brewShellenvLine+"\n"), 0600); err != nil {
@@ -144,7 +145,7 @@ func EnsureBrewShellenv(dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("[DRY-RUN] Would add Homebrew shellenv to .zshrc")
+		ui.DryRunMsg("Would add Homebrew shellenv to .zshrc")
 		return nil
 	}
 
@@ -163,7 +164,7 @@ func SetDefaultShell(dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Printf("[DRY-RUN] Would set default shell to %s\n", zshPath)
+		ui.DryRunMsg("Would set default shell to %s", zshPath)
 		return nil
 	}
 
@@ -255,7 +256,7 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 
 	if !IsOhMyZshInstalled() {
 		if dryRun {
-			fmt.Println("[DRY-RUN] Would install Oh-My-Zsh")
+			ui.DryRunMsg("Would install Oh-My-Zsh")
 		} else {
 			if err := InstallOhMyZsh(dryRun); err != nil {
 				return fmt.Errorf("install oh-my-zsh: %w", err)
@@ -271,7 +272,7 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 
 	if _, err := os.Stat(zshrcPath); os.IsNotExist(err) {
 		if dryRun {
-			fmt.Printf("[DRY-RUN] Would create %s\n", zshrcPath)
+			ui.DryRunMsg("Would create %s", zshrcPath)
 			return nil
 		}
 		if err := validateShellIdentifier(theme, "ZSH_THEME"); err != nil {
@@ -295,10 +296,10 @@ source $ZSH/oh-my-zsh.sh
 
 	if dryRun {
 		if theme != "" {
-			fmt.Printf("[DRY-RUN] Would set ZSH_THEME=\"%s\"\n", theme)
+			ui.DryRunMsg("Would set ZSH_THEME=%q", theme)
 		}
 		if len(plugins) > 0 {
-			fmt.Printf("[DRY-RUN] Would set plugins=(%s)\n", strings.Join(plugins, " "))
+			ui.DryRunMsg("Would set plugins=(%s)", strings.Join(plugins, " "))
 		}
 		return nil
 	}

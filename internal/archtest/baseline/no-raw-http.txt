@@ -11,6 +11,6 @@ internal/config/remote.go:56
 internal/config/remote.go:75
 internal/config/remote.go:233
 internal/search/search.go:46
-internal/shell/shell.go:28
-internal/shell/shell.go:62
+internal/shell/shell.go:29
+internal/shell/shell.go:63
 internal/updater/updater.go:792

@@ -20,7 +20,7 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 	fmt.Println()
 
 	if plan.DryRun {
-		r.Info(fmt.Sprintf("[DRY-RUN] Would apply %d macOS preferences", len(plan.MacOSPrefs)))
+		ui.DryRunMsg("Would apply %d macOS preferences", len(plan.MacOSPrefs))
 		fmt.Println()
 		return nil
 	}
@@ -72,7 +72,7 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 	}
 
 	if plan.DryRun {
-		fmt.Println("[DRY-RUN] Would run the script above")
+		ui.DryRunMsg("Would run the script above")
 		fmt.Println()
 		return nil
 	}
