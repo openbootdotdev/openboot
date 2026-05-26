@@ -84,11 +84,11 @@ func Apply(plan InstallPlan, r Reporter) error {
 		}
 	}
 
-	if err := applyPackages(plan, r); err != nil {
-		return err
-	}
-
 	var softErrs []error
+
+	if err := applyPackages(plan, r); err != nil {
+		softErrs = append(softErrs, fmt.Errorf("brew: %w", err))
+	}
 
 	if err := applyNpm(plan, r); err != nil {
 		r.Error(fmt.Sprintf("npm package installation failed: %v", err))
