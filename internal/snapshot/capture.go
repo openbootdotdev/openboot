@@ -28,88 +28,112 @@ type ScanStep struct {
 	Count  int    `json:"count"`
 }
 
-type captureStep struct {
-	name    string
-	capture func() (interface{}, error)
-	count   func(interface{}) int
+// CaptureResults holds the typed output of each capture step. Fields are
+// populated one at a time by CaptureWithProgress and then read by
+// assembleSnapshot — no type assertions needed.
+type CaptureResults struct {
+	Formulae []string
+	Casks    []string
+	Taps     []string
+	Npm      []string
+	Prefs    []MacOSPref
+	Git      *GitSnapshot
+	Dotfiles *DotfilesSnapshot
+	DevTools []DevTool
+	Shell    *ShellSnapshot
 }
 
-func stringsCount(v interface{}) int {
-	if s, ok := v.([]string); ok {
-		return len(s)
-	}
-	return 0
+type captureStep struct {
+	name    string
+	capture func(r *CaptureResults) error
+	count   func(r *CaptureResults) int
 }
 
 var captureSteps = []captureStep{
-	{"Homebrew Formulae", func() (interface{}, error) { return CaptureFormulae() }, stringsCount},
-	{"Homebrew Casks", func() (interface{}, error) { return CaptureCasks() }, stringsCount},
-	{"Homebrew Taps", func() (interface{}, error) { return CaptureTaps() }, stringsCount},
-	{"NPM Global Packages", func() (interface{}, error) { return CaptureNpm() }, stringsCount},
-	{"macOS Preferences", func() (interface{}, error) { return CaptureMacOSPrefs() }, func(v interface{}) int {
-		if s, ok := v.([]MacOSPref); ok {
-			return len(s)
-		}
-		return 0
-	}},
-	{"Git Configuration", func() (interface{}, error) { return CaptureGit() }, func(v interface{}) int { return 1 }},
-	{"Dotfiles", func() (interface{}, error) { return CaptureDotfiles() }, func(v interface{}) int {
-		if s, ok := v.(*DotfilesSnapshot); ok && s.RepoURL != "" {
+	{"Homebrew Formulae", func(r *CaptureResults) error {
+		v, err := CaptureFormulae()
+		r.Formulae = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.Formulae) }},
+	{"Homebrew Casks", func(r *CaptureResults) error {
+		v, err := CaptureCasks()
+		r.Casks = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.Casks) }},
+	{"Homebrew Taps", func(r *CaptureResults) error {
+		v, err := CaptureTaps()
+		r.Taps = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.Taps) }},
+	{"NPM Global Packages", func(r *CaptureResults) error {
+		v, err := CaptureNpm()
+		r.Npm = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.Npm) }},
+	{"macOS Preferences", func(r *CaptureResults) error {
+		v, err := CaptureMacOSPrefs()
+		r.Prefs = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.Prefs) }},
+	{"Git Configuration", func(r *CaptureResults) error {
+		v, err := CaptureGit()
+		r.Git = v
+		return err
+	}, func(r *CaptureResults) int { return 1 }},
+	{"Dotfiles", func(r *CaptureResults) error {
+		v, err := CaptureDotfiles()
+		r.Dotfiles = v
+		return err
+	}, func(r *CaptureResults) int {
+		if r.Dotfiles != nil && r.Dotfiles.RepoURL != "" {
 			return 1
 		}
 		return 0
 	}},
-	{"Dev Tools", func() (interface{}, error) { return CaptureDevTools() }, func(v interface{}) int {
-		if s, ok := v.([]DevTool); ok {
-			return len(s)
-		}
-		return 0
-	}},
-	{"Shell Config", func() (interface{}, error) { return CaptureShell() }, func(v interface{}) int {
-		if s, ok := v.(*ShellSnapshot); ok && (s.Theme != "" || len(s.Plugins) > 0 || s.OhMyZsh) {
+	{"Dev Tools", func(r *CaptureResults) error {
+		v, err := CaptureDevTools()
+		r.DevTools = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.DevTools) }},
+	{"Shell Config", func(r *CaptureResults) error {
+		v, err := CaptureShell()
+		r.Shell = v
+		return err
+	}, func(r *CaptureResults) int {
+		if r.Shell != nil && (r.Shell.Theme != "" || len(r.Shell.Plugins) > 0 || r.Shell.OhMyZsh) {
 			return 1
 		}
 		return 0
 	}},
 }
 
-func assembleSnapshot(results []interface{}, failedSteps []string, hostname string) *Snapshot {
-	formulae, _ := results[0].([]string)
-	casks, _ := results[1].([]string)
-	taps, _ := results[2].([]string)
-	npmPkgs, _ := results[3].([]string)
-	prefs, _ := results[4].([]MacOSPref)
-	gitSnap, _ := results[5].(*GitSnapshot)
-	dotfilesSnap, _ := results[6].(*DotfilesSnapshot)
-	devTools, _ := results[7].([]DevTool)
-	shellSnap, _ := results[8].(*ShellSnapshot)
-
-	if formulae == nil {
-		formulae = []string{}
+func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) *Snapshot {
+	if r.Formulae == nil {
+		r.Formulae = []string{}
 	}
-	if casks == nil {
-		casks = []string{}
+	if r.Casks == nil {
+		r.Casks = []string{}
 	}
-	if taps == nil {
-		taps = []string{}
+	if r.Taps == nil {
+		r.Taps = []string{}
 	}
-	if npmPkgs == nil {
-		npmPkgs = []string{}
+	if r.Npm == nil {
+		r.Npm = []string{}
 	}
-	if prefs == nil {
-		prefs = []MacOSPref{}
+	if r.Prefs == nil {
+		r.Prefs = []MacOSPref{}
 	}
-	if gitSnap == nil {
-		gitSnap = &GitSnapshot{}
+	if r.Git == nil {
+		r.Git = &GitSnapshot{}
 	}
-	if dotfilesSnap == nil {
-		dotfilesSnap = &DotfilesSnapshot{}
+	if r.Dotfiles == nil {
+		r.Dotfiles = &DotfilesSnapshot{}
 	}
-	if devTools == nil {
-		devTools = []DevTool{}
+	if r.DevTools == nil {
+		r.DevTools = []DevTool{}
 	}
-	if shellSnap == nil {
-		shellSnap = &ShellSnapshot{}
+	if r.Shell == nil {
+		r.Shell = &ShellSnapshot{}
 	}
 
 	return &Snapshot{
@@ -117,16 +141,16 @@ func assembleSnapshot(results []interface{}, failedSteps []string, hostname stri
 		CapturedAt: time.Now(),
 		Hostname:   hostname,
 		Packages: PackageSnapshot{
-			Formulae: formulae,
-			Casks:    casks,
-			Taps:     taps,
-			Npm:      npmPkgs,
+			Formulae: r.Formulae,
+			Casks:    r.Casks,
+			Taps:     r.Taps,
+			Npm:      r.Npm,
 		},
-		MacOSPrefs:    prefs,
-		Shell:         *shellSnap,
-		Git:           *gitSnap,
-		Dotfiles:      *dotfilesSnap,
-		DevTools:      devTools,
+		MacOSPrefs:    r.Prefs,
+		Shell:         *r.Shell,
+		Git:           *r.Git,
+		Dotfiles:      *r.Dotfiles,
+		DevTools:      r.DevTools,
 		MatchedPreset: "",
 		CatalogMatch: CatalogMatch{
 			Matched:   []string{},
@@ -146,15 +170,14 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 		hostname = "unknown"
 	}
 
-	results := make([]interface{}, len(captureSteps))
+	results := &CaptureResults{}
 	var failedSteps []string
 	for i, step := range captureSteps {
 		if callback != nil {
 			callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "scanning", Count: 0})
 		}
 
-		result, err := step.capture()
-		results[i] = result
+		err := step.capture(results)
 
 		if err != nil {
 			failedSteps = append(failedSteps, step.name)
@@ -162,7 +185,7 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 				callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "error", Count: 0})
 			}
 		} else if callback != nil {
-			callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "done", Count: step.count(result)})
+			callback(ScanStep{Name: step.name, Index: i, Total: len(captureSteps), Status: "done", Count: step.count(results)})
 		}
 	}
 
