@@ -45,6 +45,7 @@ Three regulation categories:
 | Arch. | `no-direct-exec` | L1 (`make test-unit`) | `internal/archtest/exec_test.go` |
 | Arch. | `no-raw-http` | L1 | `internal/archtest/http_test.go` |
 | Arch. | `no-os-getenv-home` | L1 | `internal/archtest/envhome_test.go` |
+| Arch. | `dryrun` — destructive ops must check `DryRun` | L1 | `internal/archtest/dryrun_test.go` |
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |

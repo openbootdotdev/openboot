@@ -26,7 +26,7 @@ update the baseline — do not silence the rule.
 | Use `os.UserHomeDir()` — never `os.Getenv("HOME")` | `internal/archtest/envhome_test.go` |
 | Error wrapping with `%w`, no bare returns | reviewer + `errcheck` (golangci-lint) |
 | UI output via `ui.*` helpers — never raw `fmt.Println` in user-facing paths | reviewer (planned: archtest rule) |
-| Destructive ops check `cfg.DryRun` before acting | reviewer (planned: archtest rule) |
+| Destructive ops check `cfg.DryRun` before acting | `internal/archtest/dryrun_test.go` |
 
 The full convention list lives in CLAUDE.md → "Project-specific conventions".
 
