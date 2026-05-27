@@ -179,29 +179,28 @@ func TestSanitizePath(t *testing.T) {
 }
 
 func TestCaptureWithProgress_HealthTracksFailedSteps(t *testing.T) {
+	r := &CaptureResults{}
 	steps := []captureStep{
 		{
 			name:    "Step A",
-			capture: func() (interface{}, error) { return []string{"pkg"}, nil },
-			count:   func(v interface{}) int { return len(v.([]string)) },
+			capture: func(r *CaptureResults) error { r.Formulae = []string{"pkg"}; return nil },
+			count:   func(r *CaptureResults) int { return len(r.Formulae) },
 		},
 		{
 			name:    "Step B",
-			capture: func() (interface{}, error) { return []string{}, errors.New("simulated failure") },
-			count:   func(v interface{}) int { return 0 },
+			capture: func(r *CaptureResults) error { r.Casks = []string{}; return errors.New("simulated failure") },
+			count:   func(r *CaptureResults) int { return 0 },
 		},
 		{
 			name:    "Step C",
-			capture: func() (interface{}, error) { return []string{"other"}, nil },
-			count:   func(v interface{}) int { return len(v.([]string)) },
+			capture: func(r *CaptureResults) error { r.Taps = []string{"other"}; return nil },
+			count:   func(r *CaptureResults) int { return len(r.Taps) },
 		},
 	}
 
-	results := make([]interface{}, len(steps))
 	var failedSteps []string
-	for i, step := range steps {
-		result, err := step.capture()
-		results[i] = result
+	for _, step := range steps {
+		err := step.capture(r)
 		if err != nil {
 			failedSteps = append(failedSteps, step.name)
 		}
@@ -212,17 +211,18 @@ func TestCaptureWithProgress_HealthTracksFailedSteps(t *testing.T) {
 }
 
 func TestCaptureWithProgress_HealthEmptyOnSuccess(t *testing.T) {
+	r := &CaptureResults{}
 	steps := []captureStep{
 		{
 			name:    "Step A",
-			capture: func() (interface{}, error) { return []string{"pkg"}, nil },
-			count:   func(v interface{}) int { return len(v.([]string)) },
+			capture: func(r *CaptureResults) error { r.Formulae = []string{"pkg"}; return nil },
+			count:   func(r *CaptureResults) int { return len(r.Formulae) },
 		},
 	}
 
 	var failedSteps []string
 	for _, step := range steps {
-		_, err := step.capture()
+		err := step.capture(r)
 		if err != nil {
 			failedSteps = append(failedSteps, step.name)
 		}

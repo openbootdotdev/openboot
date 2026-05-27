@@ -24,7 +24,7 @@ var nodeVersionOutput = func() ([]byte, error) {
 func getNodeVersion() (int, error) {
 	output, err := nodeVersionOutput()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get node version: %w", err)
 	}
 
 	version := strings.TrimSpace(string(output))

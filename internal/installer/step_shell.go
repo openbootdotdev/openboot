@@ -62,7 +62,7 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	}
 
 	if err := dotfiles.Clone(plan.DotfilesURL, plan.DryRun); err != nil {
-		return err
+		return fmt.Errorf("clone dotfiles: %w", err)
 	}
 
 	// If the cloned dotfiles reference Oh-My-Zsh but the shell step didn't
@@ -80,7 +80,7 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	}
 
 	if err := dotfiles.Link(plan.DryRun); err != nil {
-		return err
+		return fmt.Errorf("link dotfiles: %w", err)
 	}
 
 	if !plan.DryRun {

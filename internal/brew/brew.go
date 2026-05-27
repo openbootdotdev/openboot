@@ -87,7 +87,7 @@ func ListOutdated() ([]OutdatedPackage, error) {
 	}
 
 	if err := json.Unmarshal(output, &result); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse brew outdated: %w", err)
 	}
 
 	var outdated []OutdatedPackage
@@ -246,10 +246,10 @@ func CheckDiskSpace() (float64, error) {
 	var stat syscall.Statfs_t
 	home, err := system.HomeDir()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("check disk space: %w", err)
 	}
 	if err := syscall.Statfs(home, &stat); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("statfs: %w", err)
 	}
 	// stat.Bsize is uint32 on darwin and int64 on linux; the kernel always
 	// reports a non-negative block size so the conversion is safe.

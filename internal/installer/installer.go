@@ -34,7 +34,7 @@ func Run(cfg *config.Config) error {
 	}
 
 	cfg.ApplyState(st)
-	return err
+	return err // already wrapped by runInstall/runUpdate
 }
 
 func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
@@ -55,12 +55,12 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 	}
 
 	if err := checkDependencies(opts, st); err != nil {
-		return err
+		return fmt.Errorf("check dependencies: %w", err)
 	}
 
 	plan, err := Plan(opts, st)
 	if err != nil {
-		return err
+		return fmt.Errorf("plan install: %w", err)
 	}
 
 	// Write resolved selections back to st so callers that hold a reference to
@@ -80,7 +80,7 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 func Apply(plan InstallPlan, r Reporter) error {
 	if !plan.PackagesOnly && !plan.SkipGit {
 		if err := applyGitConfig(plan, r); err != nil {
-			return err
+			return fmt.Errorf("apply git config: %w", err)
 		}
 	}
 
@@ -196,7 +196,7 @@ func checkDependencies(opts *config.InstallOptions, st *config.InstallState) err
 	if hasIssues && !opts.Silent {
 		cont, err := ui.Confirm("Continue with installation?", true)
 		if err != nil {
-			return err
+			return fmt.Errorf("confirm continue: %w", err)
 		}
 		if !cont {
 			return fmt.Errorf("installation cancelled")
@@ -231,7 +231,7 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	fmt.Println()
 
 	if err := brew.Update(opts.DryRun); err != nil {
-		return err
+		return fmt.Errorf("brew update: %w", err)
 	}
 
 	if !opts.DryRun {

@@ -99,17 +99,17 @@ func ComputeDiff(rc *config.RemoteConfig) (*SyncDiff, error) {
 	d := &SyncDiff{}
 
 	if err := diffPackages(rc, d); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("diff packages: %w", err)
 	}
 
 	diffDotfiles(rc, d)
 
 	if err := diffShell(rc, d); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("diff shell: %w", err)
 	}
 
 	if err := diffMacOSPrefs(rc, d); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("diff macos prefs: %w", err)
 	}
 
 	return d, nil

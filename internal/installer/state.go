@@ -35,7 +35,7 @@ func getStatePath() (string, error) {
 func loadState() (*InstallState, error) {
 	path, err := getStatePath()
 	if err != nil {
-		return newInstallState(), err
+		return newInstallState(), fmt.Errorf("load install state: %w", err)
 	}
 
 	data, err := os.ReadFile(path)
@@ -43,12 +43,12 @@ func loadState() (*InstallState, error) {
 		if os.IsNotExist(err) {
 			return newInstallState(), nil
 		}
-		return newInstallState(), err
+		return newInstallState(), fmt.Errorf("read install state: %w", err)
 	}
 
 	var state InstallState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return newInstallState(), err
+		return newInstallState(), fmt.Errorf("parse install state: %w", err)
 	}
 
 	if state.InstalledFormulae == nil {
@@ -67,7 +67,7 @@ func loadState() (*InstallState, error) {
 func (s *InstallState) save() error {
 	path, err := getStatePath()
 	if err != nil {
-		return err
+		return fmt.Errorf("save install state: %w", err)
 	}
 
 	dir := filepath.Dir(path)
@@ -79,7 +79,7 @@ func (s *InstallState) save() error {
 
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal install state: %w", err)
 	}
 
 	tmpPath := path + ".tmp"

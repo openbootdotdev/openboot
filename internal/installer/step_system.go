@@ -62,7 +62,7 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 	if !plan.DryRun && !plan.Silent && system.HasTTY() {
 		run, err := ui.Confirm("Run post-install script?", true)
 		if err != nil {
-			return err
+			return fmt.Errorf("confirm post-install: %w", err)
 		}
 		if !run {
 			r.Muted("Skipping post-install script")

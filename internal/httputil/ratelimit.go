@@ -60,7 +60,7 @@ var sleepFunc = time.Sleep
 func Do(client *http.Client, req *http.Request) (*http.Response, error) {
 	resp, err := client.Do(req) //nolint:gosec // URL is caller-controlled and validated upstream; this is our own HTTP client wrapper
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http request: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusTooManyRequests {

@@ -218,14 +218,13 @@ func TestCapture_CapturedAtIsRecent(t *testing.T) {
 // failures into Health rather than aborting the whole capture.
 func TestCapture_HealthRecordsFailedSteps(t *testing.T) {
 	orig := captureSteps
-	// Copy the full step slice so assembleSnapshot still receives 9 results.
 	steps := make([]captureStep, len(orig))
 	copy(steps, orig)
 	// Inject a failure into the first step (Homebrew Formulae).
 	steps[0] = captureStep{
 		name:    "Homebrew Formulae",
-		capture: func() (interface{}, error) { return nil, fmt.Errorf("injected failure") },
-		count:   stringsCount,
+		capture: func(r *CaptureResults) error { return fmt.Errorf("injected failure") },
+		count:   func(r *CaptureResults) int { return len(r.Formulae) },
 	}
 	captureSteps = steps
 	t.Cleanup(func() { captureSteps = orig })

@@ -104,7 +104,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 	if installCfg.RemoteConfig == nil {
 		src, err := resolveInstallSource(cmd, args)
 		if err != nil {
-			return err
+			return fmt.Errorf("resolve install source: %w", err)
 		}
 
 		if src.kind == sourceSyncSource {
@@ -113,7 +113,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		}
 
 		if err := applyInstallSource(src); err != nil {
-			return err
+			return fmt.Errorf("apply install source: %w", err)
 		}
 	}
 
@@ -128,7 +128,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
 			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
 			if err != nil {
-				return err
+				return fmt.Errorf("customize config: %w", err)
 			}
 			if !proceed {
 				ui.Info("Cancelled.")

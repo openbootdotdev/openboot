@@ -484,7 +484,7 @@ func ReferencesOMZ(dotfilesPath string) bool {
 func DefaultPath() (string, error) {
 	home, err := system.HomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("dotfiles default path: %w", err)
 	}
 	return filepath.Join(home, defaultDotfilesDir), nil
 }

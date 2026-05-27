@@ -55,7 +55,7 @@ type cliPollResponse struct {
 func LoginInteractive(ctx context.Context, apiBase string) (*StoredAuth, error) {
 	codeID, code, err := startAuthSession(apiBase)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start auth session: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "\n")
@@ -72,7 +72,7 @@ func LoginInteractive(ctx context.Context, apiBase string) (*StoredAuth, error) 
 
 	result, err := pollForApproval(ctx, apiBase, codeID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("poll for approval: %w", err)
 	}
 
 	expiresAt, err := time.Parse(time.RFC3339, result.ExpiresAt)

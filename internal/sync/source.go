@@ -33,7 +33,7 @@ func SourcePath() (string, error) {
 func LoadSource() (*SyncSource, error) {
 	path, err := SourcePath()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load sync source: %w", err)
 	}
 
 	data, err := os.ReadFile(path)
@@ -56,7 +56,7 @@ func LoadSource() (*SyncSource, error) {
 func SaveSource(source *SyncSource) error {
 	path, err := SourcePath()
 	if err != nil {
-		return err
+		return fmt.Errorf("save sync source: %w", err)
 	}
 
 	dir := filepath.Dir(path)
@@ -85,7 +85,7 @@ func SaveSource(source *SyncSource) error {
 func DeleteSource() error {
 	path, err := SourcePath()
 	if err != nil {
-		return err
+		return fmt.Errorf("delete sync source: %w", err)
 	}
 
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

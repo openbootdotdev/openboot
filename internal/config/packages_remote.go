@@ -67,7 +67,7 @@ func loadRemotePackages(dryRun bool) ([]remotePackage, error) {
 	// Fetch from server.
 	pkgs, err := fetchRemotePackages()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load remote packages: %w", err)
 	}
 
 	// Write cache (best-effort) — skip during dry-run to avoid disk side effects.
@@ -121,12 +121,12 @@ var cacheDir = func() string {
 func readPackagesCache() ([]remotePackage, error) {
 	data, err := os.ReadFile(filepath.Join(cacheDir(), packagesCacheFile))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read packages cache: %w", err)
 	}
 
 	var entry packagesCacheEntry
 	if err := json.Unmarshal(data, &entry); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse packages cache: %w", err)
 	}
 
 	if time.Since(entry.FetchedAt) > packagesCacheTTL {
@@ -139,7 +139,7 @@ func readPackagesCache() ([]remotePackage, error) {
 func writePackagesCache(pkgs []remotePackage) error {
 	dir := cacheDir()
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
+		return fmt.Errorf("mkdir packages cache: %w", err)
 	}
 
 	entry := packagesCacheEntry{
@@ -148,7 +148,7 @@ func writePackagesCache(pkgs []remotePackage) error {
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal packages cache: %w", err)
 	}
 
 	return os.WriteFile(filepath.Join(dir, packagesCacheFile), data, 0600)
