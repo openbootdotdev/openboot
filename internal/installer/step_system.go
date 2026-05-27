@@ -17,11 +17,11 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 	}
 
 	r.Header("Step 7: macOS Preferences")
-	fmt.Println()
+	ui.Println()
 
 	if plan.DryRun {
 		ui.DryRunMsg("Would apply %d macOS preferences", len(plan.MacOSPrefs))
-		fmt.Println()
+		ui.Println()
 		return nil
 	}
 
@@ -35,7 +35,7 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 	if err := macos.RestartAffectedApps(false); err != nil {
 		r.Warn(fmt.Sprintf("Could not restart affected apps: %v", err))
 	}
-	fmt.Println()
+	ui.Println()
 	return nil
 }
 
@@ -45,19 +45,19 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 	}
 
 	r.Header("Step 8: Post-Install Script")
-	fmt.Println()
+	ui.Println()
 
 	if !plan.DryRun && (plan.Silent || !system.HasTTY()) && !plan.AllowPostInstall {
 		r.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")
-		fmt.Println()
+		ui.Println()
 		return nil
 	}
 
 	script := strings.Join(plan.PostInstall, "\n")
 	r.Info(fmt.Sprintf("Post-install script (%d lines):", len(plan.PostInstall)))
-	fmt.Println()
+	ui.Println()
 	ui.PrintScriptPreview(script)
-	fmt.Println()
+	ui.Println()
 
 	if !plan.DryRun && !plan.Silent && system.HasTTY() {
 		run, err := ui.Confirm("Run post-install script?", true)
@@ -66,14 +66,14 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 		}
 		if !run {
 			r.Muted("Skipping post-install script")
-			fmt.Println()
+			ui.Println()
 			return nil
 		}
 	}
 
 	if plan.DryRun {
 		ui.DryRunMsg("Would run the script above")
-		fmt.Println()
+		ui.Println()
 		return nil
 	}
 
@@ -87,10 +87,10 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 	c.Stderr = os.Stderr
 	c.Dir = home
 	if err := c.Run(); err != nil {
-		fmt.Println()
+		ui.Println()
 		return fmt.Errorf("post-install: %w", err)
 	}
 	r.Success("Post-install script complete")
-	fmt.Println()
+	ui.Println()
 	return nil
 }

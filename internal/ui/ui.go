@@ -78,6 +78,18 @@ func Warn(text string) {
 	fmt.Println(yellowStyle.Render("⚠ " + text))
 }
 
+// Println prints plain text followed by a newline to stdout.
+// Use for undecorated output lines (e.g. blank lines between sections).
+func Println(a ...any) {
+	fmt.Println(a...)
+}
+
+// Printf prints formatted plain text to stdout.
+// Use for structured output that doesn't fit a semantic helper (Info/Warn/etc.).
+func Printf(format string, a ...any) {
+	fmt.Printf(format, a...)
+}
+
 // DryRunMsg prints a single [DRY-RUN] message using the Muted style.
 func DryRunMsg(format string, args ...any) {
 	Muted(fmt.Sprintf("[DRY-RUN] "+format, args...))

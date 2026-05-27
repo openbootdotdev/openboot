@@ -186,7 +186,7 @@ func notifyUpdate(currentVersion, latestVersion string) {
 	} else {
 		ui.Muted("Run 'openboot update' to upgrade")
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 const brewTap = "openbootdotdev/tap"
@@ -231,12 +231,12 @@ func doBrewUpgrade(currentVersion, latestVersion string) {
 	if err := execBrewUpgrade(brewFormula); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
 		ui.Muted("Run 'brew upgrade openboot' to update manually")
-		fmt.Println()
+		ui.Println()
 		return
 	}
 
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
-	fmt.Println()
+	ui.Println()
 	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck,gosec // non-critical guard env var; failure leaves upgrade loop protection off
 	execSelf()
 }
@@ -248,11 +248,11 @@ func doDirectUpgrade(currentVersion, latestVersion string) {
 	if err := DownloadAndReplace(latestVersion, currentVersion); err != nil {
 		ui.Warn(fmt.Sprintf("Auto-update failed: %v", err))
 		ui.Muted("Run 'openboot update' to update manually")
-		fmt.Println()
+		ui.Println()
 		return
 	}
 	ui.Success(fmt.Sprintf("Updated to v%s. Restarting...", latestClean))
-	fmt.Println()
+	ui.Println()
 	os.Setenv("OPENBOOT_UPGRADING", "1") //nolint:errcheck,gosec // non-critical guard env var; failure leaves upgrade loop protection off
 	execSelf()
 }

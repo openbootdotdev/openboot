@@ -101,7 +101,7 @@ func runListBackups() error {
 	}
 	ui.Header(fmt.Sprintf("Backups in %s", dir))
 	for _, n := range names {
-		fmt.Println("  " + n)
+		ui.Println("  " + n)
 	}
 	return nil
 }

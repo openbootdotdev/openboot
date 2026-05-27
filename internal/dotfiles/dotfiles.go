@@ -76,7 +76,7 @@ func Clone(repoURL string, dryRun bool) error {
 func handleExistingDotfiles(dotfilesPath, repoURL string, dryRun bool) (needsClone bool, err error) {
 	gitDir := filepath.Join(dotfilesPath, ".git")
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
-		fmt.Printf("Dotfiles already exist at %s, skipping clone\n", dotfilesPath)
+		ui.Printf("Dotfiles already exist at %s, skipping clone\n", dotfilesPath)
 		return false, nil
 	}
 
@@ -113,7 +113,7 @@ func backupForReclone(dotfilesPath, repoURL, currentURL string, dryRun bool) (ne
 			return false, fmt.Errorf("remove stale dotfiles backup %s: %w", backupPath, err)
 		}
 	}
-	fmt.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
+	ui.Printf("Dotfiles remote changed from %s to %s, backing up to %s and re-cloning\n", currentURL, repoURL, backupPath)
 	if err := os.Rename(dotfilesPath, backupPath); err != nil {
 		return false, fmt.Errorf("failed to backup existing dotfiles: %w", err)
 	}
@@ -127,7 +127,7 @@ func syncExistingDotfiles(dotfilesPath string, dryRun bool) error {
 		ui.DryRunMsg("Would sync latest dotfiles at %s", dotfilesPath)
 		return nil
 	}
-	fmt.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
+	ui.Printf("Dotfiles already exist at %s, syncing latest changes\n", dotfilesPath)
 	// Use fetch + reset instead of pull to handle dirty states
 	// (unmerged files, mid-rebase, etc.) gracefully.
 	if err := gitExecFunc([]string{"-C", dotfilesPath, "fetch", "origin"}); err != nil {
@@ -200,11 +200,11 @@ func confirmResetIfDirty(dotfilesPath, branch string) bool {
 	if system.HasTTY() {
 		proceed, confirmErr := ui.Confirm("Proceeding will discard all local changes in your dotfiles. Continue?", false)
 		if confirmErr != nil || !proceed {
-			fmt.Printf("Skipping dotfiles sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", branch)
+			ui.Printf("Skipping dotfiles sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", branch)
 			return false
 		}
 	} else {
-		fmt.Printf("Local changes detected in %s — skipping sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", dotfilesPath, branch)
+		ui.Printf("Local changes detected in %s — skipping sync to avoid data loss. Run 'git reset --hard origin/%s' manually to force update.\n", dotfilesPath, branch)
 		return false
 	}
 	return true
@@ -268,7 +268,7 @@ func restoreFile(backup, original string) {
 		return
 	}
 	if err := os.Rename(backup, original); err != nil {
-		fmt.Printf("Warning: failed to restore %s from backup: %v\n", original, err)
+		ui.Warn(fmt.Sprintf("failed to restore %s from backup: %v", original, err))
 	}
 }
 
@@ -434,16 +434,16 @@ func linkDirect(dotfilesPath string, dryRun bool) error {
 		if _, err := os.Lstat(dst); err == nil {
 			backupPath := dst + ".openboot.bak"
 			if err := os.Rename(dst, backupPath); err != nil {
-				fmt.Printf("Warning: failed to backup %s: %v\n", dst, err)
+				ui.Warn(fmt.Sprintf("failed to backup %s: %v", dst, err))
 				continue
 			}
-			fmt.Printf("Backed up: %s -> %s\n", dst, backupPath)
+			ui.Info(fmt.Sprintf("Backed up: %s -> %s", dst, backupPath))
 		}
 
 		if err := os.Symlink(src, dst); err != nil {
-			fmt.Printf("Warning: failed to symlink %s: %v\n", name, err)
+			ui.Warn(fmt.Sprintf("failed to symlink %s: %v", name, err))
 		} else {
-			fmt.Printf("Linked: %s -> %s\n", dst, src)
+			ui.Info(fmt.Sprintf("Linked: %s -> %s", dst, src))
 		}
 	}
 

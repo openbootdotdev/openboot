@@ -45,13 +45,13 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 		"dry_run", opts.DryRun,
 		"silent", opts.Silent,
 	)
-	fmt.Println()
+	ui.Println()
 	ui.Header(fmt.Sprintf("OpenBoot Installer v%s", opts.Version))
-	fmt.Println()
+	ui.Println()
 
 	if opts.DryRun {
 		ui.Muted("[DRY-RUN MODE - No changes will be made]")
-		fmt.Println()
+		ui.Println()
 	}
 
 	if err := checkDependencies(opts, st); err != nil {
@@ -125,19 +125,19 @@ func Apply(plan InstallPlan, r Reporter) error {
 }
 
 func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
-	fmt.Println()
+	ui.Println()
 	if errCount > 0 {
 		r.Header("Installation finished with errors")
 	} else {
 		r.Header("Installation Complete!")
 	}
-	fmt.Println()
+	ui.Println()
 	if errCount > 0 {
 		r.Warn(fmt.Sprintf("%d step(s) had errors — check the output above for details.", errCount))
 	} else {
 		r.Success("OpenBoot has successfully configured your Mac.")
 	}
-	fmt.Println()
+	ui.Println()
 
 	r.Info("What was installed:")
 	if !plan.PackagesOnly {
@@ -148,14 +148,14 @@ func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 	if len(plan.Npm) > 0 {
 		r.Info(fmt.Sprintf("  - %d npm global packages", len(plan.Npm)))
 	}
-	fmt.Println()
+	ui.Println()
 
 	showScreenRecordingReminderFromPlan(plan)
 
 	r.Info("Next steps:")
 	r.Info("  - Restart your terminal to apply changes")
 	r.Info("  - Run 'brew doctor' to verify Homebrew health")
-	fmt.Println()
+	ui.Println()
 }
 
 func showScreenRecordingReminderFromPlan(plan InstallPlan) {
@@ -180,7 +180,7 @@ func checkDependencies(opts *config.InstallOptions, st *config.InstallState) err
 		ui.Warn("Homebrew is not installed")
 		ui.Info("Homebrew is required to install packages")
 		ui.Muted("Install with: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
-		fmt.Println()
+		ui.Println()
 	}
 
 	gitName, gitEmail := system.GetExistingGitConfig()
@@ -189,7 +189,7 @@ func checkDependencies(opts *config.InstallOptions, st *config.InstallState) err
 			hasIssues = true
 			ui.Warn("Git user information is not configured")
 			ui.Info("You can set it up via dotfiles or manually after installation")
-			fmt.Println()
+			ui.Println()
 		}
 	}
 
@@ -201,7 +201,7 @@ func checkDependencies(opts *config.InstallOptions, st *config.InstallState) err
 		if !cont {
 			return fmt.Errorf("installation cancelled")
 		}
-		fmt.Println()
+		ui.Println()
 	}
 
 	return nil
@@ -211,13 +211,13 @@ func RunFromSnapshot(cfg *config.Config) error {
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
 
-	fmt.Println()
+	ui.Println()
 	ui.Header("OpenBoot — Restore from Snapshot")
-	fmt.Println()
+	ui.Println()
 
 	if opts.DryRun {
 		ui.Muted("[DRY-RUN MODE - No changes will be made]")
-		fmt.Println()
+		ui.Println()
 	}
 
 	plan := PlanFromSnapshot(opts, st)
@@ -228,7 +228,7 @@ func RunFromSnapshot(cfg *config.Config) error {
 
 func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 	ui.Header("OpenBoot Update")
-	fmt.Println()
+	ui.Println()
 
 	if err := brew.Update(opts.DryRun); err != nil {
 		return fmt.Errorf("brew update: %w", err)
@@ -238,7 +238,7 @@ func runUpdate(opts *config.InstallOptions, st *config.InstallState) error {
 		brew.Cleanup() //nolint:errcheck,gosec // best-effort cleanup; failure is non-critical
 	}
 
-	fmt.Println()
+	ui.Println()
 	ui.Header("Update Complete!")
 	return nil
 }
@@ -299,12 +299,12 @@ func showScreenRecordingReminder(opts *config.InstallOptions, st *config.Install
 		return
 	}
 
-	fmt.Println()
+	ui.Println()
 	ui.Header("Screen Recording Permission")
-	fmt.Println()
+	ui.Println()
 	ui.Info(fmt.Sprintf("You installed: %s", strings.Join(matchingPkgs, ", ")))
 	ui.Info("These apps need Screen Recording permission for screen sharing.")
-	fmt.Println()
+	ui.Println()
 
 	choice, err := ui.SelectOption("What would you like to do?", []string{
 		"Open System Settings",
@@ -334,5 +334,5 @@ func showScreenRecordingReminder(opts *config.InstallOptions, st *config.Install
 	if err := installstate.SaveState(statePath, reminderState); err != nil {
 		ui.Warn(fmt.Sprintf("Failed to save install state: %v", err))
 	}
-	fmt.Println()
+	ui.Println()
 }
