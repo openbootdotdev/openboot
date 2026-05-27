@@ -3,7 +3,7 @@
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
 internal/auth/login.go:195
 internal/brew/brew_install.go:327
-internal/cli/snapshot.go:21
+internal/cli/snapshot.go:22
 internal/diff/compare.go:247
 internal/diff/compare.go:253
 internal/dotfiles/dotfiles.go:23

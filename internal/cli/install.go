@@ -16,6 +16,7 @@ import (
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
 // installCfg is the config instance used by the install subcommand.
@@ -345,7 +346,7 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 			// No filtering — the unmodified diff is used below.
 		case customizeChoiceCustomize:
 			additionsRC := remoteConfigFromSyncDiffAdditions(rc, diff)
-			picks, confirmed, err := ui.RunConfigCustomizer(additionsRC)
+			picks, confirmed, err := tui.RunConfigCustomizer(additionsRC)
 			if err != nil {
 				return fmt.Errorf("customizer: %w", err)
 			}
@@ -495,7 +496,7 @@ func promptCustomizeAndApply(rc *config.RemoteConfig) (*config.RemoteConfig, boo
 	case customizeChoiceAll:
 		return rc, true, nil
 	case customizeChoiceCustomize:
-		picks, confirmed, err := ui.RunConfigCustomizer(rc)
+		picks, confirmed, err := tui.RunConfigCustomizer(rc)
 		if err != nil {
 			return nil, false, fmt.Errorf("customizer: %w", err)
 		}

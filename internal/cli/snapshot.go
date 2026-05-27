@@ -15,6 +15,7 @@ import (
 
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
 var openBrowser = func(url string) error {
@@ -296,7 +297,7 @@ func captureWithUI() (*snapshot.Snapshot, error) {
 }
 
 func reviewSnapshot(snap *snapshot.Snapshot) (*snapshot.Snapshot, bool, error) {
-	edited, confirmed, err := ui.RunSnapshotEditor(snap)
+	edited, confirmed, err := tui.RunSnapshotEditor(snap)
 	if err != nil {
 		return nil, false, fmt.Errorf("snapshot editor: %w", err)
 	}
