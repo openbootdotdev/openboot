@@ -90,10 +90,7 @@ func Install(packages []string, dryRun bool) error {
 	warnIfNodeVersionTooLow(packages)
 
 	if dryRun {
-		ui.Info("Would install npm packages:")
-		for _, p := range packages {
-			fmt.Printf("    npm install -g %s\n", p)
-		}
+		ui.DryRunList("install npm packages", "npm install -g %s", packages)
 		return nil
 	}
 
@@ -237,10 +234,7 @@ func Uninstall(packages []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would uninstall npm packages:")
-		for _, p := range packages {
-			fmt.Printf("    npm uninstall -g %s\n", p)
-		}
+		ui.DryRunList("uninstall npm packages", "npm uninstall -g %s", packages)
 		return nil
 	}
 

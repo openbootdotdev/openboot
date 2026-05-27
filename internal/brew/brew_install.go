@@ -36,10 +36,7 @@ func Install(packages []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would install CLI packages:")
-		for _, p := range packages {
-			fmt.Printf("    brew install %s\n", p)
-		}
+		ui.DryRunList("install CLI packages", "brew install %s", packages)
 		return nil
 	}
 
@@ -58,10 +55,7 @@ func InstallTaps(taps []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would add taps:")
-		for _, t := range taps {
-			fmt.Printf("    brew tap %s\n", t)
-		}
+		ui.DryRunList("add taps", "brew tap %s", taps)
 		return nil
 	}
 
@@ -81,10 +75,7 @@ func InstallCask(packages []string, dryRun bool) error {
 	}
 
 	if dryRun {
-		ui.Info("Would install GUI applications:")
-		for _, p := range packages {
-			fmt.Printf("    brew install --cask %s\n", p)
-		}
+		ui.DryRunList("install GUI applications", "brew install --cask %s", packages)
 		return nil
 	}
 
@@ -104,13 +95,8 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 	}
 
 	if dryRun {
-		ui.Info("Would install packages:")
-		for _, p := range cliPkgs {
-			fmt.Printf("    brew install %s\n", p)
-		}
-		for _, p := range caskPkgs {
-			fmt.Printf("    brew install --cask %s\n", p)
-		}
+		ui.DryRunList("install packages", "brew install %s", cliPkgs)
+		ui.DryRunList("install packages (cask)", "brew install --cask %s", caskPkgs)
 		return nil, nil, nil
 	}
 

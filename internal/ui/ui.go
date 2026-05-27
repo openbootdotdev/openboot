@@ -78,6 +78,21 @@ func Warn(text string) {
 	fmt.Println(yellowStyle.Render("⚠ " + text))
 }
 
+// DryRunMsg prints a single [DRY-RUN] message using the Muted style.
+func DryRunMsg(format string, args ...any) {
+	Muted(fmt.Sprintf("[DRY-RUN] "+format, args...))
+}
+
+// DryRunList prints a "Would {action}:" header via Info, then each item
+// formatted with cmdFmt via Muted. Use for dry-run guards that enumerate
+// shell commands (e.g. "brew install %s").
+func DryRunList(action, cmdFmt string, items []string) {
+	Info("Would " + action + ":")
+	for _, item := range items {
+		Muted(fmt.Sprintf("    "+cmdFmt, item))
+	}
+}
+
 // PrintScriptPreview displays a shell script in a readable box with line numbers.
 // Long lines are truncated with "…" to keep the box at a reasonable width.
 func PrintScriptPreview(script string) {
