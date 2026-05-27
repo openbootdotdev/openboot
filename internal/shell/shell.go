@@ -296,7 +296,7 @@ source $ZSH/oh-my-zsh.sh
 
 	if dryRun {
 		if theme != "" {
-			ui.DryRunMsg("Would set ZSH_THEME=%q", theme)
+			ui.DryRunMsg("Would set ZSH_THEME=\"%s\"", theme)
 		}
 		if len(plugins) > 0 {
 			ui.DryRunMsg("Would set plugins=(%s)", strings.Join(plugins, " "))
