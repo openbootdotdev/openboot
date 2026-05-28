@@ -32,10 +32,19 @@ func isOsStderr(gf goFile, expr ast.Expr) bool {
 	return local != "" && ident.Name == local
 }
 
+// isAddressOf reports whether expr is a unary & expression (e.g. &sb).
+// Writes to an address-of receiver are local buffer writes (strings.Builder,
+// bytes.Buffer, etc.), not user-visible output — exempt from the rule.
+func isAddressOf(expr ast.Expr) bool {
+	unary, ok := expr.(*ast.UnaryExpr)
+	return ok && unary.Op.String() == "&"
+}
+
 // findFmtPrint finds forbidden fmt.Print*/fmt.F* calls in gf.
 //   - fmt.Print, fmt.Println, fmt.Printf: always forbidden (stdout only).
 //   - fmt.Fprint, fmt.Fprintln, fmt.Fprintf: forbidden unless first argument
-//     is os.Stderr (stderr is acceptable for debug/error output).
+//     is os.Stderr (stderr is acceptable for debug/error output) or an
+//     address-of expression like &sb (local buffer, not user output).
 func findFmtPrint(gf goFile) []callSite {
 	local := importedAs(gf.file, "fmt")
 	if local == "" {
@@ -49,7 +58,7 @@ func findFmtPrint(gf goFile) []callSite {
 		"Printf":  true,
 	}
 	// writerFuncs take an io.Writer as first arg — forbidden unless that writer
-	// is os.Stderr.
+	// is os.Stderr or a local buffer (&sb, &buf, etc.).
 	writerFuncs := map[string]bool{
 		"Fprint":   true,
 		"Fprintln": true,
@@ -77,11 +86,12 @@ func findFmtPrint(gf goFile) []callSite {
 			return true
 		}
 		if writerFuncs[fn] {
-			// Only flag if the first argument is NOT os.Stderr.
-			if len(call.Args) == 0 || !isOsStderr(gf, call.Args[0]) {
-				p := gf.fset.Position(call.Pos())
-				out = append(out, callSite{file: gf.path, line: p.Line})
+			// Exempt: os.Stderr (debug/error output) and &var (local buffer).
+			if len(call.Args) > 0 && (isOsStderr(gf, call.Args[0]) || isAddressOf(call.Args[0])) {
+				return true
 			}
+			p := gf.fset.Position(call.Pos())
+			out = append(out, callSite{file: gf.path, line: p.Line})
 			return true
 		}
 		return true

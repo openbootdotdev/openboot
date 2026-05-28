@@ -253,7 +253,7 @@ func captureJSONSnapshot() error {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
 	fmt.Fprintln(os.Stderr, "✓ Snapshot complete")
-	fmt.Println(string(data))
+	ui.Println(string(data))
 	return nil
 }
 

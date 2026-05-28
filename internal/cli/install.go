@@ -365,11 +365,11 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 		}
 	}
 
-	fmt.Println()
+	ui.Println()
 	plan := buildInstallPlan(diff, rc)
 	result, execErr := syncpkg.Execute(plan, false)
 
-	fmt.Println()
+	ui.Println()
 	if result.Installed > 0 {
 		ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
 	}
@@ -390,7 +390,7 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 // the top of a sync-source install. Warns in yellow if > 90 days stale.
 func printSyncSourceHeader(source *syncpkg.SyncSource) {
 	label := sourceLabel(source)
-	fmt.Println()
+	ui.Println()
 	if source.SyncedAt.IsZero() {
 		ui.Info(fmt.Sprintf("→ Syncing with %s", label))
 	} else {
@@ -402,7 +402,7 @@ func printSyncSourceHeader(source *syncpkg.SyncSource) {
 			ui.Info(fmt.Sprintf("→ Syncing with %s (last synced %s)", label, rel))
 		}
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 // applyPickFlagToRemoteConfig filters rc to the packages named in pickRaw.
@@ -474,14 +474,14 @@ func filterStrings(in []string, keep map[string]bool) []string {
 // config. Returns the rc to install (possibly filtered by user's picks) and
 // whether the user wants to continue. When cancelled, returns (nil, false, nil).
 func promptCustomizeAndApply(rc *config.RemoteConfig) (*config.RemoteConfig, bool, error) {
-	fmt.Println()
+	ui.Println()
 	ui.Info(fmt.Sprintf("→ %s/%s", rc.Username, rc.Slug))
 	ui.Muted(fmt.Sprintf("  CLI tools: %d", len(rc.Packages)))
 	ui.Muted(fmt.Sprintf("  Apps: %d", len(rc.Casks)))
 	if len(rc.Npm) > 0 {
 		ui.Muted(fmt.Sprintf("  npm: %d", len(rc.Npm)))
 	}
-	fmt.Println()
+	ui.Println()
 
 	choice, err := ui.SelectOption(
 		fmt.Sprintf("Install %d packages?", len(rc.Packages)+len(rc.Casks)+len(rc.Npm)),

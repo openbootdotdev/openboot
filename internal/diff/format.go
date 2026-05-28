@@ -11,12 +11,12 @@ import (
 // FormatTerminal prints a colored diff to stdout.
 // Nil sections are automatically skipped (e.g. remote configs without shell/git data).
 func FormatTerminal(result *DiffResult, packagesOnly bool) {
-	fmt.Println()
+	ui.Println()
 	ui.Header("OpenBoot Diff")
-	fmt.Println()
+	ui.Println()
 
 	printSource(result.Source)
-	fmt.Println()
+	ui.Println()
 
 	printListSection("Formulae", result.Packages.Formulae)
 	printListSection("Casks", result.Packages.Casks)
@@ -94,17 +94,17 @@ func printListSection(name string, ld ListDiff) {
 		return
 	}
 
-	fmt.Printf("  %s:\n", name)
+	ui.Printf("  %s:\n", name)
 	for _, item := range ld.Missing {
-		fmt.Printf("    %s %-28s %s\n", ui.Green("+"), item, ui.Green("(missing)"))
+		ui.Printf("    %s %-28s %s\n", ui.Green("+"), item, ui.Green("(missing)"))
 	}
 	for _, item := range ld.Extra {
-		fmt.Printf("    %s %-28s %s\n", ui.Red("-"), item, ui.Red("(extra)"))
+		ui.Printf("    %s %-28s %s\n", ui.Red("-"), item, ui.Red("(extra)"))
 	}
 	if ld.Common > 0 {
-		fmt.Printf("    %s %d in common\n", ui.Cyan("="), ld.Common)
+		ui.Printf("    %s %d in common\n", ui.Cyan("="), ld.Common)
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 func printDotfilesSection(dd *DotfilesDiff) {
@@ -113,18 +113,18 @@ func printDotfilesSection(dd *DotfilesDiff) {
 		return
 	}
 
-	fmt.Printf("  Dotfiles:\n")
+	ui.Printf("  Dotfiles:\n")
 	if dd.RepoChanged != nil {
-		fmt.Printf("    %s repo: %s %s %s\n",
+		ui.Printf("    %s repo: %s %s %s\n",
 			ui.Yellow("~"), dd.RepoChanged.System, ui.Yellow("\u2192"), dd.RepoChanged.Reference)
 	}
 	if dd.Dirty {
-		fmt.Printf("    %s uncommitted changes in ~/.dotfiles\n", ui.Yellow("!"))
+		ui.Printf("    %s uncommitted changes in ~/.dotfiles\n", ui.Yellow("!"))
 	}
 	if dd.Unpushed {
-		fmt.Printf("    %s unpushed commits in ~/.dotfiles\n", ui.Yellow("!"))
+		ui.Printf("    %s unpushed commits in ~/.dotfiles\n", ui.Yellow("!"))
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 func printMacOSSection(md *MacOSDiff) {
@@ -133,20 +133,20 @@ func printMacOSSection(md *MacOSDiff) {
 		return
 	}
 
-	fmt.Printf("  macOS Preferences:\n")
+	ui.Printf("  macOS Preferences:\n")
 	for _, c := range md.Changed {
-		fmt.Printf("    %s %s.%s: %s %s %s\n",
+		ui.Printf("    %s %s.%s: %s %s %s\n",
 			ui.Yellow("~"), c.Domain, c.Key, c.System, ui.Yellow("\u2192"), c.Reference)
 	}
 	for _, m := range md.Missing {
-		fmt.Printf("    %s %s.%s = %s  %s\n",
+		ui.Printf("    %s %s.%s = %s  %s\n",
 			ui.Green("+"), m.Domain, m.Key, m.Value, ui.Green("(missing)"))
 	}
 	for _, e := range md.Extra {
-		fmt.Printf("    %s %s.%s = %s  %s\n",
+		ui.Printf("    %s %s.%s = %s  %s\n",
 			ui.Red("-"), e.Domain, e.Key, e.Value, ui.Red("(extra)"))
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 func printDevToolsSection(dd *DevToolDiff) {
@@ -155,31 +155,31 @@ func printDevToolsSection(dd *DevToolDiff) {
 		return
 	}
 
-	fmt.Printf("  Dev Tools:\n")
+	ui.Printf("  Dev Tools:\n")
 	for _, c := range dd.Changed {
-		fmt.Printf("    %s %s: %s %s %s\n",
+		ui.Printf("    %s %s: %s %s %s\n",
 			ui.Yellow("~"), c.Name, c.System, ui.Yellow("\u2192"), c.Reference)
 	}
 	for _, name := range dd.Missing {
-		fmt.Printf("    %s %-28s %s\n", ui.Green("+"), name, ui.Green("(missing)"))
+		ui.Printf("    %s %-28s %s\n", ui.Green("+"), name, ui.Green("(missing)"))
 	}
 	for _, name := range dd.Extra {
-		fmt.Printf("    %s %-28s %s\n", ui.Red("-"), name, ui.Red("(extra)"))
+		ui.Printf("    %s %-28s %s\n", ui.Red("-"), name, ui.Red("(extra)"))
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 func printShellSection(sd *ShellDiff) {
 	if !sd.ThemeChanged && !sd.PluginsChanged {
 		return
 	}
-	fmt.Printf("  Shell:\n")
+	ui.Printf("  Shell:\n")
 	if sd.ThemeChanged {
 		local := sd.LocalTheme
 		if local == "" {
 			local = "(none)"
 		}
-		fmt.Printf("    %s theme: %s %s %s\n",
+		ui.Printf("    %s theme: %s %s %s\n",
 			ui.Yellow("~"), local, ui.Yellow("\u2192"), sd.ReferenceTheme)
 	}
 	if sd.PluginsChanged {
@@ -187,10 +187,10 @@ func printShellSection(sd *ShellDiff) {
 		if local == "" {
 			local = "(none)"
 		}
-		fmt.Printf("    %s plugins: %s %s %s\n",
+		ui.Printf("    %s plugins: %s %s %s\n",
 			ui.Yellow("~"), local, ui.Yellow("\u2192"), strings.Join(sd.ReferencePlugins, ", "))
 	}
-	fmt.Println()
+	ui.Println()
 }
 
 func printSummary(result *DiffResult) {
@@ -201,10 +201,10 @@ func printSummary(result *DiffResult) {
 	if missing == 0 && extra == 0 && changed == 0 {
 		ui.Success("No differences found — your system matches the reference.")
 	} else {
-		fmt.Printf("  Summary: %s missing (+)  %s extra (-)  %s changed (~)\n",
+		ui.Printf("  Summary: %s missing (+)  %s extra (-)  %s changed (~)\n",
 			ui.Green(fmt.Sprintf("%d", missing)),
 			ui.Red(fmt.Sprintf("%d", extra)),
 			ui.Yellow(fmt.Sprintf("%d", changed)))
 	}
-	fmt.Println()
+	ui.Println()
 }

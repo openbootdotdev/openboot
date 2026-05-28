@@ -11,6 +11,7 @@ import (
 
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/logging"
+	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/openbootdotdev/openboot/internal/updater"
 )
 
@@ -83,7 +84,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("OpenBoot v%s\n", version)
+		ui.Printf("OpenBoot v%s\n", version)
 	},
 }
 

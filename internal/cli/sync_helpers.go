@@ -42,49 +42,49 @@ func printInstallDiff(d *syncpkg.SyncDiff) {
 		len(d.MissingNpm) > 0 || len(d.MissingTaps) > 0
 
 	if hasPkgAdditions {
-		fmt.Printf("  %s\n", ui.Green("Packages to install"))
+		ui.Printf("  %s\n", ui.Green("Packages to install"))
 		printMissing("Formulae", d.MissingFormulae)
 		printMissing("Casks", d.MissingCasks)
 		printMissing("NPM", d.MissingNpm)
 		printMissing("Taps", d.MissingTaps)
-		fmt.Println()
+		ui.Println()
 	}
 
 	if len(d.MacOSChanged) > 0 {
-		fmt.Printf("  %s\n", ui.Green("macOS Changes"))
+		ui.Printf("  %s\n", ui.Green("macOS Changes"))
 		for _, p := range d.MacOSChanged {
 			desc := p.Desc
 			if desc == "" {
 				desc = fmt.Sprintf("%s.%s", p.Domain, p.Key)
 			}
-			fmt.Printf("    %s: %s %s %s\n", desc, p.LocalValue, ui.Yellow("→"), p.RemoteValue)
+			ui.Printf("    %s: %s %s %s\n", desc, p.LocalValue, ui.Yellow("→"), p.RemoteValue)
 		}
-		fmt.Println()
+		ui.Println()
 	}
 
 	if d.Shell != nil {
-		fmt.Printf("  %s\n", ui.Green("Shell Changes"))
+		ui.Printf("  %s\n", ui.Green("Shell Changes"))
 		if d.Shell.ThemeChanged {
 			localTheme := d.Shell.LocalTheme
 			if localTheme == "" {
 				localTheme = "(none)"
 			}
-			fmt.Printf("    Theme: %s %s %s\n", localTheme, ui.Yellow("→"), d.Shell.RemoteTheme)
+			ui.Printf("    Theme: %s %s %s\n", localTheme, ui.Yellow("→"), d.Shell.RemoteTheme)
 		}
 		if d.Shell.PluginsChanged {
 			localPlugins := strings.Join(d.Shell.LocalPlugins, ", ")
 			if localPlugins == "" {
 				localPlugins = "(none)"
 			}
-			fmt.Printf("    Plugins: %s %s %s\n", localPlugins, ui.Yellow("→"), strings.Join(d.Shell.RemotePlugins, ", "))
+			ui.Printf("    Plugins: %s %s %s\n", localPlugins, ui.Yellow("→"), strings.Join(d.Shell.RemotePlugins, ", "))
 		}
-		fmt.Println()
+		ui.Println()
 	}
 
 	if d.DotfilesChanged {
-		fmt.Printf("  %s\n", ui.Green("Dotfiles"))
-		fmt.Printf("    Repo: %s %s %s\n", fallbackStr(d.LocalDotfiles, "(none)"), ui.Yellow("→"), d.RemoteDotfiles)
-		fmt.Println()
+		ui.Printf("  %s\n", ui.Green("Dotfiles"))
+		ui.Printf("    Repo: %s %s %s\n", fallbackStr(d.LocalDotfiles, "(none)"), ui.Yellow("→"), d.RemoteDotfiles)
+		ui.Println()
 	}
 }
 
@@ -92,7 +92,7 @@ func printMissing(category string, missing []string) {
 	if len(missing) == 0 {
 		return
 	}
-	fmt.Printf("    %s (%d): %s\n", category, len(missing), strings.Join(missing, ", "))
+	ui.Printf("    %s (%d): %s\n", category, len(missing), strings.Join(missing, ", "))
 }
 
 func fallbackStr(s, def string) string {

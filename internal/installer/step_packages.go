@@ -74,13 +74,13 @@ func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallS
 
 func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orchestrates multiple package categories; splitting would obscure the install sequence
 	r.Header("Step 4: Installation")
-	fmt.Println()
+	ui.Println()
 
 	if len(plan.Taps) > 0 {
 		if err := brew.InstallTaps(plan.Taps, plan.DryRun); err != nil {
 			r.Warn(fmt.Sprintf("Some taps failed: %v", err))
 		}
-		fmt.Println()
+		ui.Println()
 	}
 
 	cliPkgs := plan.Formulae
@@ -131,12 +131,12 @@ func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orc
 
 	if len(cliPkgs)+len(caskPkgs) == 0 {
 		r.Success("All packages already installed!")
-		fmt.Println()
+		ui.Println()
 		return nil
 	}
 
 	r.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
-	fmt.Println()
+	ui.Println()
 
 	installedCli, installedCask, brewErr := brew.InstallWithProgress(context.Background(), cliPkgs, caskPkgs, plan.DryRun)
 	if brewErr != nil {
@@ -158,7 +158,7 @@ func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orc
 			r.Success("Package installation complete")
 		}
 	}
-	fmt.Println()
+	ui.Println()
 	return brewErr
 }
 
@@ -204,11 +204,11 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 		return nil
 	}
 
-	fmt.Println()
+	ui.Println()
 	r.Header("NPM Global Packages")
-	fmt.Println()
+	ui.Println()
 	r.Info(fmt.Sprintf("Installing %d npm packages...", len(npmPkgs)))
-	fmt.Println()
+	ui.Println()
 
 	maxAttempts := 3
 	var lastErr error
@@ -226,7 +226,7 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 			time.Sleep(time.Duration(attempt) * 2 * time.Second)
 			continue
 		}
-		fmt.Println()
+		ui.Println()
 		retry, err := ui.Confirm("Retry npm installation?", true)
 		if err != nil || !retry {
 			r.Muted("Skipping npm package retry")

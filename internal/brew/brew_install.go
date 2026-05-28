@@ -130,7 +130,7 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 	skipped := total - len(newCli) - len(newCask)
 	if skipped > 0 {
 		ui.Muted(fmt.Sprintf("  %d already installed, %d to install", skipped, len(newCli)+len(newCask)))
-		fmt.Println()
+		ui.Println()
 	}
 
 	if len(newCli)+len(newCask) == 0 {
@@ -218,7 +218,7 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 		return nil
 	}
 
-	fmt.Printf("\nRetrying %d failed packages...\n", len(allFailed))
+	ui.Printf("\nRetrying %d failed packages...\n", len(allFailed))
 
 	for _, f := range allFailed {
 		var errMsg string
@@ -228,14 +228,14 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 			errMsg = installFormulaWithError(ctx, f.name)
 		}
 		if errMsg == "" {
-			fmt.Printf("  ✔ %s (retry succeeded)\n", f.name)
+			ui.Printf("  ✔ %s (retry succeeded)\n", f.name)
 			if f.isCask {
 				*installedCasks = append(*installedCasks, f.name)
 			} else {
 				*installedFormulae = append(*installedFormulae, aliasMap[f.name])
 			}
 		} else {
-			fmt.Printf("  ✗ %s (still failed)\n", f.name)
+			ui.Printf("  ✗ %s (still failed)\n", f.name)
 		}
 	}
 
@@ -267,13 +267,13 @@ func handleFailedJobs(failed []failedJob) {
 		return
 	}
 
-	fmt.Println()
+	ui.Println()
 	ui.Error(fmt.Sprintf("%d packages failed to install:", len(failed)))
 	for _, f := range failed {
 		if f.errMsg != "" {
-			fmt.Printf("    - %s (%s)\n", f.name, f.errMsg)
+			ui.Printf("    - %s (%s)\n", f.name, f.errMsg)
 		} else {
-			fmt.Printf("    - %s\n", f.name)
+			ui.Printf("    - %s\n", f.name)
 		}
 	}
 }

@@ -109,7 +109,7 @@ func Install(packages []string, dryRun bool) error {
 	skipped := len(packages) - len(toInstall)
 	if skipped > 0 {
 		ui.Muted(fmt.Sprintf("  %d already installed, %d to install", skipped, len(toInstall)))
-		fmt.Println()
+		ui.Println()
 	}
 
 	if len(toInstall) == 0 {
@@ -125,10 +125,10 @@ func Install(packages []string, dryRun bool) error {
 	}
 
 	if len(failed) > 0 {
-		fmt.Println()
+		ui.Println()
 		ui.Error(fmt.Sprintf("%d npm packages failed to install:", len(failed)))
 		for _, f := range failed {
-			fmt.Printf("    - %s\n", f)
+			ui.Printf("    - %s\n", f)
 		}
 		return fmt.Errorf("%d packages failed to install", len(failed))
 	}
@@ -161,7 +161,7 @@ func warnIfNodeVersionTooLow(packages []string) {
 	if needsWarning && nodeVersion < 22 {
 		ui.Warn(fmt.Sprintf("Node.js v%d detected. Some packages (like wrangler) require Node.js v22+", nodeVersion))
 		ui.Muted("Consider upgrading Node.js: brew install node@22")
-		fmt.Println()
+		ui.Println()
 	}
 }
 
@@ -179,7 +179,7 @@ func installBatch(toInstall []string) (failed []string, err error) {
 
 	batchError := parseNpmError(string(batchOutput))
 	ui.Warn(fmt.Sprintf("Batch install failed (%s), falling back to sequential...", batchError))
-	fmt.Println()
+	ui.Println()
 
 	return installSequential(toInstall)
 }

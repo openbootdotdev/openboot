@@ -5,6 +5,7 @@ import (
 
 	"github.com/openbootdotdev/openboot/internal/dotfiles"
 	"github.com/openbootdotdev/openboot/internal/shell"
+	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 // installOhMyZshFunc is a var so tests can stub out the real installer
@@ -14,7 +15,7 @@ var installOhMyZshFunc = shell.InstallOhMyZsh
 func applyShell(plan InstallPlan, r Reporter) error {
 	if plan.InstallOhMyZsh {
 		r.Header("Shell Configuration")
-		fmt.Println()
+		ui.Println()
 
 		if plan.ShellTheme != "" || len(plan.ShellPlugins) > 0 {
 			// Restore mode: install OMZ if missing, then write theme/plugins.
@@ -37,7 +38,7 @@ func applyShell(plan InstallPlan, r Reporter) error {
 				}
 			}
 		}
-		fmt.Println()
+		ui.Println()
 	}
 
 	// Ensure brew shellenv in .zshrc only when user has no dotfiles managing it.
@@ -55,7 +56,7 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	}
 
 	r.Header("Step 6: Dotfiles")
-	fmt.Println()
+	ui.Println()
 
 	if plan.DotfilesURL == dotfiles.DefaultDotfilesURL {
 		r.Info(fmt.Sprintf("Using OpenBoot default dotfiles (%s)", plan.DotfilesURL))
@@ -86,6 +87,6 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	if !plan.DryRun {
 		r.Success("Dotfiles configured")
 	}
-	fmt.Println()
+	ui.Println()
 	return nil
 }
