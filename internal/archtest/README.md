@@ -28,6 +28,7 @@ from the baseline) are logged but do not fail the test.
 | `no-direct-exec` | `exec_test.go` | yes | "Do not call `exec.Command` directly from feature code" |
 | `no-raw-http` | `http_test.go` | yes | "Use `httputil.Do()` — handles 429 + Retry-After" |
 | `no-os-getenv-home` | `envhome_test.go` | no (hard rule) | "Use `os.UserHomeDir()` — never hardcode `~` or `/Users/...`" |
+| `dryrun` | `dryrun_test.go` | yes | "Destructive ops: check `cfg.DryRun` first. Always." |
 
 ## Workflow
 
