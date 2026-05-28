@@ -93,7 +93,7 @@ These cannot be inferred from code alone — everything else is enforced by `go 
 Bolded rules are enforced mechanically by `internal/archtest` (fitness functions in L1).
 
 - **Error wrapping**: `fmt.Errorf("context: %w", err)` — never bare returns.
-- **UI output**: always through `ui.*` helpers; raw `fmt.Println` is a bug in user-facing paths.
+- **UI output** *(archtest: `fmtprint`)*: always through `ui.*` helpers; raw `fmt.Println` is a bug in user-facing paths.
 - **Subprocess** *(archtest: `no-direct-exec`)*: `system.RunCommand` (interactive) / `system.RunCommandSilent` (captured). Do not call `exec.Command` directly from feature code — add to `system/` if a wrapper is missing.
 - **Destructive ops** *(archtest: `dryrun`)*: check `cfg.DryRun` first. Always.
 - **Paths** *(archtest: `no-os-getenv-home`)*: `os.UserHomeDir()` — never hardcode `~` or `/Users/...`, never `os.Getenv("HOME")`.
