@@ -12,6 +12,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/snapshot"
 	"github.com/openbootdotdev/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
 func runSnapshotImport(importPath string, dryRun bool) error {
@@ -41,7 +42,7 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 
 	showRestoreInfo(snap, importPath)
 
-	edited, confirmed, err := ui.RunSnapshotEditor(snap)
+	edited, confirmed, err := tui.RunSnapshotEditor(snap)
 	if err != nil {
 		return fmt.Errorf("snapshot editor: %w", err)
 	}

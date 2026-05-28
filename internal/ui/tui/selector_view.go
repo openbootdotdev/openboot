@@ -1,4 +1,4 @@
-package ui
+package tui
 
 import (
 	"fmt"
@@ -66,6 +66,12 @@ var (
 	searchBarHintStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#555")).
 				Italic(true)
+
+	// scanActiveStyle is duplicated from the parent ui package (where it
+	// lives in scanprogress.go) to avoid a circular import.  The canonical
+	// colour definition is lipgloss.Color("#06b6d4").
+	scanActiveStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#06b6d4"))
 )
 
 func (m SelectorModel) getVisibleItems() int {

@@ -9,6 +9,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/shell"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
+	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
 // InstallPlan captures all resolved decisions from the interactive planning phase.
@@ -199,7 +200,7 @@ func planPackages(opts *config.InstallOptions, st *config.InstallState, plan *In
 	if opts.Silent || (opts.DryRun && !system.HasTTY()) {
 		st.SelectedPkgs = config.GetPackagesForPreset(opts.Preset)
 	} else {
-		selected, onlinePkgs, confirmed, err := ui.RunSelector(opts.Preset)
+		selected, onlinePkgs, confirmed, err := tui.RunSelector(opts.Preset)
 		if err != nil {
 			return fmt.Errorf("run package selector: %w", err)
 		}
@@ -279,7 +280,7 @@ func planMacOSDecision(opts *config.InstallOptions) ([]macos.Preference, error) 
 	if opts.Macos == "configure" || opts.Silent || (opts.DryRun && !system.HasTTY()) {
 		return macos.DefaultPreferences, nil
 	}
-	selected, confirmed, err := ui.RunMacOSSelector()
+	selected, confirmed, err := tui.RunMacOSSelector()
 	if err != nil {
 		return nil, fmt.Errorf("macOS selector: %w", err)
 	}
