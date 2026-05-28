@@ -10,16 +10,16 @@ import (
 // rule. These are infrastructure packages where the callers (not the
 // packages themselves) are responsible for checking DryRun.
 var dryRunExemptPaths = []string{
-	"internal/archtest",  // the rules themselves
-	"internal/ui",        // output helpers
-	"internal/logging",   // log file management
-	"internal/state",     // internal state persistence
-	"internal/updater",   // self-update; runs before user commands
-	"internal/system",    // wrappers; callers are responsible for dry-run
-	"internal/httputil",  // network; not destructive to local state
-	"internal/config",    // reads config + writes cache files
-	"internal/auth",      // login/logout; not gated by dry-run by design
-	"cmd/",               // main entry point, not destructive
+	"internal/archtest", // the rules themselves
+	"internal/ui",       // output helpers
+	"internal/logging",  // log file management
+	"internal/state",    // internal state persistence
+	"internal/updater",  // self-update; runs before user commands
+	"internal/system",   // wrappers; callers are responsible for dry-run
+	"internal/httputil", // network; not destructive to local state
+	"internal/config",   // reads config + writes cache files
+	"internal/auth",     // login/logout; not gated by dry-run by design
+	"cmd/",              // main entry point, not destructive
 }
 
 // dryRunExemptFiles lists individual files exempt from the rule.
