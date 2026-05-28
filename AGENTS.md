@@ -25,7 +25,7 @@ update the baseline — do not silence the rule.
 | `http.NewRequest` / `http.DefaultClient` only in `internal/httputil` | `internal/archtest/http_test.go` |
 | Use `os.UserHomeDir()` — never `os.Getenv("HOME")` | `internal/archtest/envhome_test.go` |
 | Error wrapping with `%w`, no bare returns | reviewer + `errcheck` (golangci-lint) |
-| UI output via `ui.*` helpers — never raw `fmt.Println` in user-facing paths | reviewer (planned: archtest rule) |
+| UI output via `ui.*` helpers — never raw `fmt.Println` in user-facing paths | `internal/archtest/fmtprint_test.go` |
 | Destructive ops check `cfg.DryRun` before acting | `internal/archtest/dryrun_test.go` |
 
 The full convention list lives in CLAUDE.md → "Project-specific conventions".
