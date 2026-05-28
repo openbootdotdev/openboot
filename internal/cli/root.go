@@ -76,6 +76,7 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(doctorCmd)
 
 	rootCmd.SetUsageTemplate(usageTemplate)
 }

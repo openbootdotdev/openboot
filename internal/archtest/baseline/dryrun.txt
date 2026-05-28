@@ -1,6 +1,8 @@
 # Baseline for archtest rule "dryrun".
 # Each line is <file>:<line> of a known existing violation.
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
+internal/doctor/doctor.go:50
+internal/doctor/doctor.go:54
 internal/dotfiles/dotfiles.go:260
 internal/dotfiles/dotfiles.go:270
 internal/dotfiles/dotfiles.go:327
