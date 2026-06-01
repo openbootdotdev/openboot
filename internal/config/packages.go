@@ -2,7 +2,6 @@ package config
 
 import (
 	"embed"
-	"log"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -36,12 +35,12 @@ var (
 func init() {
 	data, err := packagesYAML.ReadFile("data/packages.yaml")
 	if err != nil {
-		log.Fatalf("Failed to read packages.yaml: %v", err)
+		panic("corrupt binary: embedded packages.yaml unreadable: " + err.Error())
 	}
 
 	var pd packagesData
 	if err := yaml.Unmarshal(data, &pd); err != nil {
-		log.Fatalf("Failed to parse packages.yaml: %v", err)
+		panic("corrupt binary: embedded packages.yaml unparseable: " + err.Error())
 	}
 
 	Categories = pd.Categories

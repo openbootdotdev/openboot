@@ -2,7 +2,6 @@ package config
 
 import (
 	"embed"
-	"log"
 
 	"gopkg.in/yaml.v3"
 )
@@ -16,12 +15,12 @@ var presetOrder = []string{"minimal", "developer", "full"}
 func init() {
 	data, err := presetsYAML.ReadFile("data/presets.yaml")
 	if err != nil {
-		log.Fatalf("Failed to read presets.yaml: %v", err)
+		panic("corrupt binary: embedded presets.yaml unreadable: " + err.Error())
 	}
 
 	var pd presetsData
 	if err := yaml.Unmarshal(data, &pd); err != nil {
-		log.Fatalf("Failed to parse presets.yaml: %v", err)
+		panic("corrupt binary: embedded presets.yaml unparseable: " + err.Error())
 	}
 
 	Presets = pd.Presets
