@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -255,6 +256,64 @@ func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
 	return nil
 }
 
+// resolvePluginURL maps a plugins=() entry to its external git repo URL.
+// It is a var so tests can inject a fake catalog without the embedded data.
+var resolvePluginURL = config.ZshPluginRepoURL
+
+// cloneRunner clones an external plugin repo into dest. It is a var so tests
+// can record invocations without a real git binary or network. The only exec
+// call lives in internal/system, so no execAllowedPaths baseline change is
+// needed.
+var cloneRunner = func(url, dest string) error {
+	return system.RunCommand("git", "clone", "--depth", "1", url, dest)
+}
+
+// cloneExternalPlugins git-clones any plugins in the list that are known
+// external oh-my-zsh plugins (present in the catalog with a repo URL) into
+// $ZSH_CUSTOM/plugins. Built-in and unknown plugins are left untouched — they
+// stay as bare names in plugins=(). A failed clone is non-fatal: it warns and
+// continues so one bad repo never aborts the whole restore and the plugins=()
+// block is still written.
+func cloneExternalPlugins(plugins []string, dryRun bool) error {
+	home, err := system.HomeDir()
+	if err != nil {
+		return fmt.Errorf("clone external plugins: %w", err)
+	}
+	customPlugins := filepath.Join(home, ".oh-my-zsh", "custom", "plugins")
+
+	for _, name := range plugins {
+		url, ok := resolvePluginURL(name)
+		if !ok {
+			continue // built-in or unknown — leave untouched
+		}
+		// Defense in depth: the catalog is curated, but a server overlay may
+		// one day supply URLs. Only ever clone over https.
+		if !strings.HasPrefix(url, "https://") {
+			ui.Warn(fmt.Sprintf("Skipping plugin %s: non-https repo URL %q", name, url))
+			continue
+		}
+
+		dest := filepath.Join(customPlugins, name)
+		if _, err := os.Stat(dest); err == nil {
+			continue // already cloned — idempotent skip
+		}
+
+		if dryRun {
+			ui.DryRunMsg("Would clone %s to %s", url, dest)
+			continue
+		}
+
+		if err := os.MkdirAll(customPlugins, 0700); err != nil {
+			return fmt.Errorf("create %s: %w", customPlugins, err)
+		}
+		if err := cloneRunner(url, dest); err != nil {
+			ui.Warn(fmt.Sprintf("Failed to clone plugin %s: %v", name, err))
+			continue
+		}
+	}
+	return nil
+}
+
 func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bool) error {
 	if !ohMyZsh {
 		return nil
@@ -268,6 +327,13 @@ func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bo
 				return fmt.Errorf("install oh-my-zsh: %w", err)
 			}
 		}
+	}
+
+	// External plugins (zsh-autosuggestions, ...) are not bundled with OMZ and
+	// must be git-cloned into $ZSH_CUSTOM/plugins before plugins=() references
+	// them. Built-in plugins are left untouched.
+	if err := cloneExternalPlugins(plugins, dryRun); err != nil {
+		return fmt.Errorf("clone external plugins: %w", err)
 	}
 
 	home, err := system.HomeDir()

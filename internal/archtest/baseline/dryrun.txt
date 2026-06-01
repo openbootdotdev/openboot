@@ -8,9 +8,9 @@ internal/doctor/doctor.go:54 # read-only diagnostic runner; doctor does not muta
 internal/dotfiles/dotfiles.go:260 # helper writes conflict backups only from linkWithStow after Link dry-run gate
 internal/dotfiles/dotfiles.go:270 # helper restores conflict backups only after a non-dry-run stow failure
 internal/dotfiles/dotfiles.go:327 # helper removes conflict files only from linkWithStow after Link dry-run gate
-internal/shell/shell.go:248 # helper patches .zshrc only after RestoreFromSnapshot dry-run gate
-internal/shell/shell.go:251 # helper patches .zshrc only after RestoreFromSnapshot dry-run gate
-internal/shell/shell.go:252 # helper cleanup only after RestoreFromSnapshot dry-run gate
+internal/shell/shell.go:249 # helper patches .zshrc only after RestoreFromSnapshot dry-run gate
+internal/shell/shell.go:252 # helper patches .zshrc only after RestoreFromSnapshot dry-run gate
+internal/shell/shell.go:253 # helper cleanup only after RestoreFromSnapshot dry-run gate
 internal/snapshot/capture.go:200 # read-only package inventory probe
 internal/snapshot/capture.go:239 # read-only package inventory probe
 internal/snapshot/capture.go:269 # read-only macOS defaults probe
