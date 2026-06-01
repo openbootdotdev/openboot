@@ -2,7 +2,7 @@
 
 ## Project
 
-OpenBoot is a **macOS-only** Go 1.24 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
+OpenBoot is a **macOS-only** Go 1.25 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
 
 Entry point: `cmd/openboot/main.go` → `internal/cli.Execute()`.
 Core flow: `openboot install` runs a 7-step wizard in `internal/installer/installer.go`.
@@ -61,6 +61,8 @@ internal/
   system/            # RunCommand / RunCommandSilent, arch, git config
   ui/                # bubbletea Model pattern, lipgloss styling
   updater/           # Auto-update: check GitHub → download → replace
+  doctor/            # Diagnostic checks for openboot doctor command
+  logging/           # Structured rotating file log under ~/.openboot/logs/
 test/{integration,e2e}/   # integration runs as part of L1; e2e gated by build tags (e2e, vm)
 testutil/            # shared helpers + MacHost (destructive E2E on real macOS)
 scripts/
