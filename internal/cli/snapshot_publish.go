@@ -101,7 +101,7 @@ func recordPublishResult(username, resultSlug, targetSlug, visibility, apiBase s
 			InstalledAt: time.Now(),
 			SyncedAt:    time.Now(),
 		}
-		if err := syncpkg.SaveSource(src); err != nil {
+		if err := syncpkg.SaveSource(src, false); err != nil {
 			ui.Warn(fmt.Sprintf("Failed to save sync source: %v", err))
 		}
 	}

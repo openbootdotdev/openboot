@@ -145,7 +145,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 	if errors.Is(err, installer.ErrUserCancelled) {
 		return nil
 	}
-	if err == nil {
+	if err == nil && !installCfg.DryRun {
 		saveSyncSourceIfRemote(installCfg)
 	}
 	return err
@@ -307,7 +307,9 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 	missingCount := diff.TotalMissing() + diff.TotalChanged()
 	if missingCount == 0 {
 		ui.Success(fmt.Sprintf("Already up to date with %s.", label))
-		updateSyncedAt(source, "", rc)
+		if !installCfg.DryRun {
+			updateSyncedAt(source, "", rc)
+		}
 		return nil
 	}
 

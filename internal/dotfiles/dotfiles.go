@@ -252,7 +252,10 @@ func hasStowPackages(dotfilesPath string) bool {
 	return false
 }
 
-func backupFile(src, dst string) error {
+func backupFile(src, dst string, dryRun bool) error {
+	if dryRun {
+		return nil
+	}
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", src, err)
@@ -263,7 +266,10 @@ func backupFile(src, dst string) error {
 	return nil
 }
 
-func restoreFile(backup, original string) {
+func restoreFile(backup, original string, dryRun bool) {
+	if dryRun {
+		return
+	}
 	if _, err := os.Stat(backup); os.IsNotExist(err) {
 		return
 	}
@@ -293,7 +299,10 @@ func ensureStow(dryRun bool) error {
 // backupConflicts walks a stow package directory and backs up any existing
 // regular files in targetDir that would conflict with stow. Returns the list
 // of backup pairs so they can be restored on failure or cleaned up on success.
-func backupConflicts(pkgDir, targetDir string) ([][2]string, error) {
+func backupConflicts(pkgDir, targetDir string, dryRun bool) ([][2]string, error) {
+	if dryRun {
+		return nil, nil
+	}
 	var backed [][2]string
 
 	err := filepath.WalkDir(pkgDir, func(path string, d os.DirEntry, err error) error {
@@ -321,7 +330,7 @@ func backupConflicts(pkgDir, targetDir string) ([][2]string, error) {
 		}
 
 		backupPath := target + ".openboot.bak"
-		if bErr := backupFile(target, backupPath); bErr != nil {
+		if bErr := backupFile(target, backupPath, false); bErr != nil {
 			return fmt.Errorf("backup %s: %w", target, bErr)
 		}
 		if rErr := os.Remove(target); rErr != nil {
@@ -365,7 +374,7 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 		pkgDir := filepath.Join(dotfilesPath, pkg)
 
 		// Back up any existing regular files that would conflict with stow.
-		backed, backupErr := backupConflicts(pkgDir, home)
+		backed, backupErr := backupConflicts(pkgDir, home, false)
 		if backupErr != nil {
 			errs = append(errs, fmt.Errorf("stow %s: %w", pkg, backupErr))
 			continue
@@ -383,7 +392,7 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 		if err := cmd.Run(); err != nil {
 			// Restore all backups so the user isn't left without their config.
 			for _, pair := range backed {
-				restoreFile(pair[0], pair[1])
+				restoreFile(pair[0], pair[1], false)
 			}
 			errs = append(errs, fmt.Errorf("stow %s: %w", pkg, err))
 			continue

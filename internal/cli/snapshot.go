@@ -90,7 +90,7 @@ func runSnapshot(cmd *cobra.Command) error {
 			return nil
 		}
 		if localFlag {
-			path, err := snapshot.SaveLocal(snap)
+			path, err := snapshot.SaveLocal(snap, false)
 			if err != nil {
 				return fmt.Errorf("save snapshot: %w", err)
 			}
@@ -159,7 +159,7 @@ func interactiveSaveOrPublish(ctx context.Context, snap *snapshot.Snapshot) erro
 
 	switch choice {
 	case options[0]:
-		path, err := snapshot.SaveLocal(snap)
+		path, err := snapshot.SaveLocal(snap, false)
 		if err != nil {
 			return fmt.Errorf("save snapshot: %w", err)
 		}
@@ -167,7 +167,7 @@ func interactiveSaveOrPublish(ctx context.Context, snap *snapshot.Snapshot) erro
 	case options[1]:
 		return publishSnapshot(ctx, snap, "")
 	case options[2]:
-		path, err := snapshot.SaveLocal(snap)
+		path, err := snapshot.SaveLocal(snap, false)
 		if err != nil {
 			return fmt.Errorf("save snapshot: %w", err)
 		}
