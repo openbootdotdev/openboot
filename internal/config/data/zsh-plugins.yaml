@@ -1,0 +1,15 @@
+# External oh-my-zsh plugins that are NOT bundled with the OMZ install and
+# require a git clone into $ZSH_CUSTOM/plugins before they work.
+# Built-in plugins (git, docker, kubectl, ...) are deliberately absent: they
+# ship with oh-my-zsh and only need a name in the .zshrc plugins=() array.
+# Source of truth for now is this embedded file; a server overlay can be added
+# later via /api/zsh-plugins (mirror packages_remote.go) without a contract change.
+plugins:
+  - name: zsh-autosuggestions
+    repo: https://github.com/zsh-users/zsh-autosuggestions
+  - name: zsh-syntax-highlighting
+    repo: https://github.com/zsh-users/zsh-syntax-highlighting
+  - name: zsh-completions
+    repo: https://github.com/zsh-users/zsh-completions
+  - name: zsh-history-substring-search
+    repo: https://github.com/zsh-users/zsh-history-substring-search

@@ -182,3 +182,15 @@ type presetsData struct {
 type screenRecordingData struct {
 	Packages []string `yaml:"packages"`
 }
+
+// zshPluginsData mirrors data/zsh-plugins.yaml: external oh-my-zsh plugins that
+// require a git clone into $ZSH_CUSTOM/plugins, keyed by the name used in the
+// .zshrc plugins=() array.
+type zshPluginsData struct {
+	Plugins []zshPluginEntry `yaml:"plugins"`
+}
+
+type zshPluginEntry struct {
+	Name string `yaml:"name"`
+	Repo string `yaml:"repo"`
+}
