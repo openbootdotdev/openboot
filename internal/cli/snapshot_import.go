@@ -16,10 +16,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
-func runSnapshotImport(importPath string, dryRun bool) error {
-	return runSnapshotImportContext(context.Background(), importPath, dryRun)
-}
-
 func runSnapshotImportContext(ctx context.Context, importPath string, dryRun bool) error {
 	snap, err := loadSnapshot(importPath)
 	if err != nil {

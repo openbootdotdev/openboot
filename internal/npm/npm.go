@@ -174,13 +174,9 @@ func warnIfNodeVersionTooLow(packages []string) {
 	}
 }
 
-// installBatch attempts a single batch install of all packages. If the batch
+// installBatchContext attempts a single batch install of all packages. If the batch
 // fails it falls back to sequential per-package installs. Returns the list of
 // package names that could not be installed and any fatal error.
-func installBatch(toInstall []string) (failed []string, err error) {
-	return installBatchContext(context.Background(), toInstall)
-}
-
 func installBatchContext(ctx context.Context, toInstall []string) (failed []string, err error) {
 	args := append([]string{"install", "-g"}, toInstall...)
 	batchOutput, batchErr := runnerCombinedOutputContext(ctx, args...)
@@ -197,12 +193,8 @@ func installBatchContext(ctx context.Context, toInstall []string) (failed []stri
 	return installSequentialContext(ctx, toInstall)
 }
 
-// installSequential installs each package individually, skipping those that
+// installSequentialContext installs each package individually, skipping those that
 // were already picked up by a partial batch install. Returns failed package names.
-func installSequential(toInstall []string) (failed []string, err error) {
-	return installSequentialContext(context.Background(), toInstall)
-}
-
 func installSequentialContext(ctx context.Context, toInstall []string) (failed []string, err error) {
 	nowInstalled, err := GetInstalledPackagesContext(ctx)
 	if err != nil {
