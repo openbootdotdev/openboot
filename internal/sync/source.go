@@ -53,7 +53,11 @@ func LoadSource() (*SyncSource, error) {
 }
 
 // SaveSource persists the sync source to disk using atomic write.
-func SaveSource(source *SyncSource) error {
+func SaveSource(source *SyncSource, dryRun bool) error {
+	if dryRun {
+		return nil
+	}
+
 	path, err := SourcePath()
 	if err != nil {
 		return fmt.Errorf("save sync source: %w", err)
@@ -82,7 +86,10 @@ func SaveSource(source *SyncSource) error {
 }
 
 // DeleteSource removes the sync source file.
-func DeleteSource() error {
+func DeleteSource(dryRun bool) error {
+	if dryRun {
+		return nil
+	}
 	path, err := SourcePath()
 	if err != nil {
 		return fmt.Errorf("delete sync source: %w", err)

@@ -23,7 +23,7 @@ func TestSaveAndLoadSource(t *testing.T) {
 		InstalledAt: now,
 	}
 
-	err := SaveSource(source)
+	err := SaveSource(source, false)
 	require.NoError(t, err)
 
 	// Verify file exists with correct permissions
@@ -60,13 +60,13 @@ func TestDeleteSource(t *testing.T) {
 		Username: "bob",
 		Slug:     "default",
 	}
-	require.NoError(t, SaveSource(source))
+	require.NoError(t, SaveSource(source, false))
 
 	loaded, err := LoadSource()
 	require.NoError(t, err)
 	require.NotNil(t, loaded)
 
-	require.NoError(t, DeleteSource())
+	require.NoError(t, DeleteSource(false))
 
 	loaded, err = LoadSource()
 	assert.NoError(t, err)
@@ -77,7 +77,7 @@ func TestDeleteSourceNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
 
-	err := DeleteSource()
+	err := DeleteSource(false)
 	assert.NoError(t, err)
 }
 
@@ -99,14 +99,14 @@ func TestSaveSourceOverwrite(t *testing.T) {
 		Username: "alice",
 		Slug:     "old",
 	}
-	require.NoError(t, SaveSource(first))
+	require.NoError(t, SaveSource(first, false))
 
 	second := &SyncSource{
 		UserSlug: "alice/new",
 		Username: "alice",
 		Slug:     "new",
 	}
-	require.NoError(t, SaveSource(second))
+	require.NoError(t, SaveSource(second, false))
 
 	loaded, err := LoadSource()
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestSaveSourceCreatesDirectory(t *testing.T) {
 
 	// Directory doesn't exist yet
 	source := &SyncSource{UserSlug: "test/config", Username: "test", Slug: "config"}
-	require.NoError(t, SaveSource(source))
+	require.NoError(t, SaveSource(source, false))
 
 	// Verify directory was created with correct perms
 	info, err := os.Stat(filepath.Join(tmpDir, ".openboot"))

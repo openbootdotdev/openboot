@@ -266,7 +266,7 @@ func TestBackupFile_CreatesBackup(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(src, []byte("hello"), 0644))
 
-	require.NoError(t, backupFile(src, dst))
+	require.NoError(t, backupFile(src, dst, false))
 
 	data, err := os.ReadFile(dst)
 	require.NoError(t, err)
@@ -275,7 +275,7 @@ func TestBackupFile_CreatesBackup(t *testing.T) {
 
 func TestBackupFile_MissingSrcReturnsError(t *testing.T) {
 	tmpDir := t.TempDir()
-	err := backupFile(filepath.Join(tmpDir, "nonexistent"), filepath.Join(tmpDir, "backup"))
+	err := backupFile(filepath.Join(tmpDir, "nonexistent"), filepath.Join(tmpDir, "backup"), false)
 	assert.Error(t, err)
 }
 
@@ -286,7 +286,7 @@ func TestRestoreFile_MovesBackToOriginal(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(backup, []byte("restored"), 0644))
 
-	restoreFile(backup, original)
+	restoreFile(backup, original, false)
 
 	data, err := os.ReadFile(original)
 	require.NoError(t, err)
@@ -298,7 +298,7 @@ func TestRestoreFile_MovesBackToOriginal(t *testing.T) {
 
 func TestRestoreFile_NoopWhenBackupMissing(t *testing.T) {
 	tmpDir := t.TempDir()
-	restoreFile(filepath.Join(tmpDir, "nonexistent.bak"), filepath.Join(tmpDir, "original"))
+	restoreFile(filepath.Join(tmpDir, "nonexistent.bak"), filepath.Join(tmpDir, "original"), false)
 }
 
 // initBareAndClone creates a bare repo with one commit and clones it into
@@ -532,7 +532,7 @@ func TestBackupConflicts_BacksUpRegularFiles(t *testing.T) {
 	require.NoError(t, os.MkdirAll(targetDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(targetDir, ".gitconfig"), []byte("original"), 0644))
 
-	backed, err := backupConflicts(pkgDir, targetDir)
+	backed, err := backupConflicts(pkgDir, targetDir, false)
 	require.NoError(t, err)
 	assert.Len(t, backed, 1)
 
@@ -560,7 +560,7 @@ func TestBackupConflicts_SkipsSymlinks(t *testing.T) {
 	require.NoError(t, os.WriteFile(src, []byte("linked"), 0644))
 	require.NoError(t, os.Symlink(src, filepath.Join(targetDir, ".vimrc")))
 
-	backed, err := backupConflicts(pkgDir, targetDir)
+	backed, err := backupConflicts(pkgDir, targetDir, false)
 	require.NoError(t, err)
 	assert.Len(t, backed, 0)
 }
@@ -586,7 +586,7 @@ func TestBackupConflicts_SkipsSocketFiles(t *testing.T) {
 	require.NoError(t, err)
 	defer ln.Close()
 
-	backed, err := backupConflicts(pkgDir, targetDir)
+	backed, err := backupConflicts(pkgDir, targetDir, false)
 	require.NoError(t, err)
 	assert.Len(t, backed, 0, "socket files must not be backed up")
 }
@@ -602,7 +602,7 @@ func TestBackupConflicts_SkipsMissingTargets(t *testing.T) {
 	require.NoError(t, os.MkdirAll(targetDir, 0755))
 	// No .config in targetDir — nothing to back up.
 
-	backed, err := backupConflicts(pkgDir, targetDir)
+	backed, err := backupConflicts(pkgDir, targetDir, false)
 	require.NoError(t, err)
 	assert.Len(t, backed, 0)
 }

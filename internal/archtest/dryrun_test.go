@@ -24,7 +24,9 @@ var dryRunExemptPaths = []string{
 
 // dryRunExemptFiles lists individual files exempt from the rule.
 var dryRunExemptFiles = []string{
-	"internal/installer/state.go", // install state tracking
+	"internal/installer/state.go",    // install state tracking
+	"internal/snapshot/capture.go",   // read-only system probes (brew list, npm list, git config --get, etc.)
+	"internal/sync/diff.go",          // read-only dotfiles remote probe for diff computation
 }
 
 // destructiveOsCalls lists os package functions that modify the filesystem.

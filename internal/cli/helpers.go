@@ -48,7 +48,7 @@ func saveSyncSourceIfRemote(c *config.Config) {
 		Slug:        c.RemoteConfig.Slug,
 		InstalledAt: time.Now(),
 	}
-	if err := syncpkg.SaveSource(source); err != nil {
+	if err := syncpkg.SaveSource(source, false); err != nil {
 		ui.Warn(fmt.Sprintf("Failed to save sync source: %v", err))
 	}
 }

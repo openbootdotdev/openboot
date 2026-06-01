@@ -29,7 +29,7 @@ func TestSaveLocal_CreatesFileAndDirectory(t *testing.T) {
 		},
 	}
 
-	path, err := SaveLocal(snap)
+	path, err := SaveLocal(snap, false)
 	require.NoError(t, err)
 	assert.NotEmpty(t, path)
 	assert.Contains(t, path, ".openboot")
@@ -54,7 +54,7 @@ func TestSaveLocal_FileIsValidJSON(t *testing.T) {
 		},
 	}
 
-	path, err := SaveLocal(snap)
+	path, err := SaveLocal(snap, false)
 	require.NoError(t, err)
 
 	data, readErr := os.ReadFile(path)
@@ -89,7 +89,7 @@ func TestSaveLocal_LoadLocal_RoundTrip(t *testing.T) {
 		},
 	}
 
-	_, err := SaveLocal(original)
+	_, err := SaveLocal(original, false)
 	require.NoError(t, err)
 
 	loaded, err := LoadLocal()
@@ -113,7 +113,7 @@ func TestSaveLocal_AtomicWrite_TmpFileCleaned(t *testing.T) {
 
 	snap := &Snapshot{Version: 1, CapturedAt: time.Now(), Hostname: "atomic"}
 
-	path, err := SaveLocal(snap)
+	path, err := SaveLocal(snap, false)
 	require.NoError(t, err)
 
 	// The .tmp file should not exist after a successful save.
@@ -126,11 +126,11 @@ func TestSaveLocal_OverwritesPreviousSnapshot(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 
 	first := &Snapshot{Version: 1, CapturedAt: time.Now(), Hostname: "first"}
-	_, err := SaveLocal(first)
+	_, err := SaveLocal(first, false)
 	require.NoError(t, err)
 
 	second := &Snapshot{Version: 1, CapturedAt: time.Now(), Hostname: "second"}
-	_, err = SaveLocal(second)
+	_, err = SaveLocal(second, false)
 	require.NoError(t, err)
 
 	loaded, err := LoadLocal()

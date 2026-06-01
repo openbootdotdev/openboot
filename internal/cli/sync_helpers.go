@@ -29,7 +29,7 @@ func updateSyncedAt(source *syncpkg.SyncSource, override string, rc *config.Remo
 		SyncedAt:    now,
 		InstalledAt: installedAt,
 	}
-	if err := syncpkg.SaveSource(updated); err != nil {
+	if err := syncpkg.SaveSource(updated, false); err != nil {
 		ui.Warn(fmt.Sprintf("Failed to update sync source: %v", err))
 	}
 }

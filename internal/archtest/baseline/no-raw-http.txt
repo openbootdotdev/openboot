@@ -1,5 +1,5 @@
 # Baseline for archtest rule "no-raw-http".
-# Each line is <file>:<line> # reason for a known existing violation.
+# Each line is <file>:<line> of a known existing violation.
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
-internal/config/packages_remote.go:84 # injects the default transport into a test-swappable client; round-trip uses httputil.Do
-internal/config/remote.go:57 # injects the default transport into a version-header transport; round-trip uses httputil.Do
+internal/config/packages_remote.go:84
+internal/config/remote.go:57

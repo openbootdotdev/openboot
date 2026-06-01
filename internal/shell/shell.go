@@ -218,7 +218,10 @@ var (
 	loosePluginsRe = regexp.MustCompile(`(?m)^plugins=\((?s:.*?)\)\n?`)
 )
 
-func patchZshrcBlock(zshrcPath, theme string, plugins []string) error {
+func patchZshrcBlock(zshrcPath, theme string, plugins []string, dryRun bool) error {
+	if dryRun {
+		return nil
+	}
 	raw, err := os.ReadFile(zshrcPath)
 	if err != nil {
 		return fmt.Errorf("read .zshrc: %w", err)
@@ -380,5 +383,5 @@ source $ZSH/oh-my-zsh.sh
 		return nil
 	}
 
-	return patchZshrcBlock(zshrcPath, theme, plugins)
+	return patchZshrcBlock(zshrcPath, theme, plugins, dryRun)
 }

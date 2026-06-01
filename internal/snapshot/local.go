@@ -15,7 +15,11 @@ func LocalPath() string {
 	return filepath.Join(home, ".openboot", "snapshot.json")
 }
 
-func SaveLocal(snap *Snapshot) (string, error) {
+func SaveLocal(snap *Snapshot, dryRun bool) (string, error) {
+	if dryRun {
+		return "", nil
+	}
+
 	path := LocalPath()
 
 	dir := filepath.Dir(path)

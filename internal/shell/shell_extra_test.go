@@ -105,7 +105,7 @@ source $ZSH/oh-my-zsh.sh
 `
 	require.NoError(t, os.WriteFile(zshrcPath, []byte(initial), 0600))
 
-	require.NoError(t, patchZshrcBlock(zshrcPath, "agnoster", []string{"git", "docker"}))
+	require.NoError(t, patchZshrcBlock(zshrcPath, "agnoster", []string{"git", "docker"}, false))
 
 	content, err := os.ReadFile(zshrcPath)
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ source $ZSH/oh-my-zsh.sh
 `
 	require.NoError(t, os.WriteFile(zshrcPath, []byte(initial), 0600))
 
-	require.NoError(t, patchZshrcBlock(zshrcPath, "new-theme", []string{"git", "zsh-autosuggestions"}))
+	require.NoError(t, patchZshrcBlock(zshrcPath, "new-theme", []string{"git", "zsh-autosuggestions"}, false))
 
 	content, err := os.ReadFile(zshrcPath)
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestPatchZshrcBlock_NoTrailingNewlineHandled(t *testing.T) {
 	// File without trailing newline.
 	require.NoError(t, os.WriteFile(zshrcPath, []byte(`source $ZSH/oh-my-zsh.sh`), 0600))
 
-	require.NoError(t, patchZshrcBlock(zshrcPath, "agnoster", []string{"git"}))
+	require.NoError(t, patchZshrcBlock(zshrcPath, "agnoster", []string{"git"}, false))
 
 	content, err := os.ReadFile(zshrcPath)
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestPatchZshrcBlock_InvalidIdentifierReturnsError(t *testing.T) {
 	zshrcPath := filepath.Join(home, ".zshrc")
 	require.NoError(t, os.WriteFile(zshrcPath, []byte("# placeholder\n"), 0600))
 
-	err := patchZshrcBlock(zshrcPath, "theme with spaces!", []string{"git"})
+	err := patchZshrcBlock(zshrcPath, "theme with spaces!", []string{"git"}, false)
 	require.Error(t, err)
 }
 
