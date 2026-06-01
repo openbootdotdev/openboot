@@ -21,12 +21,12 @@ permissions:
 
 jobs:
   open-or-update-issue:
-    if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Find failed jobs and (re)open issues
+        if: github.event.workflow_run.conclusion == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
