@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/openbootdotdev/openboot/internal/httputil"
 )
 
 // remotePackage matches the JSON returned by GET /api/packages.
@@ -93,7 +95,7 @@ func fetchRemotePackages() ([]remotePackage, error) {
 		Timeout:   8 * time.Second,
 		Transport: &versionTransport{base: packagesHTTPTransport},
 	}
-	resp, err := client.Do(req)
+	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch packages: %w", err)
 	}

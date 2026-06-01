@@ -2,6 +2,7 @@ package updater
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,10 +22,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
 const CheckInterval = 24 * time.Hour
+
+const brewUpgradeTimeout = 30 * time.Minute
 
 var (
 	httpClient     *http.Client
@@ -194,22 +198,25 @@ const brewFormula = brewTap + "/openboot"
 
 // execBrewUpgrade is a package-level variable to allow test injection.
 var execBrewUpgrade = func(formula string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), brewUpgradeTimeout)
+	defer cancel()
+
 	// Step 1: resolve the tap repository path.
-	repoOut, err := exec.Command("brew", "--repo", brewTap).Output()
+	repoOut, err := exec.CommandContext(ctx, "brew", "--repo", brewTap).Output()
 	if err != nil {
 		return fmt.Errorf("brew --repo %s: %w", brewTap, err)
 	}
 	repoPath := strings.TrimSpace(string(repoOut))
 
 	// Step 2: fast-forward the tap to pick up the new formula revision.
-	gitCmd := exec.Command("git", "-C", repoPath, "pull", "--ff-only") //nolint:gosec // "git" is hardcoded; repoPath is derived from brew --repository
+	gitCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "pull", "--ff-only") //nolint:gosec // "git" is hardcoded; repoPath is derived from brew --repository
 	gitCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	if err := gitCmd.Run(); err != nil {
 		return fmt.Errorf("git pull tap: %w", err)
 	}
 
 	// Step 3: upgrade the formula.
-	upgradeCmd := exec.Command("brew", "upgrade", formula) //nolint:gosec // "brew" is hardcoded; formula is validated before this call
+	upgradeCmd := exec.CommandContext(ctx, "brew", "upgrade", formula) //nolint:gosec // "brew" is hardcoded; formula is validated before this call
 	upgradeCmd.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1")
 	if err := upgradeCmd.Run(); err != nil {
 		return fmt.Errorf("brew upgrade %s: %w", formula, err)
@@ -343,7 +350,11 @@ func verifyChecksum(path, filename string, checksums map[string]string) error {
 // /releases/download/v<version>/ is used.
 func fetchChecksums(client *http.Client, version string) (map[string]string, error) {
 	url := checksumsURL(version)
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create checksums request: %w", err)
+	}
+	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return nil, fmt.Errorf("download checksums: %w", err)
 	}
@@ -407,7 +418,11 @@ func DownloadAndReplace(targetVersion, currentVersion string) error {
 
 	url := binaryURL(targetVersion, filename)
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("create download request: %w", err)
+	}
+	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
@@ -796,7 +811,7 @@ func GetLatestVersion() (string, error) {
 	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := client.Do(req)
+	resp, err := httputil.Do(client, req)
 	if err != nil {
 		return "", fmt.Errorf("fetch latest version: %w", err)
 	}

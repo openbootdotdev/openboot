@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
@@ -22,11 +24,13 @@ import (
 // constant whenever the installer script changes upstream.
 const knownOMZInstallHash = "21043aec5b791ce4835479dc33ba2f92155946aeafd54604a8c83522627cc803"
 
+const omzInstallTimeout = 10 * time.Minute
+
 // omzInstallURL is a var so tests can redirect it without a real server.
 var omzInstallURL = "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
 
 // omzHTTPClient is a var so tests can inject a mock transport.
-var omzHTTPClient *http.Client = http.DefaultClient
+var omzHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 var shellIdentifierRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
@@ -105,7 +109,9 @@ func InstallOhMyZsh(dryRun bool) error {
 		return fmt.Errorf("chmod omz install script: %w", err)
 	}
 
-	return system.RunCommand(tmpFile.Name(), "--unattended")
+	ctx, cancel := context.WithTimeout(context.Background(), omzInstallTimeout)
+	defer cancel()
+	return system.RunCommandContext(ctx, tmpFile.Name(), "--unattended")
 }
 
 const brewShellenvLine = `eval "$(/opt/homebrew/bin/brew shellenv)"`

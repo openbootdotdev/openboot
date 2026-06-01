@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
-func runSnapshotImport(importPath string, dryRun bool) error {
+func runSnapshotImportContext(ctx context.Context, importPath string, dryRun bool) error {
 	snap, err := loadSnapshot(importPath)
 	if err != nil {
 		return fmt.Errorf("load snapshot: %w", err)
@@ -64,7 +65,7 @@ func runSnapshotImport(importPath string, dryRun bool) error {
 		return nil
 	}
 
-	return installer.RunFromSnapshot(buildImportConfig(edited, dryRun))
+	return installer.RunFromSnapshotContext(ctx, buildImportConfig(edited, dryRun))
 }
 
 func downloadSnapshotBytes(url string, client *http.Client) ([]byte, error) {

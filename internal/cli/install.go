@@ -141,7 +141,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
 	}
 
-	err := installer.Run(installCfg)
+	err := installer.RunContext(cmd.Context(), installCfg)
 	if errors.Is(err, installer.ErrUserCancelled) {
 		return nil
 	}

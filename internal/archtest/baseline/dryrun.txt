@@ -1,28 +1,33 @@
 # Baseline for archtest rule "dryrun".
-# Each line is <file>:<line> of a known existing violation.
+# Each line is <file>:<line> # reason for a known existing violation.
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
-internal/doctor/doctor.go:50
-internal/doctor/doctor.go:54
-internal/dotfiles/dotfiles.go:260
-internal/dotfiles/dotfiles.go:270
-internal/dotfiles/dotfiles.go:327
-internal/shell/shell.go:242
-internal/shell/shell.go:245
-internal/shell/shell.go:246
-internal/snapshot/capture.go:200
-internal/snapshot/capture.go:239
-internal/snapshot/capture.go:269
-internal/snapshot/capture.go:303
-internal/snapshot/capture.go:307
-internal/snapshot/capture.go:335
-internal/snapshot/capture.go:361
-internal/snapshot/local.go:22
-internal/snapshot/local.go:32
-internal/snapshot/local.go:35
-internal/snapshot/local.go:36
-internal/sync/diff.go:275
-internal/sync/source.go:63
-internal/sync/source.go:73
-internal/sync/source.go:76
-internal/sync/source.go:77
-internal/sync/source.go:91
+
+# Audited exemptions: read-only probes or helpers already gated by callers.
+internal/doctor/doctor.go:50 # read-only diagnostic runner; doctor does not mutate user state
+internal/doctor/doctor.go:54 # read-only diagnostic runner; doctor does not mutate user state
+internal/dotfiles/dotfiles.go:260 # helper writes conflict backups only from linkWithStow after Link dry-run gate
+internal/dotfiles/dotfiles.go:270 # helper restores conflict backups only after a non-dry-run stow failure
+internal/dotfiles/dotfiles.go:327 # helper removes conflict files only from linkWithStow after Link dry-run gate
+internal/shell/shell.go:248 # helper patches .zshrc only after RestoreFromSnapshot dry-run gate
+internal/shell/shell.go:251 # helper patches .zshrc only after RestoreFromSnapshot dry-run gate
+internal/shell/shell.go:252 # helper cleanup only after RestoreFromSnapshot dry-run gate
+internal/snapshot/capture.go:200 # read-only package inventory probe
+internal/snapshot/capture.go:239 # read-only package inventory probe
+internal/snapshot/capture.go:269 # read-only macOS defaults probe
+internal/snapshot/capture.go:303 # read-only git config probe
+internal/snapshot/capture.go:307 # read-only git config probe
+internal/snapshot/capture.go:335 # read-only developer tool version probe
+internal/snapshot/capture.go:361 # read-only dotfiles remote probe
+internal/sync/diff.go:275 # read-only dotfiles remote probe for diff display
+
+# Debt: state persistence is intentionally outside user config mutation, but
+# should move to explicit dry-run-aware APIs instead of baseline-only reasoning.
+internal/snapshot/local.go:22 # state persistence: creates ~/.openboot for saved snapshot
+internal/snapshot/local.go:32 # state persistence: atomic snapshot temp write
+internal/snapshot/local.go:35 # state persistence: atomic snapshot rename
+internal/snapshot/local.go:36 # state persistence: temp-file cleanup after failed rename
+internal/sync/source.go:63 # state persistence: creates ~/.openboot for sync source
+internal/sync/source.go:73 # state persistence: atomic sync source temp write
+internal/sync/source.go:76 # state persistence: atomic sync source rename
+internal/sync/source.go:77 # state persistence: temp-file cleanup after failed rename
+internal/sync/source.go:91 # state persistence: removes sync source metadata
