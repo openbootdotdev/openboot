@@ -62,7 +62,7 @@ func runSnapshot(cmd *cobra.Command) error {
 	importFile, _ := cmd.Flags().GetString("import")
 	if importFile != "" {
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		return runSnapshotImport(importFile, dryRun)
+		return runSnapshotImportContext(cmd.Context(), importFile, dryRun)
 	}
 
 	localFlag, _ := cmd.Flags().GetBool("local")

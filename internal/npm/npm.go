@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -43,9 +44,13 @@ func getNodeVersion() (int, error) {
 }
 
 func GetInstalledPackages() (map[string]bool, error) {
+	return GetInstalledPackagesContext(context.Background())
+}
+
+func GetInstalledPackagesContext(ctx context.Context) (map[string]bool, error) {
 	packages := make(map[string]bool)
 
-	output, err := currentRunner().Output("list", "-g", "--depth=0", "--parseable")
+	output, err := runnerOutputContext(ctx, "list", "-g", "--depth=0", "--parseable")
 	if err != nil {
 		if len(output) > 0 {
 			// npm list exits non-zero when packages have issues, but still
@@ -78,6 +83,10 @@ func GetInstalledPackages() (map[string]bool, error) {
 }
 
 func Install(packages []string, dryRun bool) error {
+	return InstallContext(context.Background(), packages, dryRun)
+}
+
+func InstallContext(ctx context.Context, packages []string, dryRun bool) error {
 	if len(packages) == 0 {
 		return nil
 	}
@@ -94,7 +103,7 @@ func Install(packages []string, dryRun bool) error {
 		return nil
 	}
 
-	installed, err := GetInstalledPackages()
+	installed, err := GetInstalledPackagesContext(ctx)
 	if err != nil {
 		return fmt.Errorf("list installed packages: %w", err)
 	}
@@ -119,7 +128,7 @@ func Install(packages []string, dryRun bool) error {
 
 	ui.Info(fmt.Sprintf("Installing %d npm packages...", len(toInstall)))
 
-	failed, err := installBatch(toInstall)
+	failed, err := installBatchContext(ctx, toInstall)
 	if err != nil {
 		return fmt.Errorf("install npm packages: %w", err)
 	}
@@ -169,8 +178,12 @@ func warnIfNodeVersionTooLow(packages []string) {
 // fails it falls back to sequential per-package installs. Returns the list of
 // package names that could not be installed and any fatal error.
 func installBatch(toInstall []string) (failed []string, err error) {
+	return installBatchContext(context.Background(), toInstall)
+}
+
+func installBatchContext(ctx context.Context, toInstall []string) (failed []string, err error) {
 	args := append([]string{"install", "-g"}, toInstall...)
-	batchOutput, batchErr := currentRunner().CombinedOutput(args...)
+	batchOutput, batchErr := runnerCombinedOutputContext(ctx, args...)
 
 	if batchErr == nil {
 		ui.Success(fmt.Sprintf("  ✔ %d npm packages installed", len(toInstall)))
@@ -181,13 +194,17 @@ func installBatch(toInstall []string) (failed []string, err error) {
 	ui.Warn(fmt.Sprintf("Batch install failed (%s), falling back to sequential...", batchError))
 	ui.Println()
 
-	return installSequential(toInstall)
+	return installSequentialContext(ctx, toInstall)
 }
 
 // installSequential installs each package individually, skipping those that
 // were already picked up by a partial batch install. Returns failed package names.
 func installSequential(toInstall []string) (failed []string, err error) {
-	nowInstalled, err := GetInstalledPackages()
+	return installSequentialContext(context.Background(), toInstall)
+}
+
+func installSequentialContext(ctx context.Context, toInstall []string) (failed []string, err error) {
+	nowInstalled, err := GetInstalledPackagesContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list packages after batch: %w", err)
 	}
@@ -209,7 +226,7 @@ func installSequential(toInstall []string) (failed []string, err error) {
 
 	for _, pkg := range remaining {
 		progress.SetCurrent(pkg)
-		errMsg := installNpmPackageWithRetry(pkg)
+		errMsg := installNpmPackageWithRetryContext(ctx, pkg)
 		if errMsg != "" {
 			progress.PrintLine("  ✗ %s (%s)", pkg, errMsg)
 			failed = append(failed, pkg)
@@ -260,9 +277,13 @@ func Uninstall(packages []string, dryRun bool) error {
 var retryBackoff = 2 * time.Second
 
 func installNpmPackageWithRetry(pkg string) string {
+	return installNpmPackageWithRetryContext(context.Background(), pkg)
+}
+
+func installNpmPackageWithRetryContext(ctx context.Context, pkg string) string {
 	maxAttempts := 3
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		output, err := currentRunner().CombinedOutput("install", "-g", pkg)
+		output, err := runnerCombinedOutputContext(ctx, "install", "-g", pkg)
 		if err == nil {
 			return ""
 		}
@@ -270,7 +291,13 @@ func installNpmPackageWithRetry(pkg string) string {
 		errMsg := parseNpmError(string(output))
 		if attempt < maxAttempts && isNpmRetryableError(errMsg) {
 			delay := time.Duration(attempt) * retryBackoff
-			time.Sleep(delay)
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err().Error()
+			case <-timer.C:
+			}
 			continue
 		}
 

@@ -159,6 +159,36 @@ func TestDo_MissingRetryAfterDefaultsToOneSecond(t *testing.T) {
 	assert.Equal(t, 1*time.Second, sleptDuration)
 }
 
+func TestDo_RetryAfterHTTPDate(t *testing.T) {
+	var calls atomic.Int32
+	client := mockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		if n == 1 {
+			w.Header().Set("Retry-After", time.Now().Add(2*time.Second).UTC().Format(http.TimeFormat))
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	var sleptDuration time.Duration
+	originalSleep := sleepFunc
+	sleepFunc = func(d time.Duration) { sleptDuration = d }
+	defer func() { sleepFunc = originalSleep }()
+
+	req, err := http.NewRequest("GET", fakeURL, nil)
+	require.NoError(t, err)
+
+	resp, err := Do(client, req)
+	require.NoError(t, err)
+	defer resp.Body.Close() //nolint:errcheck
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.GreaterOrEqual(t, sleptDuration, time.Second)
+	assert.LessOrEqual(t, sleptDuration, 2*time.Second)
+	assert.Equal(t, int32(2), calls.Load())
+}
+
 func TestDo_WithRequestBody(t *testing.T) {
 	var calls atomic.Int32
 	var receivedBodies []string
@@ -245,6 +275,18 @@ func TestParseRetryAfter(t *testing.T) {
 			assert.Equal(t, tt.expected, parseRetryAfter(resp))
 		})
 	}
+}
+
+func TestParseRetryAfterHTTPDate(t *testing.T) {
+	resp := &http.Response{Header: http.Header{}}
+	resp.Header.Set("Retry-After", time.Now().Add(3*time.Second).UTC().Format(http.TimeFormat))
+
+	seconds := parseRetryAfter(resp)
+	assert.GreaterOrEqual(t, seconds, 1)
+	assert.LessOrEqual(t, seconds, 3)
+
+	resp.Header.Set("Retry-After", time.Now().Add(-time.Second).UTC().Format(http.TimeFormat))
+	assert.Equal(t, 0, parseRetryAfter(resp))
 }
 
 func TestClampDuration(t *testing.T) {

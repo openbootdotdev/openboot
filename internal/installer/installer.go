@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,10 @@ const (
 )
 
 func Run(cfg *config.Config) error {
+	return RunContext(context.Background(), cfg)
+}
+
+func RunContext(ctx context.Context, cfg *config.Config) error {
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
 
@@ -30,7 +35,7 @@ func Run(cfg *config.Config) error {
 	if opts.Update {
 		err = runUpdate(opts, st)
 	} else {
-		err = runInstall(opts, st)
+		err = runInstallContext(ctx, opts, st)
 	}
 
 	cfg.ApplyState(st)
@@ -38,6 +43,10 @@ func Run(cfg *config.Config) error {
 }
 
 func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
+	return runInstallContext(context.Background(), opts, st)
+}
+
+func runInstallContext(ctx context.Context, opts *config.InstallOptions, st *config.InstallState) error {
 	slog.Info("install_started",
 		"version", opts.Version,
 		"preset", opts.Preset,
@@ -72,12 +81,16 @@ func runInstall(opts *config.InstallOptions, st *config.InstallState) error {
 		st.OnlinePkgs = plan.OnlinePkgs
 	}
 
-	return Apply(plan, ConsoleReporter{})
+	return ApplyContext(ctx, plan, ConsoleReporter{})
 }
 
 // Apply executes a resolved InstallPlan, reporting progress via r.
 // All user interaction has already happened in Plan(); this function only performs actions.
 func Apply(plan InstallPlan, r Reporter) error {
+	return ApplyContext(context.Background(), plan, r)
+}
+
+func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 	if !plan.PackagesOnly && !plan.SkipGit {
 		if err := applyGitConfig(plan, r); err != nil {
 			return fmt.Errorf("apply git config: %w", err)
@@ -86,11 +99,11 @@ func Apply(plan InstallPlan, r Reporter) error {
 
 	var softErrs []error
 
-	if err := applyPackages(plan, r); err != nil {
+	if err := applyPackages(ctx, plan, r); err != nil {
 		softErrs = append(softErrs, fmt.Errorf("brew: %w", err))
 	}
 
-	if err := applyNpm(plan, r); err != nil {
+	if err := applyNpm(ctx, plan, r); err != nil {
 		r.Error(fmt.Sprintf("npm package installation failed: %v", err))
 		softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
 	}
@@ -208,6 +221,10 @@ func checkDependencies(opts *config.InstallOptions, st *config.InstallState) err
 }
 
 func RunFromSnapshot(cfg *config.Config) error {
+	return RunFromSnapshotContext(context.Background(), cfg)
+}
+
+func RunFromSnapshotContext(ctx context.Context, cfg *config.Config) error {
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
 
@@ -221,7 +238,7 @@ func RunFromSnapshot(cfg *config.Config) error {
 	}
 
 	plan := PlanFromSnapshot(opts, st)
-	err := Apply(plan, ConsoleReporter{})
+	err := ApplyContext(ctx, plan, ConsoleReporter{})
 	cfg.ApplyState(st)
 	return err
 }

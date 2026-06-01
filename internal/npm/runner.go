@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"context"
 	"os/exec"
 	"sync"
 )
@@ -25,6 +26,35 @@ func (execRunner) Output(args ...string) ([]byte, error) {
 
 func (execRunner) CombinedOutput(args ...string) ([]byte, error) {
 	return exec.Command("npm", args...).CombinedOutput() //nolint:gosec // "npm" is a hardcoded binary; args are package names from validated config
+}
+
+func (execRunner) OutputContext(ctx context.Context, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, "npm", args...).Output() //nolint:gosec // "npm" is a hardcoded binary; args are package names from validated config
+}
+
+func (execRunner) CombinedOutputContext(ctx context.Context, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, "npm", args...).CombinedOutput() //nolint:gosec // "npm" is a hardcoded binary; args are package names from validated config
+}
+
+type contextRunner interface {
+	OutputContext(ctx context.Context, args ...string) ([]byte, error)
+	CombinedOutputContext(ctx context.Context, args ...string) ([]byte, error)
+}
+
+func runnerOutputContext(ctx context.Context, args ...string) ([]byte, error) {
+	r := currentRunner()
+	if cr, ok := r.(contextRunner); ok {
+		return cr.OutputContext(ctx, args...)
+	}
+	return r.Output(args...)
+}
+
+func runnerCombinedOutputContext(ctx context.Context, args ...string) ([]byte, error) {
+	r := currentRunner()
+	if cr, ok := r.(contextRunner); ok {
+		return cr.CombinedOutputContext(ctx, args...)
+	}
+	return r.CombinedOutput(args...)
 }
 
 var (

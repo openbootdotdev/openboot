@@ -1,9 +1,11 @@
 package system
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -338,6 +340,33 @@ func TestRunCommandOutput_CommandFails(t *testing.T) {
 func TestRunCommandOutput_CommandNotFound(t *testing.T) {
 	_, err := RunCommandOutput("nonexistentcmd99999")
 	assert.Error(t, err)
+}
+
+func TestRunCommandContext_Cancelled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	err := RunCommandContext(ctx, "sh", "-c", "sleep 1")
+	require.Error(t, err)
+	assert.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+}
+
+func TestRunCommandSilentContext_Cancelled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := RunCommandSilentContext(ctx, "sh", "-c", "sleep 1")
+	require.Error(t, err)
+	assert.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+}
+
+func TestRunCommandOutputContext_Cancelled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := RunCommandOutputContext(ctx, "sh", "-c", "sleep 1")
+	require.Error(t, err)
+	assert.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
 }
 
 // ---------------------------------------------------------------------------

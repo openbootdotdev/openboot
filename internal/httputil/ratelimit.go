@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,15 +21,28 @@ func (e *RateLimitError) Error() string {
 	return fmt.Sprintf("Rate limited. Please wait %d seconds and try again.", e.RetryAfterSeconds)
 }
 
-// parseRetryAfter reads the Retry-After header (in seconds) from a response.
+// parseRetryAfter reads the Retry-After header from a response.
+// It supports both RFC 9110 formats: delay-seconds and HTTP-date.
 // Returns 0 if the header is missing or unparseable.
 func parseRetryAfter(resp *http.Response) int {
-	val := resp.Header.Get("Retry-After")
+	val := strings.TrimSpace(resp.Header.Get("Retry-After"))
 	if val == "" {
 		return 0
 	}
 	seconds, err := strconv.Atoi(val)
-	if err != nil || seconds < 0 {
+	if err == nil {
+		if seconds < 0 {
+			return 0
+		}
+		return seconds
+	}
+
+	retryAt, err := http.ParseTime(val)
+	if err != nil {
+		return 0
+	}
+	seconds = int(time.Until(retryAt).Seconds())
+	if seconds < 0 {
 		return 0
 	}
 	return seconds

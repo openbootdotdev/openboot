@@ -15,6 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/openbootdotdev/openboot/internal/httputil"
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
@@ -81,7 +82,7 @@ func fetchConfigBySlug(apiBase, username, slug, token string) (*http.Response, e
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	return remoteHTTPClient.Do(req)
+	return httputil.Do(remoteHTTPClient, req)
 }
 
 func parseConfigResponse(resp *http.Response, username, slug, token string) (*RemoteConfig, error) {
@@ -239,7 +240,7 @@ func fetchConfigByAlias(apiBase, alias, token string) (*RemoteConfig, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	resp, err := remoteHTTPClient.Do(req)
+	resp, err := httputil.Do(remoteHTTPClient, req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch alias: %w", err)
 	}

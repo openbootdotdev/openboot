@@ -18,6 +18,15 @@ type categorizedPackages struct {
 	npm  []string
 }
 
+const (
+	brewInstallBaseTimeout       = 30 * time.Minute
+	brewInstallTimeoutPerPackage = 20 * time.Minute
+	brewInstallMaxTimeout        = 6 * time.Hour
+	npmInstallBaseTimeout        = 10 * time.Minute
+	npmInstallTimeoutPerPackage  = 10 * time.Minute
+	npmInstallMaxTimeout         = 2 * time.Hour
+)
+
 func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallState) categorizedPackages {
 	var result categorizedPackages
 
@@ -72,7 +81,7 @@ func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallS
 	return result
 }
 
-func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orchestrates multiple package categories; splitting would obscure the install sequence
+func applyPackages(ctx context.Context, plan InstallPlan, r Reporter) error { //nolint:gocyclo // orchestrates multiple package categories; splitting would obscure the install sequence
 	r.Header("Step 4: Installation")
 	ui.Println()
 
@@ -138,7 +147,9 @@ func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orc
 	r.Info(fmt.Sprintf("Installing %d packages (%d CLI, %d GUI)...", len(cliPkgs)+len(caskPkgs), len(cliPkgs), len(caskPkgs)))
 	ui.Println()
 
-	installedCli, installedCask, brewErr := brew.InstallWithProgress(context.Background(), cliPkgs, caskPkgs, plan.DryRun)
+	brewCtx, cancel := packageInstallContext(ctx, len(cliPkgs)+len(caskPkgs))
+	defer cancel()
+	installedCli, installedCask, brewErr := brew.InstallWithProgress(brewCtx, cliPkgs, caskPkgs, plan.DryRun)
 	if brewErr != nil {
 		r.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
 	}
@@ -162,7 +173,15 @@ func applyPackages(plan InstallPlan, r Reporter) error { //nolint:gocyclo // orc
 	return brewErr
 }
 
-func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles npm batch + sequential fallback with per-package error tracking
+func packageInstallContext(parent context.Context, totalPackages int) (context.Context, context.CancelFunc) {
+	timeout := brewInstallBaseTimeout + time.Duration(totalPackages)*brewInstallTimeoutPerPackage
+	if timeout > brewInstallMaxTimeout {
+		timeout = brewInstallMaxTimeout
+	}
+	return context.WithTimeout(parent, timeout)
+}
+
+func applyNpm(ctx context.Context, plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles npm batch + sequential fallback with per-package error tracking
 	npmPkgs := plan.Npm
 	if len(npmPkgs) == 0 {
 		return nil
@@ -175,7 +194,7 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 
 	var newNpm []string
 	if !plan.DryRun {
-		actualNpm, npmCheckErr := npm.GetInstalledPackages()
+		actualNpm, npmCheckErr := npm.GetInstalledPackagesContext(ctx)
 		if npmCheckErr != nil {
 			r.Warn(fmt.Sprintf("Failed to check installed npm packages: %v", npmCheckErr))
 		} else {
@@ -212,8 +231,10 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 
 	maxAttempts := 3
 	var lastErr error
+	npmCtx, cancel := npmInstallContext(ctx, len(npmPkgs))
+	defer cancel()
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		lastErr = npm.Install(npmPkgs, plan.DryRun)
+		lastErr = npm.InstallContext(npmCtx, npmPkgs, plan.DryRun)
 		if lastErr == nil {
 			break
 		}
@@ -223,7 +244,13 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 		}
 		if plan.Silent || !system.HasTTY() {
 			r.Warn(fmt.Sprintf("npm installation failed (attempt %d/%d), retrying...", attempt, maxAttempts))
-			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			timer := time.NewTimer(time.Duration(attempt) * 2 * time.Second)
+			select {
+			case <-npmCtx.Done():
+				timer.Stop()
+				return npmCtx.Err()
+			case <-timer.C:
+			}
 			continue
 		}
 		ui.Println()
@@ -242,4 +269,12 @@ func applyNpm(plan InstallPlan, r Reporter) error { //nolint:gocyclo // handles 
 		}
 	}
 	return lastErr
+}
+
+func npmInstallContext(parent context.Context, totalPackages int) (context.Context, context.CancelFunc) {
+	timeout := npmInstallBaseTimeout + time.Duration(totalPackages)*npmInstallTimeoutPerPackage
+	if timeout > npmInstallMaxTimeout {
+		timeout = npmInstallMaxTimeout
+	}
+	return context.WithTimeout(parent, timeout)
 }

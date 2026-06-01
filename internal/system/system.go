@@ -1,6 +1,7 @@
 package system
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,7 +17,11 @@ func HomeDir() (string, error) {
 }
 
 func RunCommand(name string, args ...string) error {
-	cmd := exec.Command(name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
+	return RunCommandContext(context.Background(), name, args...)
+}
+
+func RunCommandContext(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
@@ -24,7 +29,11 @@ func RunCommand(name string, args ...string) error {
 }
 
 func RunCommandSilent(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
+	return RunCommandSilentContext(context.Background(), name, args...)
+}
+
+func RunCommandSilentContext(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
 	output, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(output)), err
 }
@@ -32,7 +41,12 @@ func RunCommandSilent(name string, args ...string) (string, error) {
 // RunCommandOutput runs name with args and returns stdout only (not stderr).
 // Use when stderr output must not contaminate parsed stdout (e.g. version probes, list commands).
 func RunCommandOutput(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
+	return RunCommandOutputContext(context.Background(), name, args...)
+}
+
+// RunCommandOutputContext runs name with args and returns stdout only (not stderr).
+func RunCommandOutputContext(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
 	output, err := cmd.Output()
 	return strings.TrimSpace(string(output)), err
 }
