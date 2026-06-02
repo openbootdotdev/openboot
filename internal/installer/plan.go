@@ -93,6 +93,12 @@ func planFromRemoteConfig(opts *config.InstallOptions, st *config.InstallState, 
 
 	if rc.Shell != nil && rc.Shell.OhMyZsh {
 		plan.InstallOhMyZsh = true
+		// Carry theme and plugins through so applyShell takes the restore path
+		// (writes plugins=() and git-clones external plugins). Dropping these
+		// silently downgraded remote-config installs to a bare OMZ install with
+		// no plugins cloned.
+		plan.ShellTheme = rc.Shell.Theme
+		plan.ShellPlugins = rc.Shell.Plugins
 	}
 
 	for _, p := range rc.MacOSPrefs {

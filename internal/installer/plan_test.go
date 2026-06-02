@@ -418,6 +418,29 @@ func TestPlanFromSnapshot_ShellRestored(t *testing.T) {
 	assert.Equal(t, []string{"git", "kubectl"}, plan.ShellPlugins)
 }
 
+func TestPlan_RemoteConfig_ShellThemeAndPluginsRestored(t *testing.T) {
+	// Regression: planFromRemoteConfig used to set only InstallOhMyZsh and drop
+	// the theme/plugins, so `openboot install <slug>` installed a bare OMZ and
+	// never wrote plugins=() or cloned external plugins.
+	opts := &config.InstallOptions{DryRun: true, Silent: true}
+	st := &config.InstallState{
+		RemoteConfig: &config.RemoteConfig{
+			Shell: &config.RemoteShellConfig{
+				OhMyZsh: true,
+				Theme:   "robbyrussell",
+				Plugins: []string{"git", "zsh-autosuggestions", "fast-syntax-highlighting"},
+			},
+		},
+	}
+
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+
+	assert.True(t, plan.InstallOhMyZsh)
+	assert.Equal(t, "robbyrussell", plan.ShellTheme)
+	assert.Equal(t, []string{"git", "zsh-autosuggestions", "fast-syntax-highlighting"}, plan.ShellPlugins)
+}
+
 func TestPlanFromSnapshot_ShellSkipFlag(t *testing.T) {
 	cfg := &config.Config{
 		InstallOptions: config.InstallOptions{
