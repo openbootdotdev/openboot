@@ -317,6 +317,47 @@ func cloneExternalPlugins(plugins []string, dryRun bool) error {
 	return nil
 }
 
+// zshrcPluginsRe extracts the names inside a plugins=(...) declaration from a
+// .zshrc. Mirrors snapshot.zshPluginsRe but tolerates leading whitespace so it
+// also matches indented declarations in user-authored dotfiles.
+var zshrcPluginsRe = regexp.MustCompile(`(?m)^\s*plugins=\((?s:(.*?))\)`)
+
+// CloneExternalPluginsFromZshrc reads ~/.zshrc, extracts its plugins=() list,
+// and git-clones any external (catalog) plugins not already present. It exists
+// for the dotfiles path: when a user's shell setup comes entirely from a
+// stowed .zshrc (the remote config carries no shell block), the plugin list
+// never flows through RestoreFromSnapshot, so the external plugins it names are
+// never cloned and oh-my-zsh logs "plugin '...' not found" at startup.
+//
+// It is a no-op when oh-my-zsh isn't installed or .zshrc is absent. Built-in
+// and unknown plugins are left untouched; a failed clone is non-fatal (see
+// cloneExternalPlugins).
+func CloneExternalPluginsFromZshrc(dryRun bool) error {
+	if !IsOhMyZshInstalled() {
+		return nil
+	}
+	home, err := system.HomeDir()
+	if err != nil {
+		return fmt.Errorf("clone plugins from .zshrc: %w", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".zshrc"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read .zshrc: %w", err)
+	}
+	m := zshrcPluginsRe.FindSubmatch(raw)
+	if len(m) < 2 {
+		return nil // no plugins=() declaration
+	}
+	plugins := strings.Fields(string(m[1]))
+	if len(plugins) == 0 {
+		return nil
+	}
+	return cloneExternalPlugins(plugins, dryRun)
+}
+
 func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bool) error {
 	if !ohMyZsh {
 		return nil

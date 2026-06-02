@@ -84,6 +84,16 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 		return fmt.Errorf("link dotfiles: %w", err)
 	}
 
+	// Dotfiles commonly ship their own .zshrc whose plugins=() list references
+	// external oh-my-zsh plugins (zsh-autosuggestions, fast-syntax-highlighting,
+	// ...). When the remote config carries no shell block, that list never flows
+	// through the shell step, so those plugins were never cloned and zsh logs
+	// "plugin '...' not found" at every startup. Clone them off the linked
+	// .zshrc now (no-op if OMZ is absent or no external plugins are referenced).
+	if err := shell.CloneExternalPluginsFromZshrc(plan.DryRun); err != nil {
+		return fmt.Errorf("clone plugins referenced by dotfiles: %w", err)
+	}
+
 	if !plan.DryRun {
 		r.Success("Dotfiles configured")
 	}
