@@ -296,7 +296,19 @@ func cloneExternalPlugins(plugins []string, dryRun bool) error {
 			continue
 		}
 
+		// Defense in depth: a plugin name becomes a path segment under
+		// $ZSH_CUSTOM/plugins and may originate from a user-authored .zshrc
+		// (see CloneExternalPluginsFromZshrc). Reject anything that isn't a
+		// plain single segment so a crafted name can never escape the plugins
+		// directory. A matching catalog name is always a safe identifier, so
+		// this only ever rejects malicious input.
+		if name != filepath.Base(name) || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+			ui.Warn(fmt.Sprintf("Skipping plugin %s: unsafe name", name))
+			continue
+		}
+
 		dest := filepath.Join(customPlugins, name)
+		//nolint:gosec // name is gated by resolvePluginURL (curated catalog) and the path-segment guard above; it cannot traverse out of customPlugins.
 		if _, err := os.Stat(dest); err == nil {
 			continue // already cloned — idempotent skip
 		}
