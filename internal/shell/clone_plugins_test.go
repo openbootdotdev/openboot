@@ -134,6 +134,78 @@ func TestCloneExternalPlugins_CloneFailureIsNonFatal(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCloneExternalPluginsFromZshrc_ClonesPluginsFromDotfiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	calls := withFakes(t, map[string]string{
+		"zsh-autosuggestions":      "https://github.com/zsh-users/zsh-autosuggestions",
+		"fast-syntax-highlighting": "https://github.com/zdharma-continuum/fast-syntax-highlighting",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0700))
+	zshrc := "export ZSH=\"$HOME/.oh-my-zsh\"\nZSH_THEME=\"robbyrussell\"\nplugins=(git helm kubectl zsh-autosuggestions fast-syntax-highlighting)\nsource $ZSH/oh-my-zsh.sh\n"
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".zshrc"), []byte(zshrc), 0600))
+
+	require.NoError(t, CloneExternalPluginsFromZshrc(false))
+
+	require.Len(t, *calls, 2, "both external plugins from .zshrc should be cloned; built-ins skipped")
+	got := map[string]bool{(*calls)[0][0]: true, (*calls)[1][0]: true}
+	assert.True(t, got["https://github.com/zsh-users/zsh-autosuggestions"])
+	assert.True(t, got["https://github.com/zdharma-continuum/fast-syntax-highlighting"])
+}
+
+func TestCloneExternalPluginsFromZshrc_NoOmzIsNoOp(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	calls := withFakes(t, map[string]string{
+		"zsh-autosuggestions": "https://github.com/zsh-users/zsh-autosuggestions",
+	})
+	// .zshrc present but ~/.oh-my-zsh absent → nothing to clone into.
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".zshrc"), []byte("plugins=(zsh-autosuggestions)\n"), 0600))
+
+	require.NoError(t, CloneExternalPluginsFromZshrc(false))
+	assert.Empty(t, *calls, "must not clone when oh-my-zsh is not installed")
+}
+
+func TestCloneExternalPluginsFromZshrc_MissingZshrcIsNoOp(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	calls := withFakes(t, map[string]string{
+		"zsh-autosuggestions": "https://github.com/zsh-users/zsh-autosuggestions",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0700))
+
+	require.NoError(t, CloneExternalPluginsFromZshrc(false))
+	assert.Empty(t, *calls, "a missing .zshrc must be a no-op, not an error")
+}
+
+func TestCloneExternalPluginsFromZshrc_UnreadableZshrcWarnsButSucceeds(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	calls := withFakes(t, map[string]string{
+		"zsh-autosuggestions": "https://github.com/zsh-users/zsh-autosuggestions",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0700))
+	// A directory at the .zshrc path makes os.ReadFile fail with a non-NotExist
+	// error — best-effort plugin setup must warn and continue, not abort.
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".zshrc"), 0700))
+
+	require.NoError(t, CloneExternalPluginsFromZshrc(false), "an unreadable .zshrc must not be fatal")
+	assert.Empty(t, *calls)
+}
+
+func TestCloneExternalPluginsFromZshrc_DryRunDoesNotClone(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	calls := withFakes(t, map[string]string{
+		"zsh-autosuggestions": "https://github.com/zsh-users/zsh-autosuggestions",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".zshrc"), []byte("plugins=(zsh-autosuggestions)\n"), 0600))
+
+	require.NoError(t, CloneExternalPluginsFromZshrc(true))
+	assert.Empty(t, *calls, "dry-run must not clone")
+}
+
 func TestCloneExternalPlugins_RestoreWritesBareNames(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

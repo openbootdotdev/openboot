@@ -296,7 +296,19 @@ func cloneExternalPlugins(plugins []string, dryRun bool) error {
 			continue
 		}
 
+		// Defense in depth: a plugin name becomes a path segment under
+		// $ZSH_CUSTOM/plugins and may originate from a user-authored .zshrc
+		// (see CloneExternalPluginsFromZshrc). Reject anything that isn't a
+		// plain single segment so a crafted name can never escape the plugins
+		// directory. A matching catalog name is always a safe identifier, so
+		// this only ever rejects malicious input.
+		if name != filepath.Base(name) || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+			ui.Warn(fmt.Sprintf("Skipping plugin %s: unsafe name", name))
+			continue
+		}
+
 		dest := filepath.Join(customPlugins, name)
+		//nolint:gosec // name is gated by resolvePluginURL (curated catalog) and the path-segment guard above; it cannot traverse out of customPlugins.
 		if _, err := os.Stat(dest); err == nil {
 			continue // already cloned — idempotent skip
 		}
@@ -315,6 +327,50 @@ func cloneExternalPlugins(plugins []string, dryRun bool) error {
 		}
 	}
 	return nil
+}
+
+// zshrcPluginsRe extracts the names inside a plugins=(...) declaration from a
+// .zshrc. Mirrors snapshot.zshPluginsRe but tolerates leading whitespace so it
+// also matches indented declarations in user-authored dotfiles.
+var zshrcPluginsRe = regexp.MustCompile(`(?m)^\s*plugins=\((?s:(.*?))\)`)
+
+// CloneExternalPluginsFromZshrc reads ~/.zshrc, extracts its plugins=() list,
+// and git-clones any external (catalog) plugins not already present. It exists
+// for the dotfiles path: when a user's shell setup comes entirely from a
+// stowed .zshrc (the remote config carries no shell block), the plugin list
+// never flows through RestoreFromSnapshot, so the external plugins it names are
+// never cloned and oh-my-zsh logs "plugin '...' not found" at startup.
+//
+// It is a no-op when oh-my-zsh isn't installed or .zshrc is absent. Built-in
+// and unknown plugins are left untouched. Like cloneExternalPlugins, plugin
+// setup is best-effort: an unreadable .zshrc warns and returns nil rather than
+// aborting the dotfiles step (the dotfiles are already cloned and linked by the
+// time this runs).
+func CloneExternalPluginsFromZshrc(dryRun bool) error {
+	if !IsOhMyZshInstalled() {
+		return nil
+	}
+	home, err := system.HomeDir()
+	if err != nil {
+		return fmt.Errorf("clone plugins from .zshrc: %w", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".zshrc"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		ui.Warn(fmt.Sprintf("Skipping plugin clone: could not read .zshrc: %v", err))
+		return nil
+	}
+	m := zshrcPluginsRe.FindSubmatch(raw)
+	if len(m) < 2 {
+		return nil // no plugins=() declaration
+	}
+	plugins := strings.Fields(string(m[1]))
+	if len(plugins) == 0 {
+		return nil
+	}
+	return cloneExternalPlugins(plugins, dryRun)
 }
 
 func RestoreFromSnapshot(ohMyZsh bool, theme string, plugins []string, dryRun bool) error {
