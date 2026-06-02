@@ -122,6 +122,54 @@ func TestLink_DryRun(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+func TestHasMakefile_WithInstallTarget(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte("install:\n\techo done\n"), 0644)
+	require.NoError(t, err)
+	assert.True(t, hasMakefile(tmpDir))
+}
+
+func TestHasMakefile_WithoutInstallTarget(t *testing.T) {
+	tmpDir := t.TempDir()
+	err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte("build:\n\techo build\n"), 0644)
+	require.NoError(t, err)
+	assert.False(t, hasMakefile(tmpDir))
+}
+
+func TestHasMakefile_NoMakefile(t *testing.T) {
+	tmpDir := t.TempDir()
+	assert.False(t, hasMakefile(tmpDir))
+}
+
+func TestLinkWithMake_DryRun(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+	require.NoError(t, os.MkdirAll(dotfilesPath, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dotfilesPath, "Makefile"), []byte("install:\n\techo done\n"), 0644))
+
+	err := linkWithMake(dotfilesPath, true)
+	assert.NoError(t, err)
+}
+
+func TestLink_UsesMakefileOverStow(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+	require.NoError(t, os.MkdirAll(dotfilesPath, 0755))
+
+	// Repo has both a Makefile and a stow package — Makefile wins (dry run).
+	require.NoError(t, os.WriteFile(filepath.Join(dotfilesPath, "Makefile"), []byte("install:\n\techo done\n"), 0644))
+	pkgDir := filepath.Join(dotfilesPath, "vim")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".vimrc"), []byte(""), 0644))
+
+	err := Link(true)
+	assert.NoError(t, err)
+}
+
 func TestHasStowPackages_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 	result := hasStowPackages(tmpDir)
