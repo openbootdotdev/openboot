@@ -225,11 +225,39 @@ func Link(dryRun bool) error {
 		return fmt.Errorf("dotfiles directory not found: %s", dotfilesPath)
 	}
 
+	if hasMakefile(dotfilesPath) {
+		return linkWithMake(dotfilesPath, dryRun)
+	}
+
 	if hasStowPackages(dotfilesPath) {
 		return linkWithStow(dotfilesPath, dryRun)
 	}
 
 	return linkDirect(dotfilesPath, dryRun)
+}
+
+func hasMakefile(dotfilesPath string) bool {
+	data, err := os.ReadFile(filepath.Join(dotfilesPath, "Makefile"))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "install:") {
+			return true
+		}
+	}
+	return false
+}
+
+func linkWithMake(dotfilesPath string, dryRun bool) error {
+	if dryRun {
+		ui.DryRunMsg("Would run make install in %s", dotfilesPath)
+		return nil
+	}
+	if err := system.RunCommandInDir(dotfilesPath, "make", "install"); err != nil {
+		return fmt.Errorf("make install: %w", err)
+	}
+	return nil
 }
 
 func hasStowPackages(dotfilesPath string) bool {

@@ -28,6 +28,16 @@ func RunCommandContext(ctx context.Context, name string, args ...string) error {
 	return cmd.Run()
 }
 
+// RunCommandInDir runs name with args in the given working directory,
+// forwarding stdout and stderr to the terminal.
+func RunCommandInDir(dir string, name string, args ...string) error {
+	cmd := exec.CommandContext(context.Background(), name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func RunCommandSilent(name string, args ...string) (string, error) {
 	return RunCommandSilentContext(context.Background(), name, args...)
 }

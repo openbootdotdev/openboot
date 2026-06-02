@@ -1,7 +1,5 @@
 # Baseline for archtest rule "dryrun".
-# Each line is <file>:<line> # reason for a known existing violation.
+# Each line is <file>:<line> of a known existing violation.
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
-
-# Audited exemptions: read-only diagnostic runners — doctor never mutates user state.
-internal/doctor/doctor.go:50 # read-only diagnostic probe; doctor does not mutate user state
-internal/doctor/doctor.go:54 # read-only diagnostic probe; doctor does not mutate user state
+internal/doctor/doctor.go:50
+internal/doctor/doctor.go:54
