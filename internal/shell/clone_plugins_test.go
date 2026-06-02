@@ -178,6 +178,21 @@ func TestCloneExternalPluginsFromZshrc_MissingZshrcIsNoOp(t *testing.T) {
 	assert.Empty(t, *calls, "a missing .zshrc must be a no-op, not an error")
 }
 
+func TestCloneExternalPluginsFromZshrc_UnreadableZshrcWarnsButSucceeds(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	calls := withFakes(t, map[string]string{
+		"zsh-autosuggestions": "https://github.com/zsh-users/zsh-autosuggestions",
+	})
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".oh-my-zsh"), 0700))
+	// A directory at the .zshrc path makes os.ReadFile fail with a non-NotExist
+	// error — best-effort plugin setup must warn and continue, not abort.
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".zshrc"), 0700))
+
+	require.NoError(t, CloneExternalPluginsFromZshrc(false), "an unreadable .zshrc must not be fatal")
+	assert.Empty(t, *calls)
+}
+
 func TestCloneExternalPluginsFromZshrc_DryRunDoesNotClone(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

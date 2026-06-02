@@ -342,8 +342,10 @@ var zshrcPluginsRe = regexp.MustCompile(`(?m)^\s*plugins=\((?s:(.*?))\)`)
 // never cloned and oh-my-zsh logs "plugin '...' not found" at startup.
 //
 // It is a no-op when oh-my-zsh isn't installed or .zshrc is absent. Built-in
-// and unknown plugins are left untouched; a failed clone is non-fatal (see
-// cloneExternalPlugins).
+// and unknown plugins are left untouched. Like cloneExternalPlugins, plugin
+// setup is best-effort: an unreadable .zshrc warns and returns nil rather than
+// aborting the dotfiles step (the dotfiles are already cloned and linked by the
+// time this runs).
 func CloneExternalPluginsFromZshrc(dryRun bool) error {
 	if !IsOhMyZshInstalled() {
 		return nil
@@ -357,7 +359,8 @@ func CloneExternalPluginsFromZshrc(dryRun bool) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("read .zshrc: %w", err)
+		ui.Warn(fmt.Sprintf("Skipping plugin clone: could not read .zshrc: %v", err))
+		return nil
 	}
 	m := zshrcPluginsRe.FindSubmatch(raw)
 	if len(m) < 2 {
