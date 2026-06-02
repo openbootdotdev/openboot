@@ -40,10 +40,10 @@ jobs:
           # For each failed job, ensure a single open tracking issue exists.
           # Issue title format: "[harness-drift] <job name>" so updates are idempotent.
           # We deliberately tag with `harness-drift` so the issues are filterable.
-          echo "$jobs_json" | python3 - <<'PY'
-          import json, os, subprocess, sys
+          JOBS_JSON="$jobs_json" python3 - <<'PY'
+          import json, os, subprocess
 
-          jobs = json.loads(sys.stdin.read())["jobs"]
+          jobs = json.loads(os.environ["JOBS_JSON"])["jobs"]
           repo = os.environ["GITHUB_REPOSITORY"]
           run_url = os.environ["RUN_URL"]
 
