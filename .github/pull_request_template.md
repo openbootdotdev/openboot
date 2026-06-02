@@ -14,6 +14,11 @@
 - [ ] Relevant tests added or updated
 - [ ] Tested locally (`./openboot install --dry-run` or similar)
 
+## Cross-repo checklist
+
+- [ ] Does this need a docs/content update in `openboot.dev`?
+- [ ] Does this change the CLI ↔ server API contract? (update `openboot-contract` first)
+
 ## Notes for reviewer
 
 <!-- Anything that needs extra context or attention? -->

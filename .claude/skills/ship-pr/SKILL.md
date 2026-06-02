@@ -51,6 +51,20 @@ is not installed, that's the user's choice; CI will still gate.
 
 ### Step 3 — Open the PR
 
+Before writing the body, check for a PR template:
+
+```bash
+cat .github/pull_request_template.md 2>/dev/null
+```
+
+If the file exists, use it as the body structure — fill in its sections
+rather than inventing a different format. Do **not** discard the template
+by passing a completely custom `--body` that ignores it. If the template
+has a cross-repo checklist item (e.g. "does this need a docs update in
+openboot.dev?"), answer it honestly.
+
+If no template exists, fall back to the default structure:
+
 ```bash
 gh pr create --title "<conventional commit subject>" --body "$(cat <<'EOF'
 ## Summary
