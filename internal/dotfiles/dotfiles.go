@@ -254,11 +254,7 @@ func linkWithMake(dotfilesPath string, dryRun bool) error {
 		ui.DryRunMsg("Would run make install in %s", dotfilesPath)
 		return nil
 	}
-	cmd := exec.Command("make", "install") //nolint:gosec // "make" is a hardcoded binary
-	cmd.Dir = dotfilesPath
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return system.RunCommandInDir(dotfilesPath, "make", "install")
 }
 
 func hasStowPackages(dotfilesPath string) bool {

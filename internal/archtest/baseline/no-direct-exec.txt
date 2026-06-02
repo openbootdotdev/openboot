@@ -9,8 +9,8 @@ internal/diff/compare.go:253
 internal/dotfiles/dotfiles.go:23
 internal/dotfiles/dotfiles.go:32
 internal/dotfiles/dotfiles.go:66
-internal/dotfiles/dotfiles.go:290
-internal/dotfiles/dotfiles.go:388
+internal/dotfiles/dotfiles.go:315
+internal/dotfiles/dotfiles.go:413
 internal/installer/step_system.go:85
 internal/npm/npm.go:22
 internal/permissions/screen_recording_cgo.go:21
