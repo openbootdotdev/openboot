@@ -254,7 +254,10 @@ func linkWithMake(dotfilesPath string, dryRun bool) error {
 		ui.DryRunMsg("Would run make install in %s", dotfilesPath)
 		return nil
 	}
-	return system.RunCommandInDir(dotfilesPath, "make", "install")
+	if err := system.RunCommandInDir(dotfilesPath, "make", "install"); err != nil {
+		return fmt.Errorf("make install: %w", err)
+	}
+	return nil
 }
 
 func hasStowPackages(dotfilesPath string) bool {
