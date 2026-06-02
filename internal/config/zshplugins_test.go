@@ -13,6 +13,22 @@ func TestZshPluginRepoURL_KnownExternal(t *testing.T) {
 	assert.True(t, strings.HasPrefix(url, "https://"), "repo URL must be https, got %q", url)
 }
 
+func TestZshPluginRepoURL_PopularExternalPlugins(t *testing.T) {
+	// Regression: these external plugins were referenced by real user configs
+	// but missing from the catalog, so cloneExternalPlugins skipped them and
+	// oh-my-zsh logged "plugin not found" at shell startup.
+	for _, name := range []string{
+		"zsh-autosuggestions",
+		"zsh-syntax-highlighting",
+		"fast-syntax-highlighting",
+		"zsh-autocomplete",
+	} {
+		url, ok := ZshPluginRepoURL(name)
+		assert.True(t, ok, "%s should be a known external plugin", name)
+		assert.True(t, strings.HasPrefix(url, "https://"), "%s repo must be https, got %q", name, url)
+	}
+}
+
 func TestZshPluginRepoURL_BuiltinReturnsFalse(t *testing.T) {
 	for _, builtin := range []string{"git", "docker", "kubectl", "z"} {
 		url, ok := ZshPluginRepoURL(builtin)

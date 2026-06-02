@@ -13,3 +13,7 @@ plugins:
     repo: https://github.com/zsh-users/zsh-completions
   - name: zsh-history-substring-search
     repo: https://github.com/zsh-users/zsh-history-substring-search
+  - name: fast-syntax-highlighting
+    repo: https://github.com/zdharma-continuum/fast-syntax-highlighting
+  - name: zsh-autocomplete
+    repo: https://github.com/marlonrichert/zsh-autocomplete
