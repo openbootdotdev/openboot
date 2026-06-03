@@ -254,8 +254,41 @@ func linkWithMake(dotfilesPath string, dryRun bool) error {
 		ui.DryRunMsg("Would run make install in %s", dotfilesPath)
 		return nil
 	}
+
+	home, err := system.HomeDir()
+	if err != nil {
+		return fmt.Errorf("make install home: %w", err)
+	}
+
+	// Back up files that would conflict with stow-style Makefiles before
+	// running make install — the Makefile commonly delegates to stow, which
+	// aborts on pre-existing regular files.
+	var allBacked [][2]string
+	if entries, rdErr := os.ReadDir(dotfilesPath); rdErr == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+				continue
+			}
+			pkgDir := filepath.Join(dotfilesPath, entry.Name())
+			backed, backupErr := backupConflicts(pkgDir, home, false)
+			if backupErr != nil {
+				return fmt.Errorf("backup conflicts for %s: %w", entry.Name(), backupErr)
+			}
+			allBacked = append(allBacked, backed...)
+		}
+	}
+
 	if err := system.RunCommandInDir(dotfilesPath, "make", "install"); err != nil {
+		for _, pair := range allBacked {
+			restoreFile(pair[0], pair[1], false)
+		}
 		return fmt.Errorf("make install: %w", err)
+	}
+
+	for _, pair := range allBacked {
+		if rmErr := os.Remove(pair[0]); rmErr != nil {
+			ui.Warn(fmt.Sprintf("could not remove backup %s: %v", pair[0], rmErr))
+		}
 	}
 	return nil
 }

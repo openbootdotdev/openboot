@@ -153,6 +153,60 @@ func TestLinkWithMake_DryRun(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestLinkWithMake_BacksUpConflictsBeforeRunning(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+	pkgDir := filepath.Join(dotfilesPath, "git")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".gitconfig"), []byte("new"), 0644))
+
+	// Pre-existing file that would conflict with stow.
+	originalContent := "# original gitconfig\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tmpHome, ".gitconfig"), []byte(originalContent), 0644))
+
+	// Makefile just touches a sentinel file — no real stow needed.
+	require.NoError(t, os.WriteFile(filepath.Join(dotfilesPath, "Makefile"),
+		[]byte("install:\n\ttouch \"$(HOME)/.make_ran\"\n"), 0644))
+
+	err := linkWithMake(dotfilesPath, false)
+	require.NoError(t, err)
+
+	// Sentinel confirms make ran.
+	_, statErr := os.Stat(filepath.Join(tmpHome, ".make_ran"))
+	assert.NoError(t, statErr, "make install should have run")
+
+	// Backup should be cleaned up after success.
+	_, backupErr := os.Stat(filepath.Join(tmpHome, ".gitconfig.openboot.bak"))
+	assert.True(t, os.IsNotExist(backupErr), "backup should be removed after success")
+}
+
+func TestLinkWithMake_RestoresConflictsOnMakeFailure(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	dotfilesPath := filepath.Join(tmpHome, defaultDotfilesDir)
+	pkgDir := filepath.Join(dotfilesPath, "git")
+	require.NoError(t, os.MkdirAll(pkgDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(pkgDir, ".gitconfig"), []byte("new"), 0644))
+
+	originalContent := "# original gitconfig\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tmpHome, ".gitconfig"), []byte(originalContent), 0644))
+
+	// Makefile that always fails.
+	require.NoError(t, os.WriteFile(filepath.Join(dotfilesPath, "Makefile"),
+		[]byte("install:\n\texit 1\n"), 0644))
+
+	err := linkWithMake(dotfilesPath, false)
+	assert.Error(t, err)
+
+	// Original file should be restored.
+	content, readErr := os.ReadFile(filepath.Join(tmpHome, ".gitconfig"))
+	require.NoError(t, readErr)
+	assert.Equal(t, originalContent, string(content), ".gitconfig should be restored after make failure")
+}
+
 func TestLink_UsesMakefileOverStow(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
