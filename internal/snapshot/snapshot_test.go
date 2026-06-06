@@ -17,22 +17,24 @@ func TestPackageSnapshot_UnmarshalJSON(t *testing.T) {
 	}{
 		{
 			name:  "object format",
-			input: `{"formulae":["git","go"],"casks":["docker"],"taps":["homebrew/core"],"npm":["typescript"]}`,
+			input: `{"formulae":["git","go"],"casks":["docker"],"taps":["homebrew/core"],"npm":["typescript"],"bun":["@anthropic-ai/claude-code"]}`,
 			expected: PackageSnapshot{
 				Formulae: []string{"git", "go"},
 				Casks:    []string{"docker"},
 				Taps:     []string{"homebrew/core"},
 				Npm:      []string{"typescript"},
+				Bun:      []string{"@anthropic-ai/claude-code"},
 			},
 		},
 		{
 			name:  "typed object array",
-			input: `[{"name":"git","type":"formula"},{"name":"docker","type":"cask"},{"name":"homebrew/core","type":"tap"},{"name":"typescript","type":"npm"}]`,
+			input: `[{"name":"git","type":"formula"},{"name":"docker","type":"cask"},{"name":"homebrew/core","type":"tap"},{"name":"typescript","type":"npm"},{"name":"prettier","type":"bun"}]`,
 			expected: PackageSnapshot{
 				Formulae:     []string{"git"},
 				Casks:        []string{"docker"},
 				Taps:         []string{"homebrew/core"},
 				Npm:          []string{"typescript"},
+				Bun:          []string{"prettier"},
 				Descriptions: map[string]string{},
 			},
 		},
@@ -139,6 +141,7 @@ func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
 				Casks:    []string{"docker"},
 				Taps:     []string{"homebrew/core"},
 				Npm:      []string{"typescript"},
+				Bun:      []string{"prettier"},
 			},
 		},
 		{
@@ -161,6 +164,7 @@ func TestPackageSnapshot_MarshalJSON_RoundTrip(t *testing.T) {
 			assert.Equal(t, tt.original.Casks, restored.Casks)
 			assert.Equal(t, tt.original.Taps, restored.Taps)
 			assert.Equal(t, tt.original.Npm, restored.Npm)
+			assert.Equal(t, tt.original.Bun, restored.Bun)
 		})
 	}
 }

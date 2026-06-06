@@ -145,6 +145,64 @@ func TestParseVersion(t *testing.T) {
 	}
 }
 
+// TestParseBunList covers the `bun pm ls -g` parser. The input mimics real
+// bun output: header line with the global path, then tree-drawn entries.
+func TestParseBunList(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "empty output",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name: "single entry",
+			input: "/Users/x/.bun/install/global node_modules (1)\n" +
+				"└── prettier@3.2.5\n",
+			expected: []string{"prettier"},
+		},
+		{
+			name: "scoped and unscoped entries",
+			input: "/Users/x/.bun/install/global node_modules (3)\n" +
+				"├── @anthropic-ai/claude-code@1.0.5\n" +
+				"├── prettier@3.2.5\n" +
+				"└── typescript@5.4.3\n",
+			expected: []string{"@anthropic-ai/claude-code", "prettier", "typescript"},
+		},
+		{
+			name: "bun itself is excluded",
+			input: "/Users/x/.bun/install/global node_modules (2)\n" +
+				"├── bun@1.1.0\n" +
+				"└── prettier@3.2.5\n",
+			expected: []string{"prettier"},
+		},
+		{
+			name: "duplicates collapsed",
+			input: "/Users/x/.bun/install/global node_modules (2)\n" +
+				"├── prettier@3.2.5\n" +
+				"└── prettier@3.2.5\n",
+			expected: []string{"prettier"},
+		},
+		{
+			name: "lines without a version are skipped",
+			input: "/Users/x/.bun/install/global node_modules\n" +
+				"├── not-a-package-line\n" +
+				"└── prettier@3.2.5\n",
+			expected: []string{"prettier"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseBunList(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 // TestSanitizePath tests the sanitizePath function.
 func TestSanitizePath(t *testing.T) {
 	tests := []struct {
