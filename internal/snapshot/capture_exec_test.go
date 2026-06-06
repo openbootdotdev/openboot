@@ -93,6 +93,14 @@ func TestCaptureNpm_NoPanic(t *testing.T) {
 	assert.NotNil(t, packages)
 }
 
+// TestCaptureBun_NoPanic ensures CaptureBun does not panic. Mirrors CaptureNpm:
+// returns ([]string{}, nil) when bun is absent, installed globals otherwise.
+func TestCaptureBun_NoPanic(t *testing.T) {
+	packages, err := CaptureBun()
+	require.NoError(t, err)
+	assert.NotNil(t, packages)
+}
+
 // ---------------------------------------------------------------------------
 // CaptureMacOSPrefs
 // ---------------------------------------------------------------------------

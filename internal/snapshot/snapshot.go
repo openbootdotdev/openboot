@@ -35,11 +35,12 @@ type PackageSnapshot struct {
 	Casks        []string          `json:"casks"`
 	Taps         []string          `json:"taps"`
 	Npm          []string          `json:"npm"`
+	Bun          []string          `json:"bun,omitempty"`
 	Descriptions map[string]string `json:"-"` // populated during unmarshal, not serialised
 }
 
 // UnmarshalJSON accepts three formats:
-//   - Structured object: {"formulae":[],"casks":[],"taps":[],"npm":[]}
+//   - Structured object: {"formulae":[],"casks":[],"taps":[],"npm":[],"bun":[]}
 //   - Typed object array: [{"name":"git","type":"formula"},{"name":"docker","type":"cask"}]
 //   - Flat string array:  ["git","curl"] (all treated as formulae)
 func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error { //nolint:gocyclo // parses multiple legacy JSON shapes; each branch is a distinct schema variant
@@ -66,9 +67,13 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error { //nolint:gocyclo /
 			Name string `json:"name"`
 			Desc string `json:"desc"`
 		} `json:"npm"`
+		Bun []struct {
+			Name string `json:"name"`
+			Desc string `json:"desc"`
+		} `json:"bun"`
 	}
 	if err := json.Unmarshal(data, &richObj); err == nil &&
-		(len(richObj.Formulae) > 0 || len(richObj.Casks) > 0 || len(richObj.Npm) > 0) {
+		(len(richObj.Formulae) > 0 || len(richObj.Casks) > 0 || len(richObj.Npm) > 0 || len(richObj.Bun) > 0) {
 		ps.Descriptions = make(map[string]string)
 		for _, p := range richObj.Formulae {
 			ps.Formulae = append(ps.Formulae, p.Name)
@@ -89,10 +94,16 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error { //nolint:gocyclo /
 				ps.Descriptions[p.Name] = p.Desc
 			}
 		}
+		for _, p := range richObj.Bun {
+			ps.Bun = append(ps.Bun, p.Name)
+			if p.Desc != "" {
+				ps.Descriptions[p.Name] = p.Desc
+			}
+		}
 		return nil
 	}
 
-	// Try typed object array: [{"name":"x","type":"formula|cask|tap|npm","desc":"..."}]
+	// Try typed object array: [{"name":"x","type":"formula|cask|tap|npm|bun","desc":"..."}]
 	var typed []struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
@@ -108,6 +119,8 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error { //nolint:gocyclo /
 				ps.Taps = append(ps.Taps, p.Name)
 			case "npm":
 				ps.Npm = append(ps.Npm, p.Name)
+			case "bun":
+				ps.Bun = append(ps.Bun, p.Name)
 			default:
 				ps.Formulae = append(ps.Formulae, p.Name)
 			}
@@ -125,7 +138,7 @@ func (ps *PackageSnapshot) UnmarshalJSON(data []byte) error { //nolint:gocyclo /
 		return nil
 	}
 
-	return fmt.Errorf("packages must be an object {formulae,casks,taps,npm} or an array")
+	return fmt.Errorf("packages must be an object {formulae,casks,taps,npm,bun} or an array")
 }
 
 // MarshalJSON always outputs the canonical format: plain string arrays.

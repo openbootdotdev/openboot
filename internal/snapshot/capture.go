@@ -36,6 +36,7 @@ type CaptureResults struct {
 	Casks    []string
 	Taps     []string
 	Npm      []string
+	Bun      []string
 	Prefs    []MacOSPref
 	Git      *GitSnapshot
 	Dotfiles *DotfilesSnapshot
@@ -70,6 +71,11 @@ var captureSteps = []captureStep{
 		r.Npm = v
 		return err
 	}, func(r *CaptureResults) int { return len(r.Npm) }},
+	{"Bun Global Packages", func(r *CaptureResults) error {
+		v, err := CaptureBun()
+		r.Bun = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.Bun) }},
 	{"macOS Preferences", func(r *CaptureResults) error {
 		v, err := CaptureMacOSPrefs()
 		r.Prefs = v
@@ -120,6 +126,9 @@ func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) 
 	if r.Npm == nil {
 		r.Npm = []string{}
 	}
+	if r.Bun == nil {
+		r.Bun = []string{}
+	}
 	if r.Prefs == nil {
 		r.Prefs = []MacOSPref{}
 	}
@@ -145,6 +154,7 @@ func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) 
 			Casks:    r.Casks,
 			Taps:     r.Taps,
 			Npm:      r.Npm,
+			Bun:      r.Bun,
 		},
 		MacOSPrefs:    r.Prefs,
 		Shell:         *r.Shell,
@@ -190,6 +200,50 @@ func CaptureWithProgress(callback func(step ScanStep)) (*Snapshot, error) {
 	}
 
 	return assembleSnapshot(results, failedSteps, hostname), nil
+}
+
+// bunListEntryRe matches a single `bun pm ls -g` entry line, after tree-drawing
+// characters are stripped. Format: `<name>@<version>` where version starts with
+// a digit or `v`. Naming this way (rather than a more permissive pattern) keeps
+// the path header line out of the result.
+var bunListEntryRe = regexp.MustCompile(`^([@a-zA-Z0-9._/-]+)@[0-9vV]`)
+
+func parseBunList(output string) []string {
+	packages := []string{}
+	seen := map[string]bool{}
+	for _, line := range strings.Split(output, "\n") {
+		// Strip tree-drawing characters (├ └ │ ─) and surrounding whitespace.
+		line = strings.TrimSpace(line)
+		line = strings.TrimLeft(line, "├└│─ \t")
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		m := bunListEntryRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		name := m[1]
+		if name == "" || name == "bun" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		packages = append(packages, name)
+	}
+	return packages
+}
+
+func CaptureBun() ([]string, error) {
+	if _, err := exec.LookPath("bun"); err != nil {
+		return []string{}, nil
+	}
+
+	output, err := system.RunCommandOutput("bun", "pm", "ls", "-g")
+	if err != nil {
+		return []string{}, nil
+	}
+
+	return parseBunList(output), nil
 }
 
 func CaptureNpm() ([]string, error) {
