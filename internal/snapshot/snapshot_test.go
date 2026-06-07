@@ -3,6 +3,7 @@ package snapshot
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -217,6 +218,34 @@ func TestMacOSPref_JSON_LegacyDecodeNoUnsetField(t *testing.T) {
 	var pref MacOSPref
 	require.NoError(t, json.Unmarshal([]byte(legacy), &pref))
 	assert.False(t, pref.Unset)
+}
+
+func TestSnapshot_RoundTripDockAppsAndLoginItems(t *testing.T) {
+	in := &Snapshot{
+		Version:    1,
+		CapturedAt: time.Date(2026, 6, 7, 12, 0, 0, 0, time.UTC),
+		Hostname:   "mac",
+		DockApps:   []string{"/Applications/Chrome.app", "/Applications/Zed.app"},
+		LoginItems: []LoginItem{
+			{Name: "Maccy", Path: "/Applications/Maccy.app", Hidden: false},
+			{Name: "BetterDisplay", Path: "/Applications/BetterDisplay.app", Hidden: true},
+		},
+	}
+	b, err := json.Marshal(in)
+	require.NoError(t, err)
+
+	var out Snapshot
+	require.NoError(t, json.Unmarshal(b, &out))
+	assert.Equal(t, in.DockApps, out.DockApps)
+	assert.Equal(t, in.LoginItems, out.LoginItems)
+}
+
+func TestSnapshot_OmitemptyDropsEmptyArrays(t *testing.T) {
+	in := &Snapshot{Version: 1}
+	b, err := json.Marshal(in)
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "dock_apps")
+	assert.NotContains(t, string(b), "login_items")
 }
 
 func TestCaptureHealth(t *testing.T) {
