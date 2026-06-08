@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,19 +13,43 @@ import (
 )
 
 func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
-	if len(plan.MacOSPrefs) == 0 {
+	hasPrefs := len(plan.MacOSPrefs) > 0
+	hasDock := plan.DockApps != nil
+	hasLogin := plan.LoginItems != nil
+	if !hasPrefs && !hasDock && !hasLogin {
 		return nil
 	}
 
 	r.Header("Step 7: macOS Preferences")
 	ui.Println()
 
+	var errs []error
+
+	if hasPrefs {
+		if err := applyMacOSDefaultsSubtask(plan, r); err != nil {
+			errs = append(errs, fmt.Errorf("defaults: %w", err))
+		}
+	}
+	if hasDock {
+		if err := applyDockSubtask(plan, r); err != nil {
+			errs = append(errs, fmt.Errorf("dock: %w", err))
+		}
+	}
+	if hasLogin {
+		if err := applyLoginItemsSubtask(plan, r); err != nil {
+			errs = append(errs, fmt.Errorf("login items: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func applyMacOSDefaultsSubtask(plan InstallPlan, r Reporter) error {
 	if plan.DryRun {
 		ui.DryRunMsg("Would apply %d macOS preferences", len(plan.MacOSPrefs))
 		ui.Println()
 		return nil
 	}
-
 	if err := macos.CreateScreenshotsDir(false); err != nil {
 		r.Error(fmt.Sprintf("Failed to create Screenshots dir: %v", err))
 	}
@@ -34,6 +59,28 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 	r.Success(fmt.Sprintf("macOS preferences configured (%d settings)", len(plan.MacOSPrefs)))
 	if err := macos.RestartAffectedApps(false); err != nil {
 		r.Warn(fmt.Sprintf("Could not restart affected apps: %v", err))
+	}
+	ui.Println()
+	return nil
+}
+
+func applyDockSubtask(plan InstallPlan, r Reporter) error {
+	if err := macos.SetDockApps(plan.DockApps, plan.DryRun); err != nil {
+		return err
+	}
+	if !plan.DryRun {
+		r.Success(fmt.Sprintf("Dock configured (%d apps pinned)", len(plan.DockApps)))
+	}
+	ui.Println()
+	return nil
+}
+
+func applyLoginItemsSubtask(plan InstallPlan, r Reporter) error {
+	if err := macos.SetLoginItems(plan.LoginItems, plan.DryRun); err != nil {
+		return err
+	}
+	if !plan.DryRun {
+		r.Success(fmt.Sprintf("Login items configured (%d items)", len(plan.LoginItems)))
 	}
 	ui.Println()
 	return nil

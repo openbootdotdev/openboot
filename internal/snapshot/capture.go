@@ -32,16 +32,18 @@ type ScanStep struct {
 // populated one at a time by CaptureWithProgress and then read by
 // assembleSnapshot — no type assertions needed.
 type CaptureResults struct {
-	Formulae []string
-	Casks    []string
-	Taps     []string
-	Npm      []string
-	Bun      []string
-	Prefs    []MacOSPref
-	Git      *GitSnapshot
-	Dotfiles *DotfilesSnapshot
-	DevTools []DevTool
-	Shell    *ShellSnapshot
+	Formulae   []string
+	Casks      []string
+	Taps       []string
+	Npm        []string
+	Bun        []string
+	Prefs      []MacOSPref
+	DockApps   []string
+	LoginItems []LoginItem
+	Git        *GitSnapshot
+	Dotfiles   *DotfilesSnapshot
+	DevTools   []DevTool
+	Shell      *ShellSnapshot
 }
 
 type captureStep struct {
@@ -81,6 +83,16 @@ var captureSteps = []captureStep{
 		r.Prefs = v
 		return err
 	}, func(r *CaptureResults) int { return len(r.Prefs) }},
+	{"Dock Apps", func(r *CaptureResults) error {
+		v, err := CaptureDockApps()
+		r.DockApps = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.DockApps) }},
+	{"Login Items", func(r *CaptureResults) error {
+		v, err := CaptureLoginItems()
+		r.LoginItems = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.LoginItems) }},
 	{"Git Configuration", func(r *CaptureResults) error {
 		v, err := CaptureGit()
 		r.Git = v
@@ -132,6 +144,12 @@ func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) 
 	if r.Prefs == nil {
 		r.Prefs = []MacOSPref{}
 	}
+	if r.DockApps == nil {
+		r.DockApps = []string{}
+	}
+	if r.LoginItems == nil {
+		r.LoginItems = []LoginItem{}
+	}
 	if r.Git == nil {
 		r.Git = &GitSnapshot{}
 	}
@@ -157,6 +175,8 @@ func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) 
 			Bun:      r.Bun,
 		},
 		MacOSPrefs:    r.Prefs,
+		DockApps:      r.DockApps,
+		LoginItems:    r.LoginItems,
 		Shell:         *r.Shell,
 		Git:           *r.Git,
 		Dotfiles:      *r.Dotfiles,

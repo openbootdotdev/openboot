@@ -212,3 +212,36 @@ func TestRemoteMacOSPref_Fields(t *testing.T) {
 	assert.Equal(t, "true", p.Value)
 	assert.Equal(t, "Auto-hide Dock", p.Desc)
 }
+
+// ---- RemoteConfig DockApps and LoginItems ----
+
+func TestRemoteConfig_DecodeDockAndLoginItems(t *testing.T) {
+	raw := []byte(`{
+	  "username":"alice","slug":"dev","name":"Dev","preset":"developer",
+	  "packages":[],"casks":[],"taps":[],"npm":[],
+	  "dotfiles_repo":"","post_install":[],
+	  "macos_prefs":[],
+	  "dock_apps":["/Applications/Zed.app","/Applications/Chrome.app"],
+	  "login_items":[
+	    {"name":"Maccy","path":"/Applications/Maccy.app"},
+	    {"name":"BetterDisplay","path":"/Applications/BetterDisplay.app","hidden":true}
+	  ]
+	}`)
+	var rc RemoteConfig
+	require.NoError(t, json.Unmarshal(raw, &rc))
+	assert.Equal(t, []string{"/Applications/Zed.app", "/Applications/Chrome.app"}, rc.DockApps)
+	require.Len(t, rc.LoginItems, 2)
+	assert.Equal(t, "Maccy", rc.LoginItems[0].Name)
+	assert.False(t, rc.LoginItems[0].Hidden)
+	assert.True(t, rc.LoginItems[1].Hidden)
+}
+
+func TestRemoteConfig_OldConfigOmittingNewFieldsStillDecodes(t *testing.T) {
+	raw := []byte(`{"username":"a","slug":"b","name":"c","preset":"developer",
+	  "packages":[],"casks":[],"taps":[],"npm":[],"dotfiles_repo":"",
+	  "post_install":[],"macos_prefs":[]}`)
+	var rc RemoteConfig
+	require.NoError(t, json.Unmarshal(raw, &rc))
+	assert.Nil(t, rc.DockApps)
+	assert.Nil(t, rc.LoginItems)
+}

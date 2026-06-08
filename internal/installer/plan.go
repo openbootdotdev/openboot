@@ -42,6 +42,8 @@ type InstallPlan struct {
 
 	// macOS
 	MacOSPrefs []macos.Preference
+	DockApps   []string
+	LoginItems []macos.LoginItem
 
 	// Post-install
 	PostInstall []string
@@ -108,6 +110,16 @@ func planFromRemoteConfig(opts *config.InstallOptions, st *config.InstallState, 
 		}
 		plan.MacOSPrefs = append(plan.MacOSPrefs, macos.Preference{
 			Domain: p.Domain, Key: p.Key, Type: prefType, Value: p.Value, Desc: p.Desc, Host: p.Host,
+		})
+	}
+
+	plan.DockApps = rc.DockApps
+
+	for _, li := range rc.LoginItems {
+		plan.LoginItems = append(plan.LoginItems, macos.LoginItem{
+			Name:   li.Name,
+			Path:   li.Path,
+			Hidden: li.Hidden,
 		})
 	}
 

@@ -23,7 +23,19 @@ type Snapshot struct {
 	DevTools      []DevTool        `json:"dev_tools"`
 	MatchedPreset string           `json:"matched_preset"`
 	CatalogMatch  CatalogMatch     `json:"catalog_match"`
+	DockApps      []string         `json:"dock_apps,omitempty"`
+	LoginItems    []LoginItem      `json:"login_items,omitempty"`
 	Health        CaptureHealth    `json:"health"`
+}
+
+// LoginItem represents one entry under System Events → Login Items.
+// Name is the System Events identifier (used for delete + recreate);
+// it is preserved verbatim from capture rather than derived from Path,
+// because users may rename items.
+type LoginItem struct {
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	Hidden bool   `json:"hidden,omitempty"`
 }
 
 type DotfilesSnapshot struct {

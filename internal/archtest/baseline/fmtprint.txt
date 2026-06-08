@@ -1,6 +1,14 @@
 # Baseline for archtest rule "fmtprint".
 # Each line is <file>:<line> of a known existing violation.
 # Regenerate: ARCHTEST_UPDATE_BASELINE=1 go test ./internal/archtest/...
+internal/macos/dock.go:19
+internal/macos/dock.go:20
+internal/macos/dock.go:23
+internal/macos/dock.go:26
+internal/macos/dock.go:28
+internal/macos/loginitems.go:33
+internal/macos/loginitems.go:45
+internal/macos/loginitems.go:47
 internal/macos/macos.go:94
 internal/macos/macos.go:141
 internal/macos/macos.go:153

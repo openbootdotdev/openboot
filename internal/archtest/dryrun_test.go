@@ -24,9 +24,11 @@ var dryRunExemptPaths = []string{
 
 // dryRunExemptFiles lists individual files exempt from the rule.
 var dryRunExemptFiles = []string{
-	"internal/installer/state.go",  // install state tracking
-	"internal/snapshot/capture.go", // read-only system probes (brew list, npm list, git config --get, etc.)
-	"internal/sync/diff.go",        // read-only dotfiles remote probe for diff computation
+	"internal/installer/state.go",     // install state tracking
+	"internal/snapshot/capture.go",    // read-only system probes (brew list, npm list, git config --get, etc.)
+	"internal/snapshot/dock.go",       // read-only: `defaults export | plutil` for Dock pinned apps
+	"internal/snapshot/loginitems.go", // read-only: osascript reads Login Items
+	"internal/sync/diff.go",           // read-only dotfiles remote probe for diff computation
 }
 
 // destructiveOsCalls lists os package functions that modify the filesystem.
