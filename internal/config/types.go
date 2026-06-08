@@ -123,6 +123,16 @@ func (p PackageEntryList) DescMap() map[string]string {
 	return m
 }
 
+// LoginItem mirrors snapshot.LoginItem for decoding RemoteConfig from the
+// openboot.dev API. The two types are kept structurally identical and the
+// snapshot package is not imported here because doing so would cycle
+// (snapshot already imports config).
+type LoginItem struct {
+	Name   string `json:"name"`
+	Path   string `json:"path"`
+	Hidden bool   `json:"hidden,omitempty"`
+}
+
 type RemoteConfig struct {
 	Username     string             `json:"username"`
 	Slug         string             `json:"slug"`
@@ -136,6 +146,8 @@ type RemoteConfig struct {
 	PostInstall  []string           `json:"post_install"`
 	Shell        *RemoteShellConfig `json:"shell"`
 	MacOSPrefs   []RemoteMacOSPref  `json:"macos_prefs"`
+	DockApps     []string           `json:"dock_apps,omitempty"`
+	LoginItems   []LoginItem        `json:"login_items,omitempty"`
 }
 
 type RemoteShellConfig struct {
