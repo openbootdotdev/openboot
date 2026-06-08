@@ -345,3 +345,48 @@ func TestApplyDotfiles_DryRun_WithURL(t *testing.T) {
 	err := applyDotfiles(plan, NopReporter{})
 	assert.NoError(t, err)
 }
+
+func TestApplyMacOSPrefs_NilFieldsSkipSubtasks(t *testing.T) {
+	// Per spec: missing fields (nil) = skip subtasks; with all three nil/empty,
+	// the function early-returns nil without any output or error.
+	plan := InstallPlan{DryRun: true}
+	err := applyMacOSPrefs(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+func TestApplyMacOSPrefs_DryRunRunsDockSubtask(t *testing.T) {
+	plan := InstallPlan{
+		DryRun:   true,
+		DockApps: []string{"/Applications/Calculator.app"},
+	}
+	err := applyMacOSPrefs(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+func TestApplyMacOSPrefs_DryRunRunsLoginItemsSubtask(t *testing.T) {
+	plan := InstallPlan{
+		DryRun: true,
+		LoginItems: []macos.LoginItem{
+			{Name: "Calculator", Path: "/Applications/Calculator.app"},
+		},
+	}
+	err := applyMacOSPrefs(plan, NopReporter{})
+	assert.NoError(t, err)
+}
+
+func TestApplyMacOSPrefs_DryRunAllThreeSubtasks(t *testing.T) {
+	// All three subtasks together in dry-run mode — verifies orchestration
+	// runs each and aggregates without error.
+	plan := InstallPlan{
+		DryRun: true,
+		MacOSPrefs: []macos.Preference{
+			{Domain: "com.apple.dock", Key: "tilesize", Type: "int", Value: "48"},
+		},
+		DockApps: []string{"/Applications/Calculator.app"},
+		LoginItems: []macos.LoginItem{
+			{Name: "Calculator", Path: "/Applications/Calculator.app"},
+		},
+	}
+	err := applyMacOSPrefs(plan, NopReporter{})
+	assert.NoError(t, err)
+}
