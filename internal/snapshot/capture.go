@@ -32,18 +32,18 @@ type ScanStep struct {
 // populated one at a time by CaptureWithProgress and then read by
 // assembleSnapshot — no type assertions needed.
 type CaptureResults struct {
-	Formulae []string
-	Casks    []string
-	Taps     []string
-	Npm      []string
-	Bun      []string
-	Prefs    []MacOSPref
+	Formulae   []string
+	Casks      []string
+	Taps       []string
+	Npm        []string
+	Bun        []string
+	Prefs      []MacOSPref
 	DockApps   []string
 	LoginItems []LoginItem
 	Git        *GitSnapshot
-	Dotfiles *DotfilesSnapshot
-	DevTools []DevTool
-	Shell    *ShellSnapshot
+	Dotfiles   *DotfilesSnapshot
+	DevTools   []DevTool
+	Shell      *ShellSnapshot
 }
 
 type captureStep struct {
