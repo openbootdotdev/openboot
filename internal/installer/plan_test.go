@@ -507,6 +507,29 @@ func TestPlanFromSnapshot_MacOSSkipFlag(t *testing.T) {
 	assert.Nil(t, plan.MacOSPrefs, "--macos skip must prevent prefs restore")
 }
 
+func TestPlan_CarriesDockAppsAndLoginItems(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Username: "alice", Slug: "dev", Preset: "developer",
+		DockApps: []string{"/Applications/Chrome.app"},
+		LoginItems: []config.LoginItem{
+			{Name: "Maccy", Path: "/Applications/Maccy.app"},
+			{Name: "BetterDisplay", Path: "/Applications/BetterDisplay.app", Hidden: true},
+		},
+	}
+	st := &config.InstallState{RemoteConfig: rc}
+	opts := &config.InstallOptions{DryRun: true, Silent: true}
+	plan, err := Plan(opts, st)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/Applications/Chrome.app"}, plan.DockApps)
+	require.Len(t, plan.LoginItems, 2)
+	assert.Equal(t, "Maccy", plan.LoginItems[0].Name)
+	assert.Equal(t, "/Applications/Maccy.app", plan.LoginItems[0].Path)
+	assert.False(t, plan.LoginItems[0].Hidden)
+	assert.Equal(t, "BetterDisplay", plan.LoginItems[1].Name)
+	assert.Equal(t, "/Applications/BetterDisplay.app", plan.LoginItems[1].Path)
+	assert.True(t, plan.LoginItems[1].Hidden)
+}
+
 func TestPlanFromSnapshot_PackageCategorizationFromSelectedPkgs(t *testing.T) {
 	cfg := &config.Config{
 		InstallOptions: config.InstallOptions{
