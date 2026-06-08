@@ -6,6 +6,9 @@ internal/macos/dock.go:20
 internal/macos/dock.go:23
 internal/macos/dock.go:26
 internal/macos/dock.go:28
+internal/macos/loginitems.go:33
+internal/macos/loginitems.go:45
+internal/macos/loginitems.go:47
 internal/macos/macos.go:94
 internal/macos/macos.go:141
 internal/macos/macos.go:153
