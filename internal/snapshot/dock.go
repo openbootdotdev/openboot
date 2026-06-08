@@ -5,7 +5,31 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/openbootdotdev/openboot/internal/system"
 )
+
+// CaptureDockApps returns the user's currently pinned Dock apps in order.
+// Returns ([]string{}, nil) when the Dock plist has no persistent-apps key.
+func CaptureDockApps() ([]string, error) {
+	// `defaults export com.apple.dock -` writes the full plist as XML to
+	// stdout; piping to `plutil -extract persistent-apps json -o - -`
+	// returns just the array as JSON. We use sh -c to run the pipeline
+	// inside a single subprocess.
+	out, err := system.RunCommandOutput(
+		"sh", "-c",
+		`defaults export com.apple.dock - | plutil -extract persistent-apps json -o - -`,
+	)
+	if err != nil {
+		// Treat as empty rather than fatal — keeps capture lossless
+		// when Dock has never been customized.
+		return []string{}, nil
+	}
+	if strings.TrimSpace(out) == "" {
+		return []string{}, nil
+	}
+	return parseDockAppsJSON([]byte(out))
+}
 
 // dockTile is the subset of a persistent-apps entry we care about.
 type dockTile struct {

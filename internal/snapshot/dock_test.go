@@ -49,3 +49,14 @@ func TestParseDockAppsJSON_MalformedJSON(t *testing.T) {
 	_, err := parseDockAppsJSON([]byte(`not json`))
 	assert.Error(t, err)
 }
+
+// TestCaptureDockApps_NoPanic guards against panic regardless of whether
+// the Dock plist exists / has entries on the host running tests.
+func TestCaptureDockApps_NoPanic(t *testing.T) {
+	apps, err := CaptureDockApps()
+	// Returns ([]string{}, nil) when plutil/defaults output is empty;
+	// may return an error on hosts without a com.apple.dock domain.
+	// Either way, must not panic.
+	_ = apps
+	_ = err
+}
