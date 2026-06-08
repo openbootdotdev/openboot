@@ -38,8 +38,9 @@ type CaptureResults struct {
 	Npm      []string
 	Bun      []string
 	Prefs    []MacOSPref
-	DockApps []string
-	Git      *GitSnapshot
+	DockApps   []string
+	LoginItems []LoginItem
+	Git        *GitSnapshot
 	Dotfiles *DotfilesSnapshot
 	DevTools []DevTool
 	Shell    *ShellSnapshot
@@ -87,6 +88,11 @@ var captureSteps = []captureStep{
 		r.DockApps = v
 		return err
 	}, func(r *CaptureResults) int { return len(r.DockApps) }},
+	{"Login Items", func(r *CaptureResults) error {
+		v, err := CaptureLoginItems()
+		r.LoginItems = v
+		return err
+	}, func(r *CaptureResults) int { return len(r.LoginItems) }},
 	{"Git Configuration", func(r *CaptureResults) error {
 		v, err := CaptureGit()
 		r.Git = v
@@ -141,6 +147,9 @@ func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) 
 	if r.DockApps == nil {
 		r.DockApps = []string{}
 	}
+	if r.LoginItems == nil {
+		r.LoginItems = []LoginItem{}
+	}
 	if r.Git == nil {
 		r.Git = &GitSnapshot{}
 	}
@@ -167,6 +176,7 @@ func assembleSnapshot(r *CaptureResults, failedSteps []string, hostname string) 
 		},
 		MacOSPrefs:    r.Prefs,
 		DockApps:      r.DockApps,
+		LoginItems:    r.LoginItems,
 		Shell:         *r.Shell,
 		Git:           *r.Git,
 		Dotfiles:      *r.Dotfiles,

@@ -52,3 +52,12 @@ func TestParseLoginItemsOutput_MalformedRowSkipped(t *testing.T) {
 		{Name: "Other", Path: "/Applications/Other.app", Hidden: true},
 	}, got)
 }
+
+func TestCaptureLoginItems_NoPanic(t *testing.T) {
+	items, err := CaptureLoginItems()
+	// CaptureLoginItems swallows osascript errors (returns ([]LoginItem{}, nil)
+	// in all failure paths) — on CI hosts System Events may deny access.
+	// We assert only that the call doesn't panic.
+	_ = items
+	_ = err
+}
