@@ -20,6 +20,17 @@ jobs:
       - name: Build binary
         run: make build
 
+      # GitHub's macos-14 image ships with third-party taps (aws/tap,
+      # azure/bicep, hashicorp/tap) pre-installed. Recent Homebrew refuses
+      # to load formulae/casks from untrusted taps, which breaks `brew`
+      # operations the L4 suite drives. Trust everything already tapped so
+      # the runner behaves like a normal dev machine.
+      - name: Trust pre-existing Homebrew taps
+        run: |
+          brew tap | while read -r t; do
+            [ -n "$t" ] && brew trust "$t" 2>/dev/null || true
+          done
+
       - name: Run L4 vm tests
         run: |
           go test -v -timeout 55m -tags="e2e,vm" \

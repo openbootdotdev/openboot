@@ -36,8 +36,8 @@ func TestVM_Edge_ShellActuallyWorks(t *testing.T) {
 	bin := vmCopyDevBinary(t, vm)
 
 	// Install with shell setup
-	_, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset minimal --silent --shell install --dotfiles skip --macos skip")
-	require.NoError(t, err)
+	out, err := vmRunDevBinaryWithGit(t, vm, bin, "install --preset minimal --silent --shell install --dotfiles skip --macos skip")
+	require.NoError(t, err, "install failed, output:\n%s", out)
 
 	t.Run("zsh_login_shell_starts", func(t *testing.T) {
 		// Run a command through a login zsh — this sources .zshrc
