@@ -20,15 +20,21 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-// knownOMZInstallHash is the SHA256 of the Oh-My-Zsh install script pinned on
-// 2026-04-19 (ohmyzsh/ohmyzsh master, commit circa that date). Update this
-// constant whenever the installer script changes upstream.
-const knownOMZInstallHash = "21043aec5b791ce4835479dc33ba2f92155946aeafd54604a8c83522627cc803"
+// knownOMZInstallHash is the SHA256 of the Oh-My-Zsh install script that
+// omzInstallURL points at. Both are pinned to ohmyzsh/ohmyzsh commit
+// 96ea17080a7addd1cd8b6253422776bc237fc6b1 (2026-06-15). Pinning to an
+// immutable commit (rather than a moving branch like master) keeps the URL
+// and this hash consistent — otherwise any upstream edit to the script
+// invalidates the hash and breaks `openboot install --shell install`.
+// To bump: pick a newer commit, update the URL below, and set this to the
+// SHA256 of that commit's tools/install.sh.
+const knownOMZInstallHash = "4534045f4d983abd9716cd2f515bbe3c2b31ba5b8fd1fef147838778427477bb"
 
 const omzInstallTimeout = 10 * time.Minute
 
-// omzInstallURL is a var so tests can redirect it without a real server.
-var omzInstallURL = "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh"
+// omzInstallURL is pinned to an immutable commit (see knownOMZInstallHash).
+// It is a var so tests can redirect it without a real server.
+var omzInstallURL = "https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/96ea17080a7addd1cd8b6253422776bc237fc6b1/tools/install.sh"
 
 // omzHTTPClient is a var so tests can inject a mock transport.
 var omzHTTPClient = &http.Client{Timeout: 30 * time.Second}
