@@ -25,6 +25,8 @@ func vmInstallViaBrew(t *testing.T, vm *testutil.MacHost) string {
 	script := strings.Join([]string{
 		fmt.Sprintf("export PATH=%q", brewPath),
 		"brew tap openbootdotdev/tap 2>/dev/null || true",
+		// Recent Homebrew refuses to install from untrusted third-party taps.
+		"brew trust openbootdotdev/tap 2>/dev/null || true",
 		"brew install openboot",
 	}, " && ")
 
