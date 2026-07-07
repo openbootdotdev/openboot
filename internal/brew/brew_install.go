@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	progresspkg "github.com/openbootdotdev/openboot/internal/progress"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
@@ -142,14 +143,19 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 		return installedFormulae, installedCasks, preErr
 	}
 
-	progress := ui.NewStickyProgress(len(newCli) + len(newCask))
-	progress.SetSkipped(skipped)
-	progress.Start()
+	// bar stays nil when a streaming sink is registered — the sink owns the
+	// terminal, so we emit events instead of drawing a sticky progress bar.
+	var bar *ui.StickyProgress
+	if !streaming() {
+		bar = ui.NewStickyProgress(len(newCli) + len(newCask))
+		bar.SetSkipped(skipped)
+		bar.Start()
+	}
 
 	var allFailed []failedJob
 
 	if len(newCli) > 0 {
-		failed := runSerialInstallWithProgress(ctx, newCli, progress)
+		failed := runSerialInstallWithProgress(ctx, newCli, bar)
 		failedSet := make(map[string]bool, len(failed))
 		for _, f := range failed {
 			failedSet[f.name] = true
@@ -163,12 +169,14 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 	}
 
 	if len(newCask) > 0 {
-		caskInstalled, caskFailed := installCasksWithProgress(ctx, newCask, progress)
+		caskInstalled, caskFailed := installCasksWithProgress(ctx, newCask, bar)
 		installedCasks = append(installedCasks, caskInstalled...)
 		allFailed = append(allFailed, caskFailed...)
 	}
 
-	progress.Finish()
+	if bar != nil {
+		bar.Finish()
+	}
 
 	allFailed = retryFailedJobs(ctx, allFailed, &installedFormulae, &installedCasks, aliasMap)
 
@@ -186,22 +194,21 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 }
 
 // installCasksWithProgress installs cask packages one by one with brew output
-// suppressed. Returns successful installs and failed jobs.
-func installCasksWithProgress(ctx context.Context, pkgs []string, progress *ui.StickyProgress) (installed []string, failed []failedJob) {
+// suppressed. Returns successful installs and failed jobs. bar is nil when a
+// streaming progress sink is registered.
+func installCasksWithProgress(ctx context.Context, pkgs []string, bar *ui.StickyProgress) (installed []string, failed []failedJob) {
 	for _, pkg := range pkgs {
-		progress.SetCurrent(pkg)
+		stepStart(bar, progresspkg.PhaseApplications, pkg, "brew install --cask "+pkg)
 
 		start := time.Now()
 		errMsg := installCaskWithProgress(ctx, pkg)
 		elapsed := time.Since(start)
 
-		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
+		stepDone(bar, progresspkg.PhaseApplications, pkg, errMsg == "", errMsg, duration)
 		if errMsg == "" {
-			progress.PrintLine("  %s %s", ui.Green("✔ "+pkg), ui.Cyan("("+duration+")"))
 			installed = append(installed, pkg)
 		} else {
-			progress.PrintLine("  %s %s", ui.Red("✗ "+pkg+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
 			failed = append(failed, failedJob{
 				installJob: installJob{name: pkg, isCask: true},
 				errMsg:     errMsg,
@@ -278,7 +285,9 @@ func handleFailedJobs(failed []failedJob) {
 	}
 }
 
-func runSerialInstallWithProgress(ctx context.Context, pkgs []string, progress *ui.StickyProgress) []failedJob {
+// runSerialInstallWithProgress installs formulae one by one. bar is nil when a
+// streaming progress sink is registered.
+func runSerialInstallWithProgress(ctx context.Context, pkgs []string, bar *ui.StickyProgress) []failedJob {
 	if len(pkgs) == 0 {
 		return nil
 	}
@@ -286,20 +295,18 @@ func runSerialInstallWithProgress(ctx context.Context, pkgs []string, progress *
 	failed := make([]failedJob, 0)
 	for _, pkg := range pkgs {
 		job := installJob{name: pkg, isCask: false}
-		progress.SetCurrent(job.name)
+		stepStart(bar, progresspkg.PhaseHomebrew, job.name, "brew install "+job.name)
 
 		start := time.Now()
 		errMsg := installFormulaWithError(ctx, job.name)
 		elapsed := time.Since(start)
 
-		progress.IncrementWithStatus(errMsg == "")
 		duration := ui.FormatDuration(elapsed)
+		stepDone(bar, progresspkg.PhaseHomebrew, job.name, errMsg == "", errMsg, duration)
 		if errMsg == "" {
-			progress.PrintLine("  %s %s", ui.Green("✔ "+job.name), ui.Cyan("("+duration+")"))
 			continue
 		}
 
-		progress.PrintLine("  %s %s", ui.Red("✗ "+job.name+" ("+errMsg+")"), ui.Cyan("("+duration+")"))
 		failed = append(failed, failedJob{
 			installJob: job,
 			errMsg:     errMsg,

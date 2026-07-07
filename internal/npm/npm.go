@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openbootdotdev/openboot/internal/progress"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
@@ -178,17 +179,29 @@ func warnIfNodeVersionTooLow(packages []string) {
 // fails it falls back to sequential per-package installs. Returns the list of
 // package names that could not be installed and any fatal error.
 func installBatchContext(ctx context.Context, toInstall []string) (failed []string, err error) {
+	if streaming() {
+		progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Status: progress.StepStart, Command: "npm install -g " + strings.Join(toInstall, " ")})
+	}
+
 	args := append([]string{"install", "-g"}, toInstall...)
 	batchOutput, batchErr := runnerCombinedOutputContext(ctx, args...)
 
 	if batchErr == nil {
-		ui.Success(fmt.Sprintf("  ✔ %d npm packages installed", len(toInstall)))
+		if streaming() {
+			for _, p := range toInstall {
+				progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Name: p, Status: progress.StepOK})
+			}
+		} else {
+			ui.Success(fmt.Sprintf("  ✔ %d npm packages installed", len(toInstall)))
+		}
 		return nil, nil
 	}
 
 	batchError := parseNpmError(string(batchOutput))
-	ui.Warn(fmt.Sprintf("Batch install failed (%s), falling back to sequential...", batchError))
-	ui.Println()
+	if !streaming() {
+		ui.Warn(fmt.Sprintf("Batch install failed (%s), falling back to sequential...", batchError))
+		ui.Println()
+	}
 
 	return installSequentialContext(ctx, toInstall)
 }
@@ -213,22 +226,25 @@ func installSequentialContext(ctx context.Context, toInstall []string) (failed [
 		return nil, nil
 	}
 
-	progress := ui.NewStickyProgress(len(remaining))
-	progress.Start()
-
-	for _, pkg := range remaining {
-		progress.SetCurrent(pkg)
-		errMsg := installNpmPackageWithRetryContext(ctx, pkg)
-		if errMsg != "" {
-			progress.PrintLine("  ✗ %s (%s)", pkg, errMsg)
-			failed = append(failed, pkg)
-		} else {
-			progress.PrintLine("  ✔ %s", pkg)
-		}
-		progress.Increment()
+	// bar stays nil when a streaming sink is registered.
+	var bar *ui.StickyProgress
+	if !streaming() {
+		bar = ui.NewStickyProgress(len(remaining))
+		bar.Start()
 	}
 
-	progress.Finish()
+	for _, pkg := range remaining {
+		npmStepStart(bar, pkg)
+		errMsg := installNpmPackageWithRetryContext(ctx, pkg)
+		npmStepDone(bar, pkg, errMsg == "", errMsg)
+		if errMsg != "" {
+			failed = append(failed, pkg)
+		}
+	}
+
+	if bar != nil {
+		bar.Finish()
+	}
 	return failed, nil
 }
 
