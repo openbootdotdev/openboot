@@ -1,8 +1,10 @@
 package wizard
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -218,6 +220,45 @@ func TestViewDimensions(t *testing.T) {
 func TestViewEmptyBeforeSize(t *testing.T) {
 	m := New("1.4.0", &config.InstallOptions{})
 	assert.Empty(t, m.View(), "renders nothing until sized")
+}
+
+// TestInstallGoroutineStreamsToDone exercises the real wiring end-to-end
+// against a dry-run plan: spawnInstall's goroutine sets the brew/npm sinks,
+// runs installer.ApplyContext with the channel Reporter, and the model drains
+// the channel through Update until installDoneMsg. Dry-run means nothing is
+// actually installed.
+func TestInstallGoroutineStreamsToDone(t *testing.T) {
+	opts := &config.InstallOptions{Version: "1", DryRun: true}
+	m := New("1", opts)
+	m.screen = scrInstall
+
+	plan := installer.PlanFromSelection(opts, config.GetPackagesForPreset("minimal"))
+	plan.Silent = true
+	m.plan = plan
+	m.phases = buildPhases(plan)
+	m.installing = true
+
+	// Start the background install; the cmd returns nil and feeds m.events.
+	m.spawnInstall(context.Background(), plan)()
+
+	// Drain the channel through Update until the install reports done.
+	deadline := time.After(30 * time.Second)
+	for !m.done {
+		select {
+		case msg := <-m.events:
+			next, _ := m.Update(msg)
+			m = next.(Model)
+		case <-deadline:
+			t.Fatal("install did not complete within 30s")
+		}
+	}
+
+	assert.False(t, m.installing)
+	assert.NoError(t, m.installErr)
+	// Every phase ends finished once done.
+	for _, p := range m.phases {
+		assert.Truef(t, p.finished, "phase %q finished", p.name)
+	}
 }
 
 func logTexts(ls []logLine) []string {
