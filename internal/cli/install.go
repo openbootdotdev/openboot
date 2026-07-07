@@ -17,6 +17,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/openbootdotdev/openboot/internal/ui/tui"
+	"github.com/openbootdotdev/openboot/internal/ui/tui/wizard"
 )
 
 // installCfg is the config instance used by the install subcommand.
@@ -116,6 +117,14 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		if err := applyInstallSource(src); err != nil {
 			return fmt.Errorf("apply install source: %w", err)
 		}
+
+		// Bare interactive `openboot install` on a TTY runs the full-screen
+		// install wizard (boot probe → select → live install). Explicit
+		// sources (-p, --from, -u, sync), --silent, and --dry-run keep their
+		// existing flows.
+		if src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun && system.HasTTY() {
+			return runInstallWizard()
+		}
 	}
 
 	pickRaw, _ := cmd.Flags().GetString("pick")
@@ -149,6 +158,17 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		saveSyncSourceIfRemote(installCfg)
 	}
 	return err
+}
+
+// runInstallWizard launches the full-screen install TUI and runs the resulting
+// install. The wizard owns the whole interactive flow (planning + apply), so
+// there is nothing further to do here on success.
+func runInstallWizard() error {
+	opts := installCfg.ToInstallOptions()
+	if _, err := wizard.Run(installCfg.Version, opts); err != nil {
+		return fmt.Errorf("install wizard: %w", err)
+	}
+	return nil
 }
 
 // ── Source resolution ─────────────────────────────────────────────────────────
