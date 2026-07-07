@@ -99,7 +99,7 @@ func installFrame(m Model, _, _ int) Model {
 	}
 	m.plan.InstallOhMyZsh = true
 	m.plan.DotfilesURL = "https://github.com/x/dotfiles"
-	m.phases = buildPhases(m.plan)
+	m.phases = buildPhases(m.plan, m.installed)
 	m.installTick = m.ticks
 
 	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "node", Status: progress.StepStart, Command: "brew install node"}})

@@ -71,7 +71,7 @@ func (m Model) startInstall() (tea.Model, tea.Cmd) {
 	plan.Silent = true
 
 	m.plan = plan
-	m.phases = buildPhases(plan)
+	m.phases = buildPhases(plan, m.installed)
 	m.logs = nil
 	m.screen = scrInstall
 	m.installing = true
@@ -103,21 +103,47 @@ func (m Model) spawnInstall(ctx context.Context, plan installer.InstallPlan) tea
 	}
 }
 
-func buildPhases(plan installer.InstallPlan) []phaseState {
+// buildPhases derives the pipeline sidebar from the plan. Package-phase totals
+// count only packages not already installed (matching what the engine will
+// actually emit events for), so the sidebar counts and progress bar stay
+// accurate on a non-fresh Mac.
+func buildPhases(plan installer.InstallPlan, installed map[string]bool) []phaseState {
+	countNew := func(names []string) int {
+		n := 0
+		for _, name := range names {
+			if !installed[name] {
+				n++
+			}
+		}
+		return n
+	}
 	var ps []phaseState
 	add := func(name string, total int, pkg, present bool) {
 		if present {
 			ps = append(ps, phaseState{name: name, total: total, pkg: pkg})
 		}
 	}
+	nFormulae, nCasks, nNpm := countNew(plan.Formulae), countNew(plan.Casks), countNew(plan.Npm)
 	add("Git identity", 1, false, !plan.PackagesOnly && !plan.SkipGit)
-	add(progress.PhaseHomebrew, len(plan.Formulae), true, len(plan.Formulae) > 0)
-	add(progress.PhaseApplications, len(plan.Casks), true, len(plan.Casks) > 0)
-	add(progress.PhaseNpm, len(plan.Npm), true, len(plan.Npm) > 0)
+	add(progress.PhaseHomebrew, nFormulae, true, nFormulae > 0)
+	add(progress.PhaseApplications, nCasks, true, nCasks > 0)
+	add(progress.PhaseNpm, nNpm, true, nNpm > 0)
 	add("Shell", 1, false, !plan.PackagesOnly && plan.InstallOhMyZsh)
 	add("Dotfiles", 1, false, !plan.PackagesOnly && plan.DotfilesURL != "")
 	add("macOS prefs", 1, false, !plan.PackagesOnly && len(plan.MacOSPrefs) > 0)
 	return ps
+}
+
+// pkgCount is the number of packages that will actually be installed, derived
+// from the package-phase totals.
+func (m Model) pkgCount() int {
+	n := 0
+	for _, p := range m.phases {
+		if p.pkg {
+			n += p.total
+		}
+	}
+	return n
 }
 
 // ── streaming event handling ──
@@ -389,7 +415,7 @@ func (m Model) logView(w, h int) []string {
 
 func (m Model) installFooter(w int) []string {
 	if m.done {
-		pkgN := len(m.plan.Formulae) + len(m.plan.Casks) + len(m.plan.Npm)
+		pkgN := m.pkgCount()
 		head := fg(cAccent).Render("✓") + " " + fg(cTextHi).Bold(true).Render("This Mac is dev-ready.") +
 			"  " + fg(cDim3).Render(fmt.Sprintf("%d packages · %ds", pkgN, m.elapsed()))
 		if m.installErr != nil {

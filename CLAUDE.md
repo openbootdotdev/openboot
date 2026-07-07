@@ -5,7 +5,7 @@
 OpenBoot is a **macOS-only** Go 1.25 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
 
 Entry point: `cmd/openboot/main.go` → `internal/cli.Execute()`.
-Core flow: `openboot install` runs a 7-step wizard in `internal/installer/installer.go`.
+Core flow: `openboot install` orchestrates plan → apply in `internal/installer/installer.go`. Bare interactive `openboot install` on a TTY runs the full-screen install TUI in `internal/ui/tui/wizard/` (boot probe → select → live install); explicit sources (`-p`, `--from`, `-u`, sync), `--silent`, and `--dry-run` use the linear flow.
 
 For full contribution guide (test layering L1–L4, Runner interface, hook setup) see @CONTRIBUTING.md.
 For AI agents: @AGENTS.md indexes invariants enforced by `internal/archtest`; @docs/HARNESS.md is the steering meta-doc for where to encode new rules.
@@ -75,7 +75,8 @@ scripts/
 | Task | Location | Notes |
 |------|----------|-------|
 | Add CLI command | `internal/cli/` | Register in `root.go init()`, follow cobra pattern |
-| Change install flow | `internal/installer/installer.go` | 7-step wizard orchestrator |
+| Change install flow | `internal/installer/installer.go` | plan → apply orchestrator; `PlanFromSelection` builds a plan from TUI picks |
+| Change interactive install TUI | `internal/ui/tui/wizard/` | Redesign v5: boot/select/install screens; live install streams `internal/progress` events (brew/npm `SetProgressSink`) |
 | Change sync behavior | `internal/sync/diff.go`, `internal/sync/plan.go` | Diff → confirm → execute |
 | Add package category | `openboot.dev/src/lib/package-metadata.ts` | Server is source of truth; CLI fetches `/api/packages` and caches 24h in `~/.openboot/packages-cache.json`. `data/packages.yaml` is fallback only. |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |

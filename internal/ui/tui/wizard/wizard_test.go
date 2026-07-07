@@ -115,7 +115,7 @@ func TestBuildPhases(t *testing.T) {
 		DotfilesURL:    "x",
 		MacOSPrefs:     make([]macos.Preference, 1),
 	}
-	phases := buildPhases(plan)
+	phases := buildPhases(plan, nil)
 	var names []string
 	for _, p := range phases {
 		names = append(names, p.name)
@@ -126,9 +126,21 @@ func TestBuildPhases(t *testing.T) {
 	}, names)
 
 	// PackagesOnly drops every config phase.
-	po := buildPhases(installer.InstallPlan{Formulae: []string{"a"}, PackagesOnly: true})
+	po := buildPhases(installer.InstallPlan{Formulae: []string{"a"}, PackagesOnly: true}, nil)
 	require.Len(t, po, 1)
 	assert.Equal(t, progress.PhaseHomebrew, po[0].name)
+}
+
+func TestBuildPhasesExcludesInstalledFromCounts(t *testing.T) {
+	plan := installer.InstallPlan{Formulae: []string{"a", "b", "c"}, SkipGit: true}
+	phases := buildPhases(plan, map[string]bool{"a": true, "b": true})
+	require.Len(t, phases, 1)
+	assert.Equal(t, progress.PhaseHomebrew, phases[0].name)
+	assert.Equal(t, 1, phases[0].total, "only the not-installed package counts")
+
+	// All installed → no package phase at all.
+	none := buildPhases(plan, map[string]bool{"a": true, "b": true, "c": true})
+	assert.Empty(t, none)
 }
 
 func TestProgressEventsDrivePhasesAndLog(t *testing.T) {
@@ -136,7 +148,7 @@ func TestProgressEventsDrivePhasesAndLog(t *testing.T) {
 	plan := installer.InstallPlan{Formulae: []string{"a", "b"}, Casks: []string{"c"}, SkipGit: true}
 	m := New("1", &config.InstallOptions{})
 	m.screen = scrInstall
-	m.phases = buildPhases(plan)
+	m.phases = buildPhases(plan, nil)
 
 	feed := func(ev progress.Event) {
 		next, _ := m.Update(evMsg{ev: ev})
@@ -173,7 +185,7 @@ func TestReporterHeaderActivatesConfigPhase(t *testing.T) {
 	plan := installer.InstallPlan{InstallOhMyZsh: true, SkipGit: true}
 	m := New("1", &config.InstallOptions{})
 	m.screen = scrInstall
-	m.phases = buildPhases(plan)
+	m.phases = buildPhases(plan, nil)
 	require.Len(t, m.phases, 1)
 
 	next, _ := m.Update(reporterMsg{kind: rHeader, text: "Shell Configuration"})
@@ -186,7 +198,7 @@ func TestInstallDoneMarksAllFinished(t *testing.T) {
 	m := New("1", &config.InstallOptions{})
 	m.screen = scrInstall
 	m.installing = true
-	m.phases = buildPhases(plan)
+	m.phases = buildPhases(plan, nil)
 
 	next, _ := m.Update(installDoneMsg{})
 	m = next.(Model)
@@ -235,7 +247,7 @@ func TestInstallGoroutineStreamsToDone(t *testing.T) {
 	plan := installer.PlanFromSelection(opts, config.GetPackagesForPreset("minimal"))
 	plan.Silent = true
 	m.plan = plan
-	m.phases = buildPhases(plan)
+	m.phases = buildPhases(plan, nil)
 	m.installing = true
 
 	// Start the background install; the cmd returns nil and feeds m.events.
