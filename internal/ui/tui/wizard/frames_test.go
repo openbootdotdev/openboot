@@ -78,6 +78,13 @@ func TestDumpFrames(t *testing.T) {
 	}
 	t.Log("\n===== SELECT (filter 'doc') =====\n" + f.View())
 
+	// Git identity capture.
+	g := send(sel, key("2")) // reuse a select model
+	g.screen = scrGit
+	g.gitName = "Jane Developer"
+	g.gitField = 1
+	t.Log("\n===== GIT (capture) =====\n" + g.View())
+
 	// Install: synthetic pipeline (no real Apply).
 	inst := installFrame(m, W, H)
 	t.Log("\n===== INSTALL (running) =====\n" + inst.View())

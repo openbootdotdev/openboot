@@ -180,6 +180,12 @@ func (m Model) tryInstall() (tea.Model, tea.Cmd) {
 	if m.toInstallCount() == 0 {
 		return m, nil // nothing to install — stay put
 	}
+	// Capture a git identity first when none is configured (fresh Mac).
+	if need, name, email := m.needsGitCapture(); need {
+		m.gitName, m.gitEmail, m.gitField = name, email, 0
+		m.screen = scrGit
+		return m, nil
+	}
 	return m.startInstall()
 }
 

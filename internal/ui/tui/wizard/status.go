@@ -21,6 +21,9 @@ func (m Model) statusContent() (mode string, color lipgloss.Color, keys, right s
 			"↑↓/jk move · space toggle · ⇥ category · / filter · a all · x clear · ↵ install",
 			fmt.Sprintf("%d pkgs · ~%d min", m.selCount(), m.estMin())
 
+	case scrGit:
+		return "GIT", cAccent, "↑↓/tab switch field · ↵ continue · esc back", "identity for your commits"
+
 	default: // scrInstall
 		if m.done {
 			return "DONE", cAccent, "r replay from boot · q quit",

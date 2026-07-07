@@ -26,6 +26,7 @@ type screen int
 const (
 	scrBoot screen = iota
 	scrSelect
+	scrGit
 	scrInstall
 )
 
@@ -60,6 +61,11 @@ type Model struct {
 	query    string
 	typing   bool
 	selected map[string]bool
+
+	// ── git identity (captured only when none is configured) ──
+	gitName  string
+	gitEmail string
+	gitField int // 0 = name, 1 = email
 
 	// ── install ──
 	events      chan tea.Msg
@@ -126,6 +132,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateBoot(msg)
 		case scrSelect:
 			return m.updateSelect(msg)
+		case scrGit:
+			return m.updateGit(msg)
 		case scrInstall:
 			return m.updateInstall(msg)
 		}
@@ -160,6 +168,8 @@ func (m Model) View() string {
 		body = m.bootBody(m.width, bodyH)
 	case scrSelect:
 		body = m.selectBody(m.width, bodyH)
+	case scrGit:
+		body = m.gitBody(m.width, bodyH)
 	case scrInstall:
 		body = m.installBody(m.width, bodyH)
 	}
@@ -173,6 +183,8 @@ func (m Model) crumb() string {
 		return "setup"
 	case scrSelect:
 		return "select packages"
+	case scrGit:
+		return "git identity"
 	default:
 		if m.done {
 			return "done"

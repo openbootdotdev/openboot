@@ -106,6 +106,61 @@ func TestTryInstallNoopWhenNothingToInstall(t *testing.T) {
 	assert.Equal(t, scrSelect, m.screen, "enter with nothing to install stays on select")
 }
 
+func TestGitCaptureWhenUnconfigured(t *testing.T) {
+	defer stubGitConfig("", "")()
+
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2")) // developer — has packages to install
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrGit, m.screen, "no git config routes to the capture screen")
+
+	for _, r := range "Jane Dev" {
+		m = send(m, key(string(r)))
+	}
+	m = send(m, key("tab"))
+	for _, r := range "jane@ex.io" {
+		m = send(m, key(string(r)))
+	}
+	// Enter on the email field with both filled proceeds to install.
+	next, _ := m.Update(key("enter"))
+	m = next.(Model)
+
+	require.Equal(t, scrInstall, m.screen)
+	assert.Equal(t, "Jane Dev", m.plan.GitName)
+	assert.Equal(t, "jane@ex.io", m.plan.GitEmail)
+	assert.False(t, m.plan.SkipGit)
+}
+
+func TestGitCaptureSkippedWhenConfigured(t *testing.T) {
+	defer stubGitConfig("Ada", "ada@ex.io")()
+
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	next, _ := m.Update(key("enter"))
+	m = next.(Model)
+	assert.Equal(t, scrInstall, m.screen, "configured git skips the capture screen")
+}
+
+func TestGitScreenEscReturnsToSelect(t *testing.T) {
+	defer stubGitConfig("", "")()
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrGit, m.screen)
+	m = send(m, key("esc"))
+	assert.Equal(t, scrSelect, m.screen)
+}
+
+// stubGitConfig swaps the git-identity lookup for tests and returns a restore.
+func stubGitConfig(name, email string) func() {
+	prev := gitConfigLookup
+	gitConfigLookup = func() (string, string) { return name, email }
+	return func() { gitConfigLookup = prev }
+}
+
 func TestBuildPhases(t *testing.T) {
 	plan := installer.InstallPlan{
 		Formulae:       []string{"a", "b"},
@@ -216,6 +271,9 @@ func TestViewDimensions(t *testing.T) {
 	cases["boot-probing"] = sized(W, H)
 	cases["boot-loadouts"] = finishProbes(sized(W, H))
 	cases["select"] = send(finishProbes(sized(W, H)), key("2"))
+	gitCase := send(finishProbes(sized(W, H)), key("2"))
+	gitCase.screen = scrGit
+	cases["git"] = gitCase
 	cases["install"] = installFrame(finishProbes(sized(W, H)), W, H)
 
 	for name, m := range cases {

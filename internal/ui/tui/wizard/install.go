@@ -65,6 +65,14 @@ func (r chanReporter) Muted(s string)   { r.ch <- reporterMsg{kind: rMuted, text
 
 func (m Model) startInstall() (tea.Model, tea.Cmd) {
 	plan := installer.PlanFromSelection(m.opts, m.selected)
+	// Apply a git identity captured on the git screen (fresh Mac). When git is
+	// already configured, these stay empty and PlanFromSelection's existing
+	// config is used instead.
+	if strings.TrimSpace(m.gitName) != "" && strings.TrimSpace(m.gitEmail) != "" {
+		plan.GitName = m.gitName
+		plan.GitEmail = m.gitEmail
+		plan.SkipGit = false
+	}
 	// Force non-interactive Apply: guarantees no huh prompt (git/npm-retry/
 	// screen-recording reminder) fires mid-alt-screen. All decisions are
 	// already resolved in the plan.
