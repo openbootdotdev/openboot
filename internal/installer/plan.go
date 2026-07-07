@@ -308,6 +308,64 @@ func planMacOSDecision(opts *config.InstallOptions) ([]macos.Preference, error) 
 	return selected, nil
 }
 
+// PlanFromSelection builds a ready-to-Apply InstallPlan from an explicit
+// package selection gathered by the install TUI. It applies system-config
+// defaults (existing git identity, oh-my-zsh, dotfiles, macOS prefs) without
+// any interactive prompts — all interaction already happened in the wizard.
+//
+// Git identity is reused from the existing global git config when present; when
+// absent the git step is skipped rather than prompting, since the TUI has no
+// name/email screen. CLI overrides (--packages-only, --shell/--macos/--dotfiles
+// skip) are still honored via opts.
+func PlanFromSelection(opts *config.InstallOptions, selected map[string]bool) InstallPlan {
+	st := &config.InstallState{SelectedPkgs: selected}
+
+	plan := InstallPlan{
+		Version:          opts.Version,
+		DryRun:           opts.DryRun,
+		Silent:           opts.Silent,
+		PackagesOnly:     opts.PackagesOnly,
+		AllowPostInstall: opts.AllowPostInstall,
+		SelectedPkgs:     selected,
+	}
+
+	cats := categorizeSelectedPackages(opts, st)
+	plan.Formulae = cats.cli
+	plan.Casks = cats.cask
+	plan.Npm = cats.npm
+
+	if opts.PackagesOnly {
+		return plan
+	}
+
+	name, email := system.GetExistingGitConfig()
+	if name != "" && email != "" {
+		plan.GitName = name
+		plan.GitEmail = email
+	} else {
+		plan.SkipGit = true
+	}
+
+	plan.InstallOhMyZsh = opts.Shell != "skip"
+
+	if opts.Dotfiles != "skip" {
+		url := dotfiles.GetDotfilesURL()
+		if url == "" {
+			url = opts.DotfilesURL
+		}
+		if url == "" {
+			url = dotfiles.DefaultDotfilesURL
+		}
+		plan.DotfilesURL = url
+	}
+
+	if opts.Macos != "skip" {
+		plan.MacOSPrefs = macos.DefaultPreferences
+	}
+
+	return plan
+}
+
 // PlanFromSnapshot builds an InstallPlan from snapshot state without any interactive
 // prompts. All decisions are derived from st.Snapshot* fields and opts.
 func PlanFromSnapshot(opts *config.InstallOptions, st *config.InstallState) InstallPlan {
