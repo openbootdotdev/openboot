@@ -41,10 +41,11 @@ func npmStepDone(bar *ui.StickyProgress, name string, ok bool, errMsg string) {
 		}
 		return
 	}
-	bar.Increment()
+	// Print then Increment, matching the original console ordering exactly.
 	if ok {
 		bar.PrintLine("  ✔ %s", name)
 	} else {
 		bar.PrintLine("  ✗ %s (%s)", name, errMsg)
 	}
+	bar.Increment()
 }
