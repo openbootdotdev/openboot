@@ -87,7 +87,7 @@ func (m Model) startInstall() (tea.Model, tea.Cmd) {
 	m.confirmed = true
 	m.installTick = m.ticks
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is stored on the model and called on ctrl+c and install completion
 	m.cancel = cancel
 
 	return m, tea.Batch(m.spawnInstall(ctx, plan), waitForEvent(m.events))
@@ -287,6 +287,10 @@ func reporterLogLine(t reporterMsg) (logLine, bool) {
 		return logLine{mark: "!", markColor: cWarn, text: text, color: cWarn}, true
 	case rError:
 		return logLine{mark: "✗", markColor: cDanger, text: text, color: cDanger}, true
+	case rHeader, rInfo, rMuted:
+		// Dropped intentionally — headers drive phase activation (see
+		// headerPhase) and info/muted narration would drown the log.
+		return logLine{}, false
 	}
 	return logLine{}, false
 }

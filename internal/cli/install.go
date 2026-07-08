@@ -118,11 +118,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("apply install source: %w", err)
 		}
 
-		// Bare interactive `openboot install` on a TTY runs the full-screen
-		// install wizard (boot probe → select → live install). Explicit
-		// sources (-p, --from, -u, sync), --silent, and --dry-run keep their
-		// existing flows.
-		if src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun && system.HasTTY() {
+		if shouldLaunchWizard(src) {
 			return runInstallWizard()
 		}
 	}
@@ -158,6 +154,14 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		saveSyncSourceIfRemote(installCfg)
 	}
 	return err
+}
+
+// shouldLaunchWizard reports whether this run is a bare interactive
+// `openboot install` on a TTY — the case the full-screen wizard (boot probe →
+// select → live install) owns. Explicit sources (-p, --from, -u, sync),
+// --silent, and --dry-run keep their existing flows.
+func shouldLaunchWizard(src *installSource) bool {
+	return src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun && system.HasTTY()
 }
 
 // runInstallWizard launches the full-screen install TUI and runs the resulting
