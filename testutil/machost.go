@@ -73,13 +73,18 @@ func (h *MacHost) RunInteractive(command string, steps []ExpectStep, timeoutSec 
 
 	var script strings.Builder
 	fmt.Fprintf(&script, "set timeout %d\n", timeoutSec)
+	// Pace keystrokes one character per 20ms. Full-screen TUIs (bubbletea)
+	// coalesce a burst of bytes arriving in one read into a single key event,
+	// which drops multi-character sends like "/stow\r"; slow sends make each
+	// character its own event, like a human typing.
+	script.WriteString("set send_slow {1 .02}\n")
 	// Use Tcl quoting so the entire command is a single word.
 	// shellescape produces POSIX single-quote escaping which Tcl's word
 	// splitter does not honour — it splits on whitespace regardless.
 	fmt.Fprintf(&script, "spawn bash -c %s\n", tclBrace(command))
 	for _, step := range steps {
 		fmt.Fprintf(&script, "expect %q\n", step.Expect)
-		fmt.Fprintf(&script, "send %q\n", step.Send)
+		fmt.Fprintf(&script, "send -s %q\n", step.Send)
 	}
 	script.WriteString("expect eof\n")
 
