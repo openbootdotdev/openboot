@@ -121,7 +121,9 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 				m.rowCur++
 			}
 		default:
-			if len(s) == 1 && s >= " " {
+			// KeyRunes covers both single keystrokes and multi-rune input
+			// (bubbletea coalesces pasted/fast text into one message).
+			if msg.Type == tea.KeyRunes || s == " " {
 				m.query += s
 				m.rowCur, m.scroll = 0, 0
 			}

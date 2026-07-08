@@ -53,7 +53,9 @@ func (m Model) updateGit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.gitEmail = trimLast(m.gitEmail)
 		}
 	default:
-		if s := msg.String(); len(s) == 1 && s >= " " {
+		// KeyRunes covers both single keystrokes and multi-rune input
+		// (bubbletea coalesces pasted/fast text into one message).
+		if s := msg.String(); msg.Type == tea.KeyRunes || s == " " {
 			if m.gitField == 0 {
 				m.gitName += s
 			} else {

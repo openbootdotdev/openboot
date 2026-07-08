@@ -91,6 +91,31 @@ func TestSelectFilter(t *testing.T) {
 	assert.Empty(t, m.query)
 }
 
+// Bubbletea coalesces pasted/fast text into one multi-rune KeyMsg; the filter
+// and git inputs must accept it, not drop it.
+func TestSelectFilterAcceptsPastedText(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	m = send(m, key("/"))
+	require.True(t, m.typing)
+	m = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("zoxide")})
+	assert.Equal(t, "zoxide", m.query, "multi-rune input appends to the query")
+}
+
+func TestGitFieldsAcceptPastedText(t *testing.T) {
+	defer stubGitConfig("", "")()
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrGit, m.screen)
+	m = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("CI Bot")})
+	m = send(m, key("tab"))
+	m = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("ci@example.com")})
+	assert.Equal(t, "CI Bot", m.gitName)
+	assert.Equal(t, "ci@example.com", m.gitEmail)
+}
+
 func TestSelectCategoryCycle(t *testing.T) {
 	m := finishProbes(sized(96, 30))
 	m = send(m, key("c"))
