@@ -3,6 +3,8 @@ name: vm-e2e-spike
 on:
   push:
     branches: ["test/vm-e2e-speed"]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
