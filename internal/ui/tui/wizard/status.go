@@ -18,7 +18,7 @@ func (m Model) statusContent() (mode string, color lipgloss.Color, keys, right s
 
 	case scrSelect:
 		return "SELECT", cAccent,
-			"↑↓/jk move · space toggle · ⇥ category · / filter · a all · x clear · ↵ install",
+			"←→ pane · ↑↓ move · space toggle · / filter · a all · x clear · ↵ install",
 			fmt.Sprintf("%d pkgs · ~%d min", m.selCount(), m.estMin())
 
 	case scrGit:

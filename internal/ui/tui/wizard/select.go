@@ -136,27 +136,25 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 		m.quit = true
 		return m, tea.Quit
 	case "/":
-		m.typing, m.query, m.rowCur, m.scroll = true, "", 0, 0
+		// Filtering searches across categories, so it's a list operation —
+		// pull focus to the list so ↑↓ behaves predictably after it clears.
+		m.typing, m.query, m.rowCur, m.scroll, m.selFocus = true, "", 0, 0, focusList
 	case "esc":
 		m.query, m.rowCur, m.scroll = "", 0, 0
+	case "left", "h":
+		m.selFocus = focusCats
+	case "right", "l":
+		m.selFocus = focusList
+	case "tab", "shift+tab":
+		if m.selFocus == focusCats {
+			m.selFocus = focusList
+		} else {
+			m.selFocus = focusCats
+		}
 	case "up", "k":
-		if m.rowCur > 0 {
-			m.rowCur--
-		}
+		m = m.selMoveUp()
 	case "down", "j":
-		if m.rowCur < last {
-			m.rowCur++
-		}
-	case "tab", "right":
-		if m.query == "" && len(m.cats) > 0 {
-			m.catCur = (m.catCur + 1) % len(m.cats)
-			m.rowCur, m.scroll = 0, 0
-		}
-	case "shift+tab", "left":
-		if m.query == "" && len(m.cats) > 0 {
-			m.catCur = (m.catCur - 1 + len(m.cats)) % len(m.cats)
-			m.rowCur, m.scroll = 0, 0
-		}
+		m = m.selMoveDown()
 	case " ":
 		if len(pool) > 0 {
 			p := pool[clamp(m.rowCur, 0, last)]
@@ -176,6 +174,114 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 		return m.tryInstall()
 	}
 	return m.clampSelScroll(), nil
+}
+
+// selMoveUp/selMoveDown move the cursor within the focused pane: the category
+// sidebar when it has focus (right pane live-previews the new category), the
+// package list otherwise.
+func (m Model) selMoveUp() Model {
+	if m.selFocus == focusCats && m.query == "" {
+		if m.catCur > 0 {
+			m.catCur--
+			m.rowCur, m.scroll = 0, 0
+		}
+		return m
+	}
+	if m.rowCur > 0 {
+		m.rowCur--
+	}
+	return m
+}
+
+func (m Model) selMoveDown() Model {
+	if m.selFocus == focusCats && m.query == "" {
+		if m.catCur < len(m.cats)-1 {
+			m.catCur++
+			m.rowCur, m.scroll = 0, 0
+		}
+		return m
+	}
+	if m.rowCur < len(m.pool())-1 {
+		m.rowCur++
+	}
+	return m
+}
+
+// ── mouse ──
+
+type selHit int
+
+const (
+	hitNone selHit = iota
+	hitCat
+	hitPkg
+)
+
+// updateSelectMouse handles clicks and wheel scrolls on the select screen:
+// left-click a category to switch to it, left-click a package to toggle it,
+// wheel to scroll the package list.
+func (m Model) updateSelectMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		m.selFocus = focusList
+		if m.rowCur > 0 {
+			m.rowCur--
+		}
+	case tea.MouseButtonWheelDown:
+		m.selFocus = focusList
+		if m.rowCur < len(m.pool())-1 {
+			m.rowCur++
+		}
+	case tea.MouseButtonLeft:
+		if msg.Action != tea.MouseActionPress {
+			return m, nil
+		}
+		switch kind, idx := m.selectHitTest(msg.X, msg.Y); kind {
+		case hitCat:
+			m.catCur, m.query, m.typing = idx, "", false
+			m.selFocus = focusCats
+			m.rowCur, m.scroll = 0, 0
+		case hitPkg:
+			m.rowCur = idx
+			m.selFocus = focusList
+			pool := m.pool()
+			if idx < len(pool) && !m.isInstalled(pool[idx].Name) {
+				m.toggle(pool[idx].Name)
+			}
+		case hitNone:
+			// click landed on chrome or blank space — nothing to do
+		}
+	default:
+		// other buttons (middle, right, drag motion) aren't actionable here
+		return m, nil
+	}
+	return m.clampSelScroll(), nil
+}
+
+// selectHitTest maps a screen coordinate to a category or package row. The
+// geometry mirrors View + selectBody exactly: screen row 0 is the title bar so
+// body row = y-1; the sidebar lists categories from body row 3, and the package
+// list starts at body row 2 offset by the scroll. Kept a pure, testable
+// function so the mapping is verified rather than eyeballed.
+func (m Model) selectHitTest(x, y int) (selHit, int) {
+	bodyRow := y - 1
+	if bodyRow < 0 {
+		return hitNone, -1
+	}
+	if x < sidebarW {
+		if ci := bodyRow - 3; ci >= 0 && ci < len(m.cats) {
+			return hitCat, ci
+		}
+		return hitNone, -1
+	}
+	if bodyRow < 2 {
+		return hitNone, -1
+	}
+	pool := m.pool()
+	if pj := m.scroll + bodyRow - 2; pj >= 0 && pj < len(pool) {
+		return hitPkg, pj
+	}
+	return hitNone, -1
 }
 
 func (m Model) tryInstall() (tea.Model, tea.Cmd) {
@@ -233,8 +339,15 @@ func (m Model) selectSidebar(h int) []string {
 		nameStyle := fg(cDim)
 		countStyle := fg(cDim4)
 		if active {
-			edge = fg(cAccent).Render("▎")
-			nameStyle = fg(cTextHi)
+			// Bright marker when the sidebar holds focus; muted when the
+			// package list does, so the active pane reads at a glance.
+			if m.selFocus == focusCats {
+				edge = fg(cAccent).Render("▎")
+				nameStyle = fg(cTextHi)
+			} else {
+				edge = fg(cDim2).Render("▎")
+				nameStyle = fg(cText)
+			}
 		}
 		if selN > 0 {
 			countStyle = fg(cAccentHi)
@@ -317,13 +430,14 @@ func (m Model) renderRow(p config.Package, cursor bool, w int) string {
 		box = fg(cAccent).Render("◉")
 	}
 
+	listFocused := m.selFocus == focusList
 	nameStyle := fg(cMuted)
 	switch {
 	case installed:
 		nameStyle = fg(cDim2)
-	case cursor:
+	case cursor && listFocused:
 		nameStyle = fg(cWhite).Bold(true)
-	case on:
+	case cursor, on:
 		nameStyle = fg(cText)
 	}
 
@@ -335,7 +449,13 @@ func (m Model) renderRow(p config.Package, cursor bool, w int) string {
 	name := padTo(nameStyle.Render(p.Name), 20)
 	rowPrefix := "  "
 	if cursor {
-		rowPrefix = fg(cAccent).Render("› ")
+		// Dim the cursor when focus is on the sidebar, so the two panes'
+		// cursors don't compete for attention.
+		if listFocused {
+			rowPrefix = fg(cAccent).Render("› ")
+		} else {
+			rowPrefix = fg(cDim3).Render("› ")
+		}
 	}
 	left := rowPrefix + box + "  " + name + " " + fg(cDim).Render(p.Description)
 	return bar(truncCell(left, w-12), tail+" ", w)

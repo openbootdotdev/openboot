@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -116,12 +117,134 @@ func TestGitFieldsAcceptPastedText(t *testing.T) {
 	assert.Equal(t, "ci@example.com", m.gitEmail)
 }
 
-func TestSelectCategoryCycle(t *testing.T) {
+// The select screen is a two-pane focus model: ← → (and tab) move focus
+// between the category sidebar and the package list; ↑ ↓ act on the focused
+// pane. These tests pin that contract plus the mouse mapping.
+
+func TestSelectFocusAndCategoryNav(t *testing.T) {
 	m := finishProbes(sized(96, 30))
 	m = send(m, key("c"))
+	require.Equal(t, focusList, m.selFocus, "the package list has focus by default")
+	require.GreaterOrEqual(t, len(m.cats), 2)
+
+	// ← focuses the sidebar; ↓ then advances the category and resets the row.
+	m = send(m, key("left"))
+	assert.Equal(t, focusCats, m.selFocus)
 	start := m.catCur
+	m = send(m, key("down"))
+	assert.Equal(t, start+1, m.catCur, "↓ under sidebar focus moves to the next category")
+	assert.Equal(t, 0, m.rowCur, "switching category resets the package cursor")
+	require.GreaterOrEqual(t, len(m.pool()), 2, "chosen category needs rows to move through")
+
+	// → returns focus to the list; ↓ now moves the package cursor, not category.
+	m = send(m, key("right"))
+	assert.Equal(t, focusList, m.selFocus)
+	cat := m.catCur
+	m = send(m, key("down"))
+	assert.Equal(t, cat, m.catCur, "↓ under list focus leaves the category unchanged")
+	assert.Equal(t, 1, m.rowCur, "↓ under list focus advances the package cursor")
+}
+
+// TestSelectFocusIsVisuallyIndicated proves the focus highlight is automatable
+// (contra "you have to eyeball it"): with identical state but different focus,
+// the rendered sidebar and cursor row must differ, because the active pane's
+// marker is styled brighter than the other's. What a test can't judge is
+// whether that difference is *clear enough* to a human — that stays taste.
+func TestSelectFocusIsVisuallyIndicated(t *testing.T) {
+	// lipgloss strips color when stdout isn't a TTY (as under `go test`), which
+	// would make both focus states render identically — the trap that makes a
+	// naive colour assertion silently test nothing. Force a profile so the test
+	// actually sees the styling; SetColorProfile exists for exactly this.
+	orig := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(orig)
+
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	require.GreaterOrEqual(t, len(m.pool()), 1)
+
+	catsFocus, listFocus := m, m
+	catsFocus.selFocus = focusCats
+	listFocus.selFocus = focusList
+
+	assert.NotEqual(t,
+		strings.Join(catsFocus.selectSidebar(28), "\n"),
+		strings.Join(listFocus.selectSidebar(28), "\n"),
+		"active category must render differently when the sidebar has focus")
+	assert.NotEqual(t,
+		catsFocus.renderRow(catsFocus.pool()[0], true, 90),
+		listFocus.renderRow(listFocus.pool()[0], true, 90),
+		"cursor row must render differently when the list has focus")
+}
+
+func TestSelectTabTogglesFocus(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	require.Equal(t, focusList, m.selFocus)
 	m = send(m, key("tab"))
-	assert.Equal(t, (start+1)%len(m.cats), m.catCur)
+	assert.Equal(t, focusCats, m.selFocus, "tab toggles focus to the sidebar")
+	m = send(m, key("tab"))
+	assert.Equal(t, focusList, m.selFocus, "tab toggles focus back to the list")
+}
+
+func TestSelectHitTest(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	require.GreaterOrEqual(t, len(m.cats), 2)
+	require.GreaterOrEqual(t, len(m.pool()), 1)
+
+	// Sidebar: category i renders at screen row 4+i (title bar + 3 header rows).
+	kind, idx := m.selectHitTest(2, 4)
+	assert.Equal(t, hitCat, kind)
+	assert.Equal(t, 0, idx)
+	kind, idx = m.selectHitTest(2, 5)
+	assert.Equal(t, hitCat, kind)
+	assert.Equal(t, 1, idx)
+
+	// List: first package at screen row 3 (title + search + blank), x past sidebar.
+	kind, idx = m.selectHitTest(sidebarW+5, 3)
+	assert.Equal(t, hitPkg, kind)
+	assert.Equal(t, 0, idx)
+
+	// Out of range → none.
+	kind, _ = m.selectHitTest(2, 0) // title bar
+	assert.Equal(t, hitNone, kind)
+	kind, _ = m.selectHitTest(sidebarW+5, 999) // below the list
+	assert.Equal(t, hitNone, kind)
+}
+
+func TestSelectMouseClickCategory(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	require.GreaterOrEqual(t, len(m.cats), 2)
+	m = send(m, tea.MouseMsg{X: 2, Y: 5, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	assert.Equal(t, 1, m.catCur, "clicking a category switches to it")
+	assert.Equal(t, focusCats, m.selFocus, "clicking a category focuses the sidebar")
+}
+
+func TestSelectMouseClickTogglesPackage(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	m.installed = map[string]bool{}
+	pool := m.pool()
+	require.NotEmpty(t, pool)
+	click := tea.MouseMsg{X: sidebarW + 5, Y: 3, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}
+	m = send(m, click)
+	assert.True(t, m.selected[pool[0].Name], "clicking a package toggles it on")
+	assert.Equal(t, focusList, m.selFocus)
+	m = send(m, click)
+	assert.False(t, m.selected[pool[0].Name], "clicking again toggles it off")
+}
+
+func TestSelectMouseWheelScrolls(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	require.GreaterOrEqual(t, len(m.pool()), 2)
+	require.Equal(t, 0, m.rowCur)
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
+	assert.Equal(t, 1, m.rowCur, "wheel down advances the list cursor")
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
+	assert.Equal(t, 0, m.rowCur, "wheel up moves it back")
 }
 
 func TestTryInstallNoopWhenNothingToInstall(t *testing.T) {

@@ -209,3 +209,41 @@ func TestE2E_InstallWizard_FullChoreography(t *testing.T) {
 	assert.Contains(t, got, "REVIEW", "confirm screen status badge rendered")
 	assert.Contains(t, got, "\x1b[?1049l", "terminal restored")
 }
+
+// TestE2E_InstallWizard_MouseTogglesPackage proves the select screen's mouse
+// support works through a real pty — the one interaction the keyboard
+// choreography can't reach. It filters to a single uninstalled formula, then
+// sends an SGR left-click escape sequence at that row's cell and asserts the
+// status bar reflects the toggle. Nothing else can flip "0 pkgs" → "1 pkgs"
+// here, so the assertion genuinely proves the click landed and was handled.
+func TestE2E_InstallWizard_MouseTogglesPackage(t *testing.T) {
+	formula := wizardTestFormula(t)
+	t.Logf("clicking to select formula %q", formula)
+
+	binary := testutil.BuildTestBinary(t)
+	s := startWizardPty(t, binary, wizardEnv(t.TempDir()))
+
+	require.True(t, s.waitFor("Choose a starting point", 90*time.Second),
+		"boot: loadout list; output:\n%s", s.out.String())
+	s.send(t, "c") // hand-pick: empty selection → status shows "0 pkgs"
+
+	require.True(t, s.waitFor("type to filter", 10*time.Second),
+		"select: filter placeholder; output:\n%s", s.out.String())
+	// Filter (no enter) so the single uninstalled formula is package row 0.
+	s.sendPaced(t, "/", formula)
+	require.True(t, s.waitFor(formula, 10*time.Second),
+		"filtered formula should render as the top row; output:\n%s", s.out.String())
+
+	// SGR left-click on the first package row. Geometry mirrors selectHitTest:
+	// screen row 3 (0-based) = title(0) + search(1) + blank(2) + pkg0(3), at a
+	// column past the 22-wide sidebar. SGR coords are 1-based (bubbletea
+	// subtracts 1), so send col 28, row 4. "M" = press, "m" = release.
+	s.send(t, "\x1b[<0;28;4M")
+	s.send(t, "\x1b[<0;28;4m")
+
+	require.True(t, s.waitFor("1 pkgs", 10*time.Second),
+		"the mouse click should toggle the package on (status → 1 pkgs); output:\n%s", s.out.String())
+
+	s.send(t, "\x03") // ctrl+c — installs nothing
+	s.expectExit(t, 15*time.Second)
+}
