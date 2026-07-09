@@ -85,6 +85,19 @@ func TestDumpFrames(t *testing.T) {
 	g.gitField = 1
 	t.Log("\n===== GIT (capture) =====\n" + g.View())
 
+	// Confirm (review plan).
+	c := send(sel, key("2"))
+	c.gitName, c.gitEmail = "Jane Developer", "jane@ex.io"
+	c.preview = installer.InstallPlan{
+		InstallOhMyZsh: true,
+		DotfilesURL:    "https://github.com/openbootdotdev/dotfiles",
+		MacOSPrefs:     make([]macos.Preference, 64),
+	}
+	c.confShell, c.confDotfiles, c.confPrefs = true, true, false
+	c.confCur = 2
+	c.screen = scrConfirm
+	t.Log("\n===== CONFIRM (review) =====\n" + c.View())
+
 	// Install: synthetic pipeline (no real Apply).
 	inst := installFrame(m, W, H)
 	t.Log("\n===== INSTALL (running) =====\n" + inst.View())
@@ -106,7 +119,7 @@ func installFrame(m Model, _, _ int) Model {
 	}
 	m.plan.InstallOhMyZsh = true
 	m.plan.DotfilesURL = "https://github.com/x/dotfiles"
-	m.phases = buildPhases(m.plan, m.installed)
+	m.phases = buildPhases(m.plan)
 	m.installTick = m.ticks
 
 	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "node", Status: progress.StepStart, Command: "brew install node"}})

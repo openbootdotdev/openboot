@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -39,7 +40,7 @@ func (m Model) updateGit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if strings.TrimSpace(m.gitName) != "" && strings.TrimSpace(m.gitEmail) != "" {
-			return m.startInstall()
+			return m.enterConfirm()
 		}
 		// Focus whichever field is still empty.
 		if strings.TrimSpace(m.gitName) == "" {
@@ -66,11 +67,14 @@ func (m Model) updateGit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// trimLast removes the final rune (not byte) — a byte slice would leave
+// invalid UTF-8 behind after backspacing multi-byte input like "张" or "é".
 func trimLast(s string) string {
 	if s == "" {
 		return s
 	}
-	return s[:len(s)-1]
+	_, size := utf8.DecodeLastRuneInString(s)
+	return s[:len(s)-size]
 }
 
 func (m Model) gitBody(_, _ int) string {

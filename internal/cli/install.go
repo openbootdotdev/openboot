@@ -118,7 +118,10 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("apply install source: %w", err)
 		}
 
-		if shouldLaunchWizard(src) {
+		// --pick has no meaning in the wizard (it filters remote configs);
+		// let it fall through to the existing "--pick requires a remote
+		// config" error instead of silently dropping it.
+		if pickRaw, _ := cmd.Flags().GetString("pick"); pickRaw == "" && shouldLaunchWizard(src) {
 			return runInstallWizard()
 		}
 	}
@@ -159,18 +162,27 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 // shouldLaunchWizard reports whether this run is a bare interactive
 // `openboot install` on a TTY — the case the full-screen wizard (boot probe →
 // select → live install) owns. Explicit sources (-p, --from, -u, sync),
-// --silent, and --dry-run keep their existing flows.
+// --silent, --dry-run, and --update keep their existing flows.
 func shouldLaunchWizard(src *installSource) bool {
-	return src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun && system.HasTTY()
+	return src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun &&
+		!installCfg.Update && system.HasTTY()
 }
 
 // runInstallWizard launches the full-screen install TUI and runs the resulting
-// install. The wizard owns the whole interactive flow (planning + apply), so
-// there is nothing further to do here on success.
+// install. The wizard owns the whole interactive flow (planning + apply); back
+// on the normal terminal, follow-ups that can't run inside the alt-screen
+// (screen-recording reminder) happen here.
 func runInstallWizard() error {
 	opts := installCfg.ToInstallOptions()
-	if _, err := wizard.Run(installCfg.Version, opts); err != nil {
+	plan, confirmed, err := wizard.Run(installCfg.Version, opts)
+	if err != nil {
+		if errors.Is(err, wizard.ErrAborted) {
+			return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
+		}
 		return fmt.Errorf("install wizard: %w", err)
+	}
+	if confirmed {
+		installer.ShowScreenRecordingReminderAfterTUI(plan)
 	}
 	return nil
 }

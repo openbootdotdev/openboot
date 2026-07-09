@@ -22,6 +22,23 @@ func SetProgressSink(s progress.Sink) (restore func()) {
 // streaming reports whether a sink is registered (TUI mode).
 func streaming() bool { return progressSink != nil }
 
+// EmitSkipped emits an already-installed StepOK event for each named package,
+// upholding the streaming invariant that every planned package produces
+// exactly one terminal event. Callers that filter packages before reaching
+// the install loops (state-file skips, alias-resolved skips) use this so the
+// renderer's totals still reconcile. No-op when no sink is registered.
+func EmitSkipped(formulae, casks []string) {
+	if !streaming() {
+		return
+	}
+	for _, n := range formulae {
+		progressSink.Emit(progress.Event{Phase: progress.PhaseHomebrew, Name: n, Status: progress.StepOK, Detail: progress.SkipDetail})
+	}
+	for _, n := range casks {
+		progressSink.Emit(progress.Event{Phase: progress.PhaseApplications, Name: n, Status: progress.StepOK, Detail: progress.SkipDetail})
+	}
+}
+
 // stepStart reports the beginning of a package install: emits a StepStart event
 // when streaming, otherwise advances the sticky progress bar.
 func stepStart(bar *ui.StickyProgress, phase, name, command string) {

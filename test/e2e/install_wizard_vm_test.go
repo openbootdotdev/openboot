@@ -66,6 +66,7 @@ func TestVM_WizardTUI_RealInstall(t *testing.T) {
 		{Expect: "type to filter", Send: "/" + formula + "\r"},
 		{Expect: "1 pkgs", Send: "\r"},
 		{Expect: "Set your git identity", Send: "CI Bot\tci@openboot.test\r"},
+		{Expect: "Ready to install", Send: "\r"},
 		{Expect: "snapshot publish", Send: "q"},
 	}, 900)
 	t.Logf("wizard session:\n%s", output)

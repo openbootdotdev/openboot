@@ -38,6 +38,12 @@ const (
 	PhaseNpm          = "npm globals"
 )
 
+// SkipDetail marks a StepOK event for a package that needed no work because it
+// was already installed. The invariant the engine upholds in streaming mode:
+// every planned package produces exactly one terminal event — StepOK (installed
+// or SkipDetail) or StepFail — so a renderer's totals always reconcile.
+const SkipDetail = "already installed"
+
 // Sink receives install progress events. A nil Sink means "no streaming
 // renderer registered" — the engine falls back to its own progress output.
 type Sink func(Event)

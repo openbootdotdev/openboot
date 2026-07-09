@@ -73,14 +73,29 @@ func (m Model) startInstall() (tea.Model, tea.Cmd) {
 		plan.GitEmail = m.gitEmail
 		plan.SkipGit = false
 	}
+	// Honor the confirm screen's toggles — a step switched off there must not
+	// run.
+	if !m.confShell {
+		plan.InstallOhMyZsh = false
+		plan.ShellTheme = ""
+		plan.ShellPlugins = nil
+	}
+	if !m.confDotfiles {
+		plan.DotfilesURL = ""
+	}
+	if !m.confPrefs {
+		plan.MacOSPrefs = nil
+	}
 	// Force non-interactive Apply: guarantees no huh prompt (git/npm-retry/
 	// screen-recording reminder) fires mid-alt-screen. All decisions are
 	// already resolved in the plan.
 	plan.Silent = true
 
 	m.plan = plan
-	m.phases = buildPhases(plan, m.installed)
+	m.phases = buildPhases(plan)
 	m.logs = nil
+	m.skippedPkgs = 0
+	m.aborting = false
 	m.screen = scrInstall
 	m.installing = true
 	m.done = false
@@ -112,30 +127,21 @@ func (m Model) spawnInstall(ctx context.Context, plan installer.InstallPlan) tea
 }
 
 // buildPhases derives the pipeline sidebar from the plan. Package-phase totals
-// count only packages not already installed (matching what the engine will
-// actually emit events for), so the sidebar counts and progress bar stay
-// accurate on a non-fresh Mac.
-func buildPhases(plan installer.InstallPlan, installed map[string]bool) []phaseState {
-	countNew := func(names []string) int {
-		n := 0
-		for _, name := range names {
-			if !installed[name] {
-				n++
-			}
-		}
-		return n
-	}
+// count every planned package: the engine's streaming invariant is that each
+// one produces exactly one terminal event (installed, failed, or
+// already-installed skip), so totals and the event stream reconcile by
+// construction — including alias-resolved and state-file skips.
+func buildPhases(plan installer.InstallPlan) []phaseState {
 	var ps []phaseState
 	add := func(name string, total int, pkg, present bool) {
 		if present {
 			ps = append(ps, phaseState{name: name, total: total, pkg: pkg})
 		}
 	}
-	nFormulae, nCasks, nNpm := countNew(plan.Formulae), countNew(plan.Casks), countNew(plan.Npm)
 	add("Git identity", 1, false, !plan.PackagesOnly && !plan.SkipGit)
-	add(progress.PhaseHomebrew, nFormulae, true, nFormulae > 0)
-	add(progress.PhaseApplications, nCasks, true, nCasks > 0)
-	add(progress.PhaseNpm, nNpm, true, nNpm > 0)
+	add(progress.PhaseHomebrew, len(plan.Formulae), true, len(plan.Formulae) > 0)
+	add(progress.PhaseApplications, len(plan.Casks), true, len(plan.Casks) > 0)
+	add(progress.PhaseNpm, len(plan.Npm), true, len(plan.Npm) > 0)
 	add("Shell", 1, false, !plan.PackagesOnly && plan.InstallOhMyZsh)
 	add("Dotfiles", 1, false, !plan.PackagesOnly && plan.DotfilesURL != "")
 	add("macOS prefs", 1, false, !plan.PackagesOnly && len(plan.MacOSPrefs) > 0)
@@ -175,12 +181,25 @@ func (m Model) onInstallEvent(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.installing = false
 		m.done = true
 		m.installErr = t.err
-		for i := range m.phases {
-			m.phases[i].active = false
-			m.phases[i].finished = true
+		if m.aborting && m.installErr == nil {
+			m.installErr = ErrAborted
 		}
 		if m.cancel != nil {
 			m.cancel()
+		}
+		// Only a clean run gets every phase check-marked; on error or abort,
+		// phases that never completed stay visibly unfinished.
+		for i := range m.phases {
+			m.phases[i].active = false
+			if m.installErr == nil {
+				m.phases[i].finished = true
+			}
+		}
+		if m.aborting {
+			// The user asked to leave; the engine has now stopped — quit and
+			// let the CLI report the abort on a normal terminal.
+			m.quit = true
+			return m, tea.Quit
 		}
 		return m, nil
 	}
@@ -203,7 +222,12 @@ func (m *Model) applyProgressEvent(ev progress.Event) {
 		if ev.Detail != "" {
 			text += " — " + ev.Detail
 		}
-		m.appendLog(logLine{mark: "✓", markColor: cAccent, text: text, color: cMuted})
+		if ev.Detail == progress.SkipDetail {
+			m.skippedPkgs++
+			m.appendLog(logLine{mark: "○", markColor: cDim3, text: text, color: cDim})
+		} else {
+			m.appendLog(logLine{mark: "✓", markColor: cAccent, text: text, color: cMuted})
+		}
 	case progress.StepFail:
 		m.incPhase(ev.Phase)
 		m.appendLog(logLine{mark: "✗", markColor: cDanger, text: ev.Name + " (" + ev.Detail + ")", color: cDanger})
@@ -239,7 +263,11 @@ func (m *Model) activatePhase(name string) {
 func (m *Model) incPhase(name string) {
 	for i := range m.phases {
 		if m.phases[i].name == name {
-			m.phases[i].done++
+			// Clamp: a retry pass emits a second terminal event for the same
+			// package; don't let done overrun the total.
+			if m.phases[i].done < m.phases[i].total {
+				m.phases[i].done++
+			}
 			if m.phases[i].pkg && m.phases[i].done >= m.phases[i].total {
 				m.phases[i].active = false
 				m.phases[i].finished = true
@@ -427,7 +455,7 @@ func (m Model) logView(w, h int) []string {
 
 func (m Model) installFooter(w int) []string {
 	if m.done {
-		pkgN := m.pkgCount()
+		pkgN := m.pkgCount() - m.skippedPkgs
 		head := fg(cAccent).Render("✓") + " " + fg(cTextHi).Bold(true).Render("This Mac is dev-ready.") +
 			"  " + fg(cDim3).Render(fmt.Sprintf("%d packages · %ds", pkgN, m.elapsed()))
 		if m.installErr != nil {

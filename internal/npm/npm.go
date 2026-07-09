@@ -109,12 +109,16 @@ func InstallContext(ctx context.Context, packages []string, dryRun bool) error {
 		return fmt.Errorf("list installed packages: %w", err)
 	}
 
-	var toInstall []string
+	var toInstall, alreadyInstalled []string
 	for _, p := range packages {
 		if !installed[p] {
 			toInstall = append(toInstall, p)
+		} else {
+			alreadyInstalled = append(alreadyInstalled, p)
 		}
 	}
+	// Streaming invariant: skipped packages still produce a terminal event.
+	EmitSkipped(alreadyInstalled)
 
 	skipped := len(packages) - len(toInstall)
 	if skipped > 0 {
@@ -214,15 +218,26 @@ func installSequentialContext(ctx context.Context, toInstall []string) (failed [
 		return nil, fmt.Errorf("list packages after batch: %w", err)
 	}
 
-	var remaining []string
+	var remaining, batchRecovered []string
 	for _, pkg := range toInstall {
 		if !nowInstalled[pkg] {
 			remaining = append(remaining, pkg)
+		} else {
+			batchRecovered = append(batchRecovered, pkg)
+		}
+	}
+	// Packages the failed batch did manage to install must still produce
+	// their terminal event, or a streaming renderer's totals never complete.
+	if streaming() {
+		for _, pkg := range batchRecovered {
+			progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Name: pkg, Status: progress.StepOK})
 		}
 	}
 
 	if len(remaining) == 0 {
-		ui.Success("All npm packages already installed after partial batch!")
+		if !streaming() {
+			ui.Success("All npm packages already installed after partial batch!")
+		}
 		return nil, nil
 	}
 

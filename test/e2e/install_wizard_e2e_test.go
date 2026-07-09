@@ -195,6 +195,10 @@ func TestE2E_InstallWizard_FullChoreography(t *testing.T) {
 
 	require.True(t, s.waitFor("ci@example.com", 10*time.Second),
 		"email field rendered; output:\n%s", s.out.String())
+	s.send(t, "\r") // → review screen
+
+	require.True(t, s.waitFor("Ready to install", 10*time.Second),
+		"confirm screen; output:\n%s", s.out.String())
 
 	// Stop here — the next enter would start a real install (L4's job).
 	s.send(t, "\x03")
@@ -202,5 +206,6 @@ func TestE2E_InstallWizard_FullChoreography(t *testing.T) {
 
 	got := s.out.String()
 	assert.Contains(t, got, "GIT", "git screen status badge rendered")
+	assert.Contains(t, got, "REVIEW", "confirm screen status badge rendered")
 	assert.Contains(t, got, "\x1b[?1049l", "terminal restored")
 }

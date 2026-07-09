@@ -147,8 +147,12 @@ func TestGitCaptureWhenUnconfigured(t *testing.T) {
 	for _, r := range "jane@ex.io" {
 		m = send(m, key(string(r)))
 	}
-	// Enter on the email field with both filled proceeds to install.
+	// Enter on the email field with both filled proceeds to the confirm
+	// screen; a second enter starts the install.
 	next, _ := m.Update(key("enter"))
+	m = next.(Model)
+	require.Equal(t, scrConfirm, m.screen, "git capture flows into the review screen")
+	next, _ = m.Update(key("enter"))
 	m = next.(Model)
 
 	require.Equal(t, scrInstall, m.screen)
@@ -165,7 +169,59 @@ func TestGitCaptureSkippedWhenConfigured(t *testing.T) {
 	m.installed = map[string]bool{}
 	next, _ := m.Update(key("enter"))
 	m = next.(Model)
-	assert.Equal(t, scrInstall, m.screen, "configured git skips the capture screen")
+	assert.Equal(t, scrConfirm, m.screen, "configured git goes straight to review")
+}
+
+// The confirm screen's toggles must gate the plan: a step switched off there
+// must not reach the engine.
+func TestConfirmtogglesGateThePlan(t *testing.T) {
+	defer stubGitConfig("Ada", "ada@ex.io")()
+
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrConfirm, m.screen)
+	require.True(t, m.preview.InstallOhMyZsh, "preview computed on entry")
+
+	// Toggle every row off: shell, dotfiles, prefs.
+	rows := m.confirmRows()
+	for range rows {
+		m = send(m, key("space"))
+		m = send(m, key("down"))
+	}
+	next, _ := m.Update(key("enter"))
+	m = next.(Model)
+
+	require.Equal(t, scrInstall, m.screen)
+	assert.False(t, m.plan.InstallOhMyZsh, "shell toggled off")
+	assert.Empty(t, m.plan.DotfilesURL, "dotfiles toggled off")
+	assert.Empty(t, m.plan.MacOSPrefs, "prefs toggled off")
+}
+
+// ctrl+c during a running install must request an abort (stay in the TUI,
+// cancel the context) and only quit once the engine reports done — with a
+// non-nil ErrAborted so the CLI exits non-zero.
+func TestCtrlCDuringInstallAbortsHonestly(t *testing.T) {
+	plan := installer.InstallPlan{Formulae: []string{"a"}, SkipGit: true}
+	m := New("1", &config.InstallOptions{})
+	m.screen = scrInstall
+	m.installing = true
+	m.phases = buildPhases(plan)
+	m.cancel = func() {}
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m = next.(Model)
+	assert.Nil(t, cmd, "first ctrl+c must not quit — it waits for the engine")
+	require.True(t, m.aborting)
+
+	next, _ = m.Update(installDoneMsg{})
+	m = next.(Model)
+	assert.ErrorIs(t, m.installErr, ErrAborted)
+	assert.True(t, m.quit)
+	for _, p := range m.phases {
+		assert.False(t, p.finished, "aborted phases must not show as finished")
+	}
 }
 
 func TestGitScreenEscReturnsToSelect(t *testing.T) {
@@ -177,6 +233,15 @@ func TestGitScreenEscReturnsToSelect(t *testing.T) {
 	require.Equal(t, scrGit, m.screen)
 	m = send(m, key("esc"))
 	assert.Equal(t, scrSelect, m.screen)
+}
+
+// Backspace must remove one rune, not one byte — a byte slice corrupts
+// multi-byte input (张三, José) into invalid UTF-8 that would reach git config.
+func TestTrimLastIsRuneAware(t *testing.T) {
+	assert.Equal(t, "张", trimLast("张三"))
+	assert.Equal(t, "Jos", trimLast("José"))
+	assert.Equal(t, "", trimLast("a"))
+	assert.Equal(t, "", trimLast(""))
 }
 
 // stubGitConfig swaps the git-identity lookup for tests and returns a restore.
@@ -195,7 +260,7 @@ func TestBuildPhases(t *testing.T) {
 		DotfilesURL:    "x",
 		MacOSPrefs:     make([]macos.Preference, 1),
 	}
-	phases := buildPhases(plan, nil)
+	phases := buildPhases(plan)
 	var names []string
 	for _, p := range phases {
 		names = append(names, p.name)
@@ -206,21 +271,50 @@ func TestBuildPhases(t *testing.T) {
 	}, names)
 
 	// PackagesOnly drops every config phase.
-	po := buildPhases(installer.InstallPlan{Formulae: []string{"a"}, PackagesOnly: true}, nil)
+	po := buildPhases(installer.InstallPlan{Formulae: []string{"a"}, PackagesOnly: true})
 	require.Len(t, po, 1)
 	assert.Equal(t, progress.PhaseHomebrew, po[0].name)
 }
 
-func TestBuildPhasesExcludesInstalledFromCounts(t *testing.T) {
+// The streaming invariant: every planned package produces exactly one terminal
+// event, so totals count the full plan and already-installed skips arrive as
+// StepOK events with SkipDetail.
+func TestSkipEventsCompletePhaseAndCountSkipped(t *testing.T) {
 	plan := installer.InstallPlan{Formulae: []string{"a", "b", "c"}, SkipGit: true}
-	phases := buildPhases(plan, map[string]bool{"a": true, "b": true})
-	require.Len(t, phases, 1)
-	assert.Equal(t, progress.PhaseHomebrew, phases[0].name)
-	assert.Equal(t, 1, phases[0].total, "only the not-installed package counts")
+	m := New("1", &config.InstallOptions{})
+	m.screen = scrInstall
+	m.phases = buildPhases(plan)
+	require.Equal(t, 3, m.phases[0].total, "totals count every planned package")
 
-	// All installed → no package phase at all.
-	none := buildPhases(plan, map[string]bool{"a": true, "b": true, "c": true})
-	assert.Empty(t, none)
+	feed := func(ev progress.Event) {
+		next, _ := m.Update(evMsg{ev: ev})
+		m = next.(Model)
+	}
+	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepOK, Detail: progress.SkipDetail})
+	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "b", Status: progress.StepOK, Detail: progress.SkipDetail})
+	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "c", Status: progress.StepOK, Detail: "1.2s"})
+
+	assert.True(t, m.phases[0].finished, "skips + installs complete the phase")
+	assert.Equal(t, 2, m.skippedPkgs)
+	assert.Equal(t, 1, m.pkgCount()-m.skippedPkgs, "DONE footer counts actual installs")
+}
+
+// A retry pass emits a second terminal event for the same package; done must
+// clamp at total instead of overrunning.
+func TestIncPhaseClampsOnRetryEvents(t *testing.T) {
+	plan := installer.InstallPlan{Formulae: []string{"a"}, SkipGit: true}
+	m := New("1", &config.InstallOptions{})
+	m.screen = scrInstall
+	m.phases = buildPhases(plan)
+
+	feed := func(ev progress.Event) {
+		next, _ := m.Update(evMsg{ev: ev})
+		m = next.(Model)
+	}
+	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepFail, Detail: "timeout"})
+	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepOK, Detail: "retry succeeded"})
+	assert.Equal(t, 1, m.phases[0].done, "retry event must not overrun the total")
+	assert.Equal(t, 1, m.completedSteps())
 }
 
 func TestProgressEventsDrivePhasesAndLog(t *testing.T) {
@@ -228,7 +322,7 @@ func TestProgressEventsDrivePhasesAndLog(t *testing.T) {
 	plan := installer.InstallPlan{Formulae: []string{"a", "b"}, Casks: []string{"c"}, SkipGit: true}
 	m := New("1", &config.InstallOptions{})
 	m.screen = scrInstall
-	m.phases = buildPhases(plan, nil)
+	m.phases = buildPhases(plan)
 
 	feed := func(ev progress.Event) {
 		next, _ := m.Update(evMsg{ev: ev})
@@ -265,7 +359,7 @@ func TestReporterHeaderActivatesConfigPhase(t *testing.T) {
 	plan := installer.InstallPlan{InstallOhMyZsh: true, SkipGit: true}
 	m := New("1", &config.InstallOptions{})
 	m.screen = scrInstall
-	m.phases = buildPhases(plan, nil)
+	m.phases = buildPhases(plan)
 	require.Len(t, m.phases, 1)
 
 	next, _ := m.Update(reporterMsg{kind: rHeader, text: "Shell Configuration"})
@@ -278,7 +372,7 @@ func TestInstallDoneMarksAllFinished(t *testing.T) {
 	m := New("1", &config.InstallOptions{})
 	m.screen = scrInstall
 	m.installing = true
-	m.phases = buildPhases(plan, nil)
+	m.phases = buildPhases(plan)
 
 	next, _ := m.Update(installDoneMsg{})
 	m = next.(Model)
@@ -330,7 +424,7 @@ func TestInstallGoroutineStreamsToDone(t *testing.T) {
 	plan := installer.PlanFromSelection(opts, config.GetPackagesForPreset("minimal"))
 	plan.Silent = true
 	m.plan = plan
-	m.phases = buildPhases(plan, nil)
+	m.phases = buildPhases(plan)
 	m.installing = true
 
 	// Start the background install; the cmd returns nil and feeds m.events.

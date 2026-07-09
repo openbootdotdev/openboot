@@ -110,23 +110,27 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 	// Casks don't have an alias system, so we skip resolution for them.
 	aliasMap := ResolveFormulaNames(cliPkgs)
 
-	var newCli []string
+	var newCli, skippedCli []string
 	for _, p := range cliPkgs {
 		resolvedName := aliasMap[p]
 		if !alreadyFormulae[resolvedName] {
 			newCli = append(newCli, p)
 		} else {
 			installedFormulae = append(installedFormulae, resolvedName)
+			skippedCli = append(skippedCli, p)
 		}
 	}
-	var newCask []string
+	var newCask, skippedCask []string
 	for _, p := range caskPkgs {
 		if !alreadyCasks[p] {
 			newCask = append(newCask, p)
 		} else {
 			installedCasks = append(installedCasks, p)
+			skippedCask = append(skippedCask, p)
 		}
 	}
+	// Streaming invariant: skipped packages still produce a terminal event.
+	EmitSkipped(skippedCli, skippedCask)
 
 	skipped := total - len(newCli) - len(newCask)
 	if skipped > 0 {
@@ -228,6 +232,16 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 	ui.Printf("\nRetrying %d failed packages...\n", len(allFailed))
 
 	for _, f := range allFailed {
+		phase := progresspkg.PhaseHomebrew
+		if f.isCask {
+			phase = progresspkg.PhaseApplications
+		}
+		// Streaming: the retry outcome supersedes the earlier StepFail in the
+		// log; without these events the wizard would show ✗ for a package
+		// that actually installed on retry.
+		if streaming() {
+			progressSink.Emit(progresspkg.Event{Phase: phase, Name: f.name, Status: progresspkg.StepStart, Command: "retrying " + f.name})
+		}
 		var errMsg string
 		if f.isCask {
 			errMsg = installSmartCaskWithError(ctx, f.name)
@@ -235,14 +249,22 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 			errMsg = installFormulaWithError(ctx, f.name)
 		}
 		if errMsg == "" {
-			ui.Printf("  ✔ %s (retry succeeded)\n", f.name)
+			if streaming() {
+				progressSink.Emit(progresspkg.Event{Phase: phase, Name: f.name, Status: progresspkg.StepOK, Detail: "retry succeeded"})
+			} else {
+				ui.Printf("  ✔ %s (retry succeeded)\n", f.name)
+			}
 			if f.isCask {
 				*installedCasks = append(*installedCasks, f.name)
 			} else {
 				*installedFormulae = append(*installedFormulae, aliasMap[f.name])
 			}
 		} else {
-			ui.Printf("  ✗ %s (still failed)\n", f.name)
+			if streaming() {
+				progressSink.Emit(progresspkg.Event{Phase: phase, Name: f.name, Status: progresspkg.StepFail, Detail: "still failed: " + errMsg})
+			} else {
+				ui.Printf("  ✗ %s (still failed)\n", f.name)
+			}
 		}
 	}
 
@@ -338,12 +360,19 @@ func brewInstallCmd(ctx context.Context, args ...string) *exec.Cmd {
 
 // brewCombinedOutputWithTTY runs a brew command capturing combined output while
 // providing a TTY for stdin so that sudo password prompts work.
+//
+// In streaming mode the TUI owns the terminal in raw mode: a sudo prompt would
+// be invisible and its keystrokes swallowed by the TUI's input reader, hanging
+// the install. Withholding the TTY makes sudo fail fast instead, surfacing a
+// visible step failure.
 func brewCombinedOutputWithTTY(ctx context.Context, args ...string) (string, error) {
 	cmd := brewInstallCmd(ctx, args...)
-	tty, opened := system.OpenTTY()
-	if opened {
-		cmd.Stdin = tty
-		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
+	if !streaming() {
+		tty, opened := system.OpenTTY()
+		if opened {
+			cmd.Stdin = tty
+			defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
+		}
 	}
 	output, err := cmd.CombinedOutput()
 	return string(output), err

@@ -21,6 +21,18 @@ func SetProgressSink(s progress.Sink) (restore func()) {
 // streaming reports whether a sink is registered (TUI mode).
 func streaming() bool { return progressSink != nil }
 
+// EmitSkipped emits an already-installed StepOK event for each named package,
+// upholding the streaming invariant that every planned package produces
+// exactly one terminal event. No-op when no sink is registered.
+func EmitSkipped(names []string) {
+	if !streaming() {
+		return
+	}
+	for _, n := range names {
+		progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Name: n, Status: progress.StepOK, Detail: progress.SkipDetail})
+	}
+}
+
 // npmStepStart reports the start of a single npm package install.
 func npmStepStart(bar *ui.StickyProgress, name string) {
 	if streaming() {

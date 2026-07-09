@@ -9,6 +9,7 @@ package wizard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -27,8 +28,13 @@ const (
 	scrBoot screen = iota
 	scrSelect
 	scrGit
+	scrConfirm
 	scrInstall
 )
+
+// ErrAborted is returned by Run when the user cancels a running install with
+// ctrl+c. It distinguishes a deliberate abort from install failures.
+var ErrAborted = errors.New("installation aborted")
 
 // tickInterval drives the spinner and the derived elapsed clock.
 const tickInterval = 120 * time.Millisecond
@@ -67,6 +73,13 @@ type Model struct {
 	gitEmail string
 	gitField int // 0 = name, 1 = email
 
+	// ── confirm (pre-install review) ──
+	preview      installer.InstallPlan // what this run would do, for display + toggles
+	confShell    bool
+	confDotfiles bool
+	confPrefs    bool
+	confCur      int
+
 	// ── install ──
 	events      chan tea.Msg
 	plan        installer.InstallPlan
@@ -74,8 +87,10 @@ type Model struct {
 	logs        []logLine
 	curStep     string
 	installing  bool
+	aborting    bool // ctrl+c received mid-install; waiting for the engine to stop
 	done        bool
 	installErr  error
+	skippedPkgs int // terminal events with SkipDetail (already installed)
 	installTick int // ticks value when install started, for elapsed
 	cancel      context.CancelFunc
 }
@@ -121,8 +136,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
+			// First ctrl+c during a running install requests an abort: cancel
+			// the context and keep the TUI up until the engine reports back
+			// (installDoneMsg), so the goroutine is joined and the abort is
+			// reported honestly. A second ctrl+c force-quits.
+			if m.screen == scrInstall && m.installing && !m.aborting {
+				m.aborting = true
+				if m.cancel != nil {
+					m.cancel()
+				}
+				return m, nil
+			}
 			if m.cancel != nil {
 				m.cancel()
+			}
+			if m.installing {
+				m.installErr = ErrAborted
 			}
 			m.quit = true
 			return m, tea.Quit
@@ -134,6 +163,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateSelect(msg)
 		case scrGit:
 			return m.updateGit(msg)
+		case scrConfirm:
+			return m.updateConfirm(msg)
 		case scrInstall:
 			return m.updateInstall(msg)
 		}
@@ -170,6 +201,8 @@ func (m Model) View() string {
 		body = m.selectBody(m.width, bodyH)
 	case scrGit:
 		body = m.gitBody(m.width, bodyH)
+	case scrConfirm:
+		body = m.confirmBody(m.width, bodyH)
 	case scrInstall:
 		body = m.installBody(m.width, bodyH)
 	}
@@ -185,6 +218,8 @@ func (m Model) crumb() string {
 		return "select packages"
 	case scrGit:
 		return "git identity"
+	case scrConfirm:
+		return "review plan"
 	default:
 		if m.done {
 			return "done"
@@ -273,10 +308,13 @@ func truncCell(s string, w int) string {
 	return lipgloss.NewStyle().MaxWidth(w).Render(s)
 }
 
-// Run launches the wizard. It returns whether an install was started (confirmed)
-// and any error from the install run. Stray stdout from the install engine is
-// redirected away from the alt-screen for the program's lifetime.
-func Run(version string, opts *config.InstallOptions) (confirmed bool, err error) {
+// Run launches the wizard. It returns the applied plan, whether an install was
+// started (confirmed), and any error from the install run (ErrAborted when the
+// user cancelled mid-install). Stray stdout from the install engine is
+// redirected away from the alt-screen for the program's lifetime; the abort
+// flow keeps the TUI alive until the engine goroutine reports done, so the
+// redirect isn't restored under its feet.
+func Run(version string, opts *config.InstallOptions) (plan installer.InstallPlan, confirmed bool, err error) {
 	m := New(version, opts)
 
 	realOut := os.Stdout
@@ -291,8 +329,8 @@ func Run(version string, opts *config.InstallOptions) (confirmed bool, err error
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
 	final, runErr := p.Run()
 	if runErr != nil {
-		return false, fmt.Errorf("run wizard: %w", runErr)
+		return installer.InstallPlan{}, false, fmt.Errorf("run wizard: %w", runErr)
 	}
 	fm := final.(Model)
-	return fm.confirmed, fm.installErr
+	return fm.plan, fm.confirmed, fm.installErr
 }

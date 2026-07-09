@@ -109,7 +109,7 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 			}
 		case "backspace":
 			if len(m.query) > 0 {
-				m.query = m.query[:len(m.query)-1]
+				m.query = trimLast(m.query)
 				m.rowCur, m.scroll = 0, 0
 			}
 		case "up":
@@ -182,13 +182,14 @@ func (m Model) tryInstall() (tea.Model, tea.Cmd) {
 	if m.toInstallCount() == 0 {
 		return m, nil // nothing to install — stay put
 	}
-	// Capture a git identity first when none is configured (fresh Mac).
+	// Capture a git identity first when none is configured (fresh Mac), then
+	// review the full plan before anything runs.
 	if need, name, email := m.needsGitCapture(); need {
 		m.gitName, m.gitEmail, m.gitField = name, email, 0
 		m.screen = scrGit
 		return m, nil
 	}
-	return m.startInstall()
+	return m.enterConfirm()
 }
 
 // ── rendering ──
