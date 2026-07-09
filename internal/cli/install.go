@@ -17,6 +17,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 	"github.com/openbootdotdev/openboot/internal/ui/tui"
+	"github.com/openbootdotdev/openboot/internal/ui/tui/wizard"
 )
 
 // installCfg is the config instance used by the install subcommand.
@@ -116,6 +117,13 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		if err := applyInstallSource(src); err != nil {
 			return fmt.Errorf("apply install source: %w", err)
 		}
+
+		// --pick has no meaning in the wizard (it filters remote configs);
+		// let it fall through to the existing "--pick requires a remote
+		// config" error instead of silently dropping it.
+		if pickRaw, _ := cmd.Flags().GetString("pick"); pickRaw == "" && shouldLaunchWizard(src) {
+			return runInstallWizard()
+		}
 	}
 
 	pickRaw, _ := cmd.Flags().GetString("pick")
@@ -149,6 +157,34 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		saveSyncSourceIfRemote(installCfg)
 	}
 	return err
+}
+
+// shouldLaunchWizard reports whether this run is a bare interactive
+// `openboot install` on a TTY — the case the full-screen wizard (boot probe →
+// select → live install) owns. Explicit sources (-p, --from, -u, sync),
+// --silent, --dry-run, and --update keep their existing flows.
+func shouldLaunchWizard(src *installSource) bool {
+	return src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun &&
+		!installCfg.Update && system.HasTTY()
+}
+
+// runInstallWizard launches the full-screen install TUI and runs the resulting
+// install. The wizard owns the whole interactive flow (planning + apply); back
+// on the normal terminal, follow-ups that can't run inside the alt-screen
+// (screen-recording reminder) happen here.
+func runInstallWizard() error {
+	opts := installCfg.ToInstallOptions()
+	plan, confirmed, err := wizard.Run(installCfg.Version, opts)
+	if err != nil {
+		if errors.Is(err, wizard.ErrAborted) {
+			return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
+		}
+		return fmt.Errorf("install wizard: %w", err)
+	}
+	if confirmed {
+		installer.ShowScreenRecordingReminderAfterTUI(plan)
+	}
+	return nil
 }
 
 // ── Source resolution ─────────────────────────────────────────────────────────

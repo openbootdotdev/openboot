@@ -1,0 +1,152 @@
+package wizard
+
+import (
+	"fmt"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/openbootdotdev/openboot/internal/installer"
+)
+
+// The confirm screen is the last stop before the engine runs: it shows exactly
+// what this run will do — packages, git identity, and the three system-config
+// steps as toggleable rows (default on, preserving the design's defaults-on
+// spirit) — so nothing mutates the system without having been on screen.
+
+// confirmRow identifies one toggleable system-config row.
+type confirmRow int
+
+const (
+	rowShell confirmRow = iota
+	rowDotfiles
+	rowPrefs
+)
+
+// confirmRows returns the toggleable rows present for the previewed plan.
+func (m Model) confirmRows() []confirmRow {
+	var rows []confirmRow
+	if m.preview.InstallOhMyZsh {
+		rows = append(rows, rowShell)
+	}
+	if m.preview.DotfilesURL != "" {
+		rows = append(rows, rowDotfiles)
+	}
+	if len(m.preview.MacOSPrefs) > 0 {
+		rows = append(rows, rowPrefs)
+	}
+	return rows
+}
+
+// enterConfirm computes the plan preview and shows the confirm screen.
+func (m Model) enterConfirm() (tea.Model, tea.Cmd) {
+	m.preview = installer.PlanFromSelection(m.opts, m.selected)
+	m.confShell, m.confDotfiles, m.confPrefs = true, true, true
+	m.confCur = 0
+	m.screen = scrConfirm
+	return m, nil
+}
+
+func (m Model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	rows := m.confirmRows()
+	switch msg.String() {
+	case "esc":
+		m.screen = scrSelect
+	case "up", "k":
+		if m.confCur > 0 {
+			m.confCur--
+		}
+	case "down", "j":
+		if m.confCur < len(rows)-1 {
+			m.confCur++
+		}
+	case " ":
+		if len(rows) > 0 {
+			switch rows[clamp(m.confCur, 0, len(rows)-1)] {
+			case rowShell:
+				m.confShell = !m.confShell
+			case rowDotfiles:
+				m.confDotfiles = !m.confDotfiles
+			case rowPrefs:
+				m.confPrefs = !m.confPrefs
+			}
+		}
+	case "q":
+		m.quit = true
+		return m, tea.Quit
+	case "enter":
+		return m.startInstall()
+	}
+	return m, nil
+}
+
+func (m Model) confirmBody(_, _ int) string {
+	const pad = "   "
+	var b []string
+	b = append(b, "")
+	b = append(b, "")
+	b = append(b, pad+fg(cTextHi).Bold(true).Render("Ready to install"))
+	b = append(b, pad+fg(cDim3).Render("Everything below runs when you press ↵ — space toggles a step off."))
+	b = append(b, "")
+
+	// Packages summary (informational, not toggleable).
+	toInstall := m.toInstallCount()
+	skipped := m.selCount() - toInstall
+	pkgLine := fg(cAccentHi).Render(fmt.Sprintf("%d to install", toInstall)) +
+		fg(cDim).Render(fmt.Sprintf(" · ~%d min", m.estMin()))
+	if skipped > 0 {
+		pkgLine += fg(cDim3).Render(fmt.Sprintf(" · %d already present", skipped))
+	}
+	b = append(b, pad+"  "+fg(cDim2).Render(padTo("packages", 12))+pkgLine)
+
+	// Git identity (informational).
+	gitVal := m.gitName + " <" + m.gitEmail + ">"
+	if strings.TrimSpace(m.gitName) == "" {
+		if m.preview.SkipGit {
+			gitVal = "not configured — skipped"
+		} else {
+			gitVal = m.preview.GitName + " <" + m.preview.GitEmail + ">"
+		}
+	}
+	b = append(b, pad+"  "+fg(cDim2).Render(padTo("git", 12))+fg(cMuted).Render(gitVal))
+	b = append(b, "")
+
+	rows := m.confirmRows()
+	for i, r := range rows {
+		b = append(b, pad+m.renderConfirmRow(r, i == clamp(m.confCur, 0, len(rows)-1)))
+	}
+	if len(rows) > 0 {
+		b = append(b, "")
+	}
+	b = append(b, pad+fg(cDim3).Render("↑↓ move · space toggle · ↵ install · esc back"))
+	return strings.Join(b, "\n")
+}
+
+func (m Model) renderConfirmRow(r confirmRow, cursor bool) string {
+	var on bool
+	var name, desc string
+	switch r {
+	case rowShell:
+		on, name = m.confShell, "oh-my-zsh"
+		desc = "zsh setup, theme & plugins"
+	case rowDotfiles:
+		on, name = m.confDotfiles, "dotfiles"
+		desc = m.preview.DotfilesURL + " → symlinked (backups kept)"
+	case rowPrefs:
+		on, name = m.confPrefs, "macOS prefs"
+		desc = fmt.Sprintf("%d preferences · restarts Dock & Finder", len(m.preview.MacOSPrefs))
+	}
+
+	box := fg(cDim3).Render("◯")
+	nameStyle := fg(cMuted)
+	if on {
+		box = fg(cAccent).Render("◉")
+		nameStyle = fg(cText)
+	}
+	prefix := "  "
+	if cursor {
+		prefix = fg(cAccent).Render("› ")
+		nameStyle = fg(cWhite).Bold(true)
+	}
+	return prefix + box + " " + nameStyle.Render(padTo(name, 12)) + fg(cDim).Render(desc)
+}

@@ -171,6 +171,16 @@ func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 	ui.Println()
 }
 
+// ShowScreenRecordingReminderAfterTUI re-runs the screen-recording permission
+// reminder for a plan applied by the full-screen wizard. The wizard forces
+// plan.Silent=true to keep prompts out of the alt-screen, which also
+// suppresses this reminder; the CLI calls this after the TUI exits, back on a
+// normal terminal.
+func ShowScreenRecordingReminderAfterTUI(plan InstallPlan) {
+	plan.Silent = false
+	showScreenRecordingReminderFromPlan(plan)
+}
+
 func showScreenRecordingReminderFromPlan(plan InstallPlan) {
 	if plan.DryRun || plan.Silent {
 		return
