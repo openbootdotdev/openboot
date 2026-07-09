@@ -32,6 +32,15 @@ const (
 	scrInstall
 )
 
+// focusPane is which of the two select-screen columns holds keyboard focus.
+// ← → (and tab) move focus between them; ↑ ↓ act on the focused one.
+type focusPane int
+
+const (
+	focusList focusPane = iota // package list (right column) — the default
+	focusCats                  // category sidebar (left column)
+)
+
 // ErrAborted is returned by Run when the user cancels a running install with
 // ctrl+c. It distinguishes a deliberate abort from install failures.
 var ErrAborted = errors.New("installation aborted")
@@ -66,6 +75,7 @@ type Model struct {
 	scroll   int
 	query    string
 	typing   bool
+	selFocus focusPane
 	selected map[string]bool
 
 	// ── git identity (captured only when none is configured) ──
@@ -168,6 +178,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case scrInstall:
 			return m.updateInstall(msg)
 		}
+
+	case tea.MouseMsg:
+		if m.screen == scrSelect {
+			return m.updateSelectMouse(msg)
+		}
+		return m, nil
 
 	case probeDoneMsg:
 		return m.onProbeDone(msg)
@@ -326,7 +342,7 @@ func Run(version string, opts *config.InstallOptions) (plan installer.InstallPla
 		}()
 	}
 
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
 	final, runErr := p.Run()
 	if runErr != nil {
 		return installer.InstallPlan{}, false, fmt.Errorf("run wizard: %w", runErr)
