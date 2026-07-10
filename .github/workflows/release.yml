@@ -268,6 +268,8 @@ jobs:
           sed -i 's/^          //' homebrew-tap/Formula/openboot.rb
 
       - name: Commit and push
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           cd homebrew-tap
           git config user.name "github-actions[bot]"
@@ -275,4 +277,5 @@ jobs:
           git add Formula/openboot.rb
           git diff --cached --quiet && echo "No changes" && exit 0
           git commit -m "chore: bump openboot to ${{ needs.detect-release-type.outputs.version_clean }}"
+          git remote set-url origin "https://x-access-token:${TAP_TOKEN}@github.com/openbootdotdev/homebrew-tap.git"
           git push
