@@ -285,8 +285,11 @@ func (m Model) selectHitTest(x, y int) (selHit, int) {
 }
 
 func (m Model) tryInstall() (tea.Model, tea.Cmd) {
-	if m.toInstallCount() == 0 {
-		return m, nil // nothing to install — stay put
+	// Gate on a selection, not on new packages: an all-installed loadout still
+	// carries git/shell/dotfiles/macOS steps worth reviewing and applying, so
+	// zero *new* packages must not trap the user on the select screen.
+	if m.selCount() == 0 {
+		return m, nil // nothing selected — stay put
 	}
 	// Capture a git identity first when none is configured (fresh Mac), then
 	// review the full plan before anything runs.

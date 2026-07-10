@@ -243,7 +243,28 @@ func TestTryInstallNoopWhenNothingToInstall(t *testing.T) {
 	m := finishProbes(sized(96, 30))
 	m = send(m, key("c")) // empty selection
 	m = send(m, key("enter"))
-	assert.Equal(t, scrSelect, m.screen, "enter with nothing to install stays on select")
+	assert.Equal(t, scrSelect, m.screen, "enter with nothing selected stays on select")
+}
+
+// An all-installed loadout has zero *new* packages but still carries config
+// steps (git/shell/dotfiles/macOS); Enter must reach review, not trap the user.
+func TestSelectAllInstalledLoadoutStillProceeds(t *testing.T) {
+	defer stubGitConfig("Jane Dev", "jane@ex.io")() // configured → skip git capture
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2")) // developer loadout populates the selection
+	require.Positive(t, m.selCount())
+
+	// Mark every selected package as already present: 0 new, selection non-empty.
+	m.installed = map[string]bool{}
+	for name, on := range m.selected {
+		if on {
+			m.installed[name] = true
+		}
+	}
+	require.Zero(t, m.toInstallCount(), "precondition: nothing new to install")
+
+	m = send(m, key("enter"))
+	assert.Equal(t, scrConfirm, m.screen, "an all-installed loadout must still reach review")
 }
 
 func TestGitCaptureWhenUnconfigured(t *testing.T) {
