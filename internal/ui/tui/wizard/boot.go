@@ -215,6 +215,7 @@ func (m Model) enterSelect(sel map[string]bool) (tea.Model, tea.Cmd) {
 	m.screen = scrSelect
 	m.catCur, m.rowCur, m.scroll = 0, 0, 0
 	m.query, m.typing = "", false
+	m.hoverRow = -1
 	return m, nil
 }
 
@@ -279,7 +280,13 @@ func (m Model) renderLoadout(i int, l loadout, w int) string {
 	left := cursor + keyBox + " " + name + " " + fg(cDim).Render(preset.Description)
 	meta := fg(cMuted2).Render(fmt.Sprintf("%d pkgs", count)) + "  " +
 		fg(cAccentHi).Render(fmt.Sprintf("~%d min", estMinutes(count)))
-	return bar(left, meta, w)
+	line := bar(left, meta, w)
+	// Highlight when the mouse hovers but this isn't the keyboard cursor — same
+	// pattern as the select screen, so interactive rows read as clickable.
+	if i == m.hoverRow {
+		line = hoverBg(line)
+	}
+	return line
 }
 
 // wordmark renders "openboot" with the design's green gradient.
@@ -303,4 +310,45 @@ func estMinutes(pkgCount int) int {
 		return 1
 	}
 	return m
+}
+
+// ── boot: mouse ──
+
+func (m Model) updateBootMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Hover tracking — highlight the loadout under the cursor.
+	if msg.Action == tea.MouseActionMotion {
+		m.hoverRow = m.bootHitTest(msg.X, msg.Y)
+		return m, nil
+	}
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
+		return m, nil
+	}
+	if m.probeIdx < len(m.probes) {
+		return m, nil // still probing — ignore clicks
+	}
+	if idx := m.bootHitTest(msg.X, msg.Y); idx >= 0 {
+		m.loadCur = idx
+		return m.pickLoadout(idx)
+	}
+	return m, nil
+}
+
+// bootHitTest maps a screen coordinate to a loadout index. The geometry mirrors
+// bootBody: after probing is done the loadout list starts at a fixed position
+// below the probes + "Choose a starting point" header.
+func (m Model) bootHitTest(x, y int) int {
+	// Not interactive while probing.
+	if m.probeIdx < len(m.probes) {
+		return -1
+	}
+	bodyRow := y - 1 // title bar is screen row 0
+	// Header: blank + wordmark + subtitle + blank = 4 body rows
+	// Probes: len(m.probes) rows
+	// Footer before loadouts: blank + "Choose…" + blank = 3 body rows
+	loadoutStart := 4 + len(m.probes) + 3
+	idx := bodyRow - loadoutStart
+	if idx >= 0 && idx < len(m.loadouts) {
+		return idx
+	}
+	return -1
 }

@@ -1,6 +1,10 @@
 package wizard
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Palette — mirrors the OpenBoot TUI Redesign v5 design tokens. The two anchor
 // colors (accent green #22c55e, info cyan #06b6d4) already match the existing
@@ -33,6 +37,15 @@ var (
 // fg returns a foreground-only style for c.
 func fg(c lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c)
+}
+
+// hoverBg wraps s with a hard ANSI true-color background. It strips any
+// \e[49m inside s first — lipgloss's bar/truncCell/MaxWidth helpers emit
+// background resets that would otherwise cut the highlight short.
+func hoverBg(s string) string {
+	s = strings.ReplaceAll(s, "\x1b[49m", "")
+	// cHover = #3d3d4a → rgb(61,61,74)
+	return "\x1b[48;2;61;61;74m" + s + "\x1b[49m"
 }
 
 // spinnerFrames matches the braille spinner used across the codebase and the design.

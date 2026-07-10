@@ -363,6 +363,16 @@ func (m Model) updateInstall(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateInstallMouse handles mouse events on the install screen.
+// During install: no action (user is watching progress).
+// DONE screen: a click anywhere quits (same as enter/esc/q).
+func (m Model) updateInstallMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.done && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
 func (m Model) replay() (tea.Model, tea.Cmd) {
 	nm := New(m.version, m.opts)
 	nm.width, nm.height = m.width, m.height

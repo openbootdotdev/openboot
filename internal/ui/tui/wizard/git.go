@@ -92,8 +92,36 @@ func (m Model) gitBody(_, _ int) string {
 	return strings.Join(b, "\n")
 }
 
+func (m Model) updateGitMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action == tea.MouseActionMotion {
+		_, idx := m.gitHitTest(msg.X, msg.Y)
+		m.hoverRow = idx // field index or -1
+		return m, nil
+	}
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
+		return m, nil
+	}
+	if _, idx := m.gitHitTest(msg.X, msg.Y); idx >= 0 {
+		m.gitField = idx
+	}
+	return m, nil
+}
+
+func (m Model) gitHitTest(x, y int) (string, int) {
+	bodyRow := y - 1
+	// gitBody layout: 2 blank + title + subtitle + blank = 5 rows before fields
+	if bodyRow == 5 {
+		return "name", 0
+	}
+	if bodyRow == 6 {
+		return "email", 1
+	}
+	return "", -1
+}
+
 func (m Model) gitFieldRow(idx int, label, value, placeholder string) string {
 	focused := m.gitField == idx
+	hovered := m.hoverRow == idx
 	sep := fg(cBorder).Render("┃")
 	var val string
 	switch {
@@ -105,5 +133,9 @@ func (m Model) gitFieldRow(idx int, label, value, placeholder string) string {
 	default:
 		val = fg(cTextHi).Render(value)
 	}
-	return fg(cDim).Render(padTo(label, 7)) + " " + sep + " " + val
+	line := fg(cDim).Render(padTo(label, 7)) + " " + sep + " " + val
+	if hovered {
+		line = hoverBg(line)
+	}
+	return line
 }

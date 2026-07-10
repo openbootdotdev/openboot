@@ -217,10 +217,22 @@ const (
 	hitPkg
 )
 
-// updateSelectMouse handles clicks and wheel scrolls on the select screen:
-// left-click a category to switch to it, left-click a package to toggle it,
-// wheel to scroll the package list.
+// updateSelectMouse handles mouse events on the select screen: click a
+// category to switch to it, click a package to toggle it, wheel to scroll the
+// list, and hover to highlight the row under the cursor (no click needed).
 func (m Model) updateSelectMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Hover tracking — fires on every mouse move even without a button pressed
+	// (WithMouseAllMotion). Only highlight package rows, not categories or chrome.
+	if msg.Action == tea.MouseActionMotion {
+		kind, idx := m.selectHitTest(msg.X, msg.Y)
+		if kind == hitPkg {
+			m.hoverRow = idx
+		} else {
+			m.hoverRow = -1
+		}
+		return m.clampSelScroll(), nil
+	}
+
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
 		m.selFocus = focusList
@@ -295,7 +307,7 @@ func (m Model) tryInstall() (tea.Model, tea.Cmd) {
 	// review the full plan before anything runs.
 	if need, name, email := m.needsGitCapture(); need {
 		m.gitName, m.gitEmail, m.gitField = name, email, 0
-		m.screen = scrGit
+		m.screen, m.hoverRow = scrGit, -1
 		return m, nil
 	}
 	return m.enterConfirm()
@@ -414,7 +426,14 @@ func (m Model) selectList(w, h int) []string {
 		end = len(pool)
 	}
 	for i := start; i < end; i++ {
-		rows = append(rows, m.renderRow(pool[i], i == m2.rowCur, w))
+		line := m.renderRow(pool[i], i == m2.rowCur, w)
+		// Subtle background highlight on the row the mouse is hovering over, so
+		// the user sees where a click would land. Skip when it's also the keyboard
+		// cursor — that row already has a prominent marker (› + bold).
+		if i == m.hoverRow {
+			line = hoverBg(line)
+		}
+		rows = append(rows, line)
 	}
 	for len(rows) < h {
 		rows = append(rows, "")
