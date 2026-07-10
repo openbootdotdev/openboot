@@ -175,14 +175,18 @@ func shouldLaunchWizard(src *installSource) bool {
 func runInstallWizard() error {
 	opts := installCfg.ToInstallOptions()
 	plan, confirmed, err := wizard.Run(installCfg.Version, opts)
+	// Show the screen-recording reminder for any install that actually ran —
+	// including one that ended in a soft error (e.g. a cask installed, then
+	// dotfiles failed), matching the linear installer. Skip it only on a user
+	// abort, where nagging would be noise.
+	if confirmed && !errors.Is(err, wizard.ErrAborted) {
+		installer.ShowScreenRecordingReminderAfterTUI(plan)
+	}
 	if err != nil {
 		if errors.Is(err, wizard.ErrAborted) {
 			return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
 		}
 		return fmt.Errorf("install wizard: %w", err)
-	}
-	if confirmed {
-		installer.ShowScreenRecordingReminderAfterTUI(plan)
 	}
 	return nil
 }
