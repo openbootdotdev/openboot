@@ -8,7 +8,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -145,20 +144,13 @@ func TestSelectFocusAndCategoryNav(t *testing.T) {
 	assert.Equal(t, 1, m.rowCur, "↓ under list focus advances the package cursor")
 }
 
-// TestSelectFocusIsVisuallyIndicated proves the focus highlight is automatable
-// (contra "you have to eyeball it"): with identical state but different focus,
-// the rendered sidebar and cursor row must differ, because the active pane's
-// marker is styled brighter than the other's. What a test can't judge is
-// whether that difference is *clear enough* to a human — that stays taste.
+// TestSelectFocusIsVisuallyIndicated proves the focus cue survives WITHOUT
+// colour: with identical state but different focus, the sidebar and cursor row
+// differ structurally (the pointer glyph moves to the focused pane), so the
+// indicator holds up in piped output and for colourblind users — and needs no
+// forced colour profile to test. What a test still can't judge is whether the
+// cue is *clear enough* to a human; that stays taste.
 func TestSelectFocusIsVisuallyIndicated(t *testing.T) {
-	// lipgloss strips color when stdout isn't a TTY (as under `go test`), which
-	// would make both focus states render identically — the trap that makes a
-	// naive colour assertion silently test nothing. Force a profile so the test
-	// actually sees the styling; SetColorProfile exists for exactly this.
-	orig := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	defer lipgloss.SetColorProfile(orig)
-
 	m := finishProbes(sized(96, 30))
 	m = send(m, key("c"))
 	require.GreaterOrEqual(t, len(m.pool()), 1)
@@ -170,11 +162,11 @@ func TestSelectFocusIsVisuallyIndicated(t *testing.T) {
 	assert.NotEqual(t,
 		strings.Join(catsFocus.selectSidebar(28), "\n"),
 		strings.Join(listFocus.selectSidebar(28), "\n"),
-		"active category must render differently when the sidebar has focus")
+		"active category marker must differ by focus (structural, not just colour)")
 	assert.NotEqual(t,
 		catsFocus.renderRow(catsFocus.pool()[0], true, 90),
 		listFocus.renderRow(listFocus.pool()[0], true, 90),
-		"cursor row must render differently when the list has focus")
+		"cursor row must differ by focus — the pointer shows only under list focus")
 }
 
 func TestSelectTabTogglesFocus(t *testing.T) {
