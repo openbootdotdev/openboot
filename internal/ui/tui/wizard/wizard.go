@@ -333,11 +333,16 @@ func truncCell(s string, w int) string {
 func Run(version string, opts *config.InstallOptions) (plan installer.InstallPlan, confirmed bool, err error) {
 	m := New(version, opts)
 
-	realOut := os.Stdout
+	// While the alt-screen is up, redirect BOTH stdout and stderr away from the
+	// terminal: the install engine's subprocesses (git clone, stow, chsh…) write
+	// progress to os.Stderr, which would otherwise paint over Bubble Tea's
+	// full-screen UI. The engine's own output reaches the wizard via the event
+	// channel; the terminal it renders to is realOut (WithOutput below).
+	realOut, realErr := os.Stdout, os.Stderr
 	if devnull, derr := os.OpenFile(os.DevNull, os.O_WRONLY, 0); derr == nil {
-		os.Stdout = devnull
+		os.Stdout, os.Stderr = devnull, devnull
 		defer func() {
-			os.Stdout = realOut
+			os.Stdout, os.Stderr = realOut, realErr
 			_ = devnull.Close()
 		}()
 	}
