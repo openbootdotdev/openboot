@@ -339,10 +339,11 @@ func (m Model) selectSidebar(h int) []string {
 		nameStyle := fg(cDim)
 		countStyle := fg(cDim4)
 		if active {
-			// Bright marker when the sidebar holds focus; muted when the
-			// package list does, so the active pane reads at a glance.
+			// A pointer arrow when the sidebar holds focus vs a plain bar when
+			// it doesn't — a structural cue, so the focused pane reads without
+			// relying on colour (piped output, colourblind users).
 			if m.selFocus == focusCats {
-				edge = fg(cAccent).Render("▎")
+				edge = fg(cAccent).Render("▸")
 				nameStyle = fg(cTextHi)
 			} else {
 				edge = fg(cDim2).Render("▎")
@@ -448,14 +449,10 @@ func (m Model) renderRow(p config.Package, cursor bool, w int) string {
 
 	name := padTo(nameStyle.Render(p.Name), 20)
 	rowPrefix := "  "
-	if cursor {
-		// Dim the cursor when focus is on the sidebar, so the two panes'
-		// cursors don't compete for attention.
-		if listFocused {
-			rowPrefix = fg(cAccent).Render("› ")
-		} else {
-			rowPrefix = fg(cDim3).Render("› ")
-		}
+	if cursor && listFocused {
+		// The cursor arrow shows only when the list holds focus, so exactly one
+		// pane displays a pointer at a time — the focus cue, without colour.
+		rowPrefix = fg(cAccent).Render("› ")
 	}
 	left := rowPrefix + box + "  " + name + " " + fg(cDim).Render(p.Description)
 	return bar(truncCell(left, w-12), tail+" ", w)
