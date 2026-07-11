@@ -105,8 +105,8 @@ type Model struct {
 	installTick int // ticks value when install started, for elapsed
 	cancel      context.CancelFunc
 
-	// ── pipeline mode (RunPipeline: sync-source install reuses this screen) ──
-	pipelineRun func(context.Context) error // non-nil ⇒ start on the install screen
+	// ── pipeline mode (RunPipeline: sync-source & slug installs reuse this screen) ──
+	pipelineRun func(context.Context, installer.Reporter) error // non-nil ⇒ start on install screen
 	pipelineCtx context.Context
 }
 
@@ -399,7 +399,7 @@ func redirectOutput() (realOut *os.File, restore func()) {
 // sidebar; run does the work on a goroutine, its package progress streaming
 // through the brew/npm sinks RunPipeline registers. Returns run's error
 // (ErrAborted on ctrl+c).
-func RunPipeline(version string, phases []PipelinePhase, run func(context.Context) error) error {
+func RunPipeline(version string, phases []PipelinePhase, run func(context.Context, installer.Reporter) error) error {
 	m := New(version, &config.InstallOptions{Version: version})
 	m.screen = scrInstall
 	m.installing = true
