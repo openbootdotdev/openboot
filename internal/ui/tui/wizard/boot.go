@@ -337,8 +337,8 @@ func (m Model) updateBootMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // bootBody: after probing is done the loadout list starts at a fixed position
 // below the probes + "Choose a starting point" header.
 func (m Model) bootHitTest(x, y int) int {
-	// Not interactive while probing.
-	if m.probeIdx < len(m.probes) {
+	// Not interactive while probing, and never for clicks on the chrome.
+	if m.probeIdx < len(m.probes) || !m.inBody(y) {
 		return -1
 	}
 	bodyRow := y - 1 // title bar is screen row 0

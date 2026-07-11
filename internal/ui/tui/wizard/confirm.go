@@ -185,6 +185,9 @@ func (m Model) updateConfirmMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // Toggleable rows start at body row 8 (title + subtitle + blank + packages
 // + git + blank = 7 headers before the first toggle row).
 func (m Model) confirmHitTest(y int) (string, int) {
+	if !m.inBody(y) {
+		return "", -1
+	}
 	bodyRow := y - 1
 	idx := bodyRow - 8
 	if idx >= 0 && idx < len(m.confirmRows()) {

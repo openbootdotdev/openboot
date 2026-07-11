@@ -412,34 +412,41 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 
 	plan := buildInstallPlan(diff, rc)
 
-	// Apply through the wizard's live pipeline screen (on a TTY) so the sync
-	// install shares the full-screen streaming visuals; fall back to the linear
-	// Execute + printed summary when there's no TTY (scripts, piped output).
-	var result *syncpkg.SyncResult
-	run := func(context.Context) error {
-		var err error
-		result, err = syncpkg.Execute(plan, false)
-		return err
-	}
-	var execErr error
+	// On a TTY, apply through the wizard's live pipeline screen so the sync
+	// install shares the full-screen streaming visuals. The install runs on
+	// RunPipeline's goroutine, so we must NOT read syncpkg.Execute's *result
+	// here (that would race the goroutine); we rely only on the returned error,
+	// which is delivered to us safely through the model. Execute's joined
+	// step-errors surface as that error, so a config-step failure isn't hidden.
 	if !installCfg.Silent && system.HasTTY() {
-		execErr = wizard.RunPipeline(installCfg.Version, syncPipelinePhases(plan), run)
-	} else {
-		ui.Println()
-		execErr = run(context.Background())
-		ui.Println()
-		if result.Installed > 0 {
-			ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
+		execErr := wizard.RunPipeline(installCfg.Version, syncPipelinePhases(plan),
+			func(ctx context.Context) error {
+				_, err := syncpkg.ExecuteContext(ctx, plan, false)
+				return err
+			})
+		if errors.Is(execErr, wizard.ErrAborted) || errors.Is(execErr, context.Canceled) {
+			return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
 		}
-		if result.Updated > 0 {
-			ui.Success(fmt.Sprintf("Updated %d setting(s)", result.Updated))
+		if execErr == nil {
+			updateSyncedAt(source, "", rc)
 		}
-		for _, e := range result.Errors {
-			ui.Error(fmt.Sprintf("Failed: %s", e))
-		}
+		return execErr // joined step-errors, printed by cobra
 	}
 
-	if result != nil && (execErr == nil || result.Installed > 0 || result.Updated > 0) {
+	// No TTY (scripts, piped output): linear synchronous apply + printed summary.
+	ui.Println()
+	result, execErr := syncpkg.Execute(plan, false)
+	ui.Println()
+	if result.Installed > 0 {
+		ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
+	}
+	if result.Updated > 0 {
+		ui.Success(fmt.Sprintf("Updated %d setting(s)", result.Updated))
+	}
+	for _, e := range result.Errors {
+		ui.Error(fmt.Sprintf("Failed: %s", e))
+	}
+	if execErr == nil || result.Installed > 0 || result.Updated > 0 {
 		updateSyncedAt(source, "", rc)
 	}
 	return execErr

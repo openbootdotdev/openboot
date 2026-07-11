@@ -86,9 +86,17 @@ func executeSyncStep(items []string, label string, fn func() error) stepResult {
 	return stepResult{count: len(items)}
 }
 
-// Execute applies all planned changes. Errors are collected rather than
-// stopping on the first failure so the caller gets a full summary of what ran.
+// Execute applies all planned changes with a background context (never
+// cancelled). Prefer ExecuteContext when the caller can abort.
 func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
+	return ExecuteContext(context.Background(), plan, dryRun)
+}
+
+// ExecuteContext applies all planned changes, passing ctx to the package
+// install so a caller (the wizard pipeline) can cancel it on ctrl+c. Errors are
+// collected rather than stopping on the first failure so the caller gets a full
+// summary of what ran.
+func ExecuteContext(ctx context.Context, plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 	result := &SyncResult{}
 	var errs []error
 
@@ -102,7 +110,7 @@ func Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error) {
 	// the wizard path uses. Skipping this and calling brew.Install /
 	// brew.InstallCask separately would lose the byte-level progress bar.
 	if len(plan.InstallFormulae) > 0 || len(plan.InstallCasks) > 0 {
-		_, _, err := brew.InstallWithProgress(context.Background(), plan.InstallFormulae, plan.InstallCasks, dryRun)
+		_, _, err := brew.InstallWithProgress(ctx, plan.InstallFormulae, plan.InstallCasks, dryRun)
 		step := stepResult{label: "brew", err: err}
 		if err == nil {
 			step.count = len(plan.InstallFormulae) + len(plan.InstallCasks)

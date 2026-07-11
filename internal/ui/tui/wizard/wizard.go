@@ -128,7 +128,9 @@ func New(version string, opts *config.InstallOptions) Model {
 
 func (m Model) Init() tea.Cmd {
 	if m.pipelineRun != nil {
-		return tea.Batch(tickCmd(), m.startPipeline())
+		// waitForEvent is essential: it drains m.events into Update. Without it
+		// the goroutine's installDoneMsg is never read and the screen hangs.
+		return tea.Batch(tickCmd(), m.startPipeline(), waitForEvent(m.events))
 	}
 	return tea.Batch(tickCmd(), m.runProbe(0))
 }
@@ -247,6 +249,14 @@ func (m Model) View() string {
 	}
 
 	return m.titleBar() + "\n" + fitBlock(body, m.width, bodyH) + "\n" + m.statusBar()
+}
+
+// inBody reports whether screen row y is inside the rendered body (rows
+// 1..height-2; row 0 is the title bar and height-1 the status bar). Mouse
+// hit-tests guard on it so a click on the chrome never maps to a body row —
+// e.g. on a short terminal a status-bar click must not pick a loadout.
+func (m Model) inBody(y int) bool {
+	return y >= 1 && y <= m.height-2
 }
 
 func (m Model) crumb() string {

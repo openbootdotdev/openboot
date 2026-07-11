@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -662,6 +663,38 @@ func logTexts(ls []logLine) []string {
 		out[i] = l.text
 	}
 	return out
+}
+
+// TestPipelineDrainsChannelAndCompletes runs a real (headless) program to catch
+// the hang the unit tests below can't: pipeline-mode Init must arm waitForEvent
+// so the goroutine's installDoneMsg is actually read. Without it, done never
+// flips, the 'q' below is ignored (updateInstall quits only when done), and this
+// test times out. (The send()-based tests inject installDoneMsg directly and so
+// bypass — and miss — the Init→channel wiring.)
+func TestPipelineDrainsChannelAndCompletes(t *testing.T) {
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { _ = pw.Close() })
+
+	m := New("t", &config.InstallOptions{})
+	m.screen, m.installing = scrInstall, true
+	m.phases = toPhaseStates([]PipelinePhase{{Name: "Homebrew", Total: 1, Pkg: true}})
+	m.pipelineCtx = context.Background()
+	m.pipelineRun = func(context.Context) error { return nil } // completes instantly
+
+	p := tea.NewProgram(m, tea.WithInput(pr), tea.WithOutput(io.Discard), tea.WithoutRenderer())
+	done := make(chan tea.Model, 1)
+	go func() { fm, _ := p.Run(); done <- fm }()
+
+	time.Sleep(300 * time.Millisecond) // let the goroutine finish + drain to done
+	_, _ = pw.Write([]byte("q"))       // DONE screen: q quits
+
+	select {
+	case fm := <-done:
+		assert.True(t, fm.(Model).done, "pipeline reached done via the drained channel")
+	case <-time.After(3 * time.Second):
+		p.Kill()
+		t.Fatal("pipeline hung — Init did not arm waitForEvent to drain m.events")
+	}
 }
 
 // Pipeline mode (RunPipeline / sync-source path) reuses the install screen with

@@ -276,10 +276,10 @@ func (m Model) updateSelectMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 // list starts at body row 2 offset by the scroll. Kept a pure, testable
 // function so the mapping is verified rather than eyeballed.
 func (m Model) selectHitTest(x, y int) (selHit, int) {
-	bodyRow := y - 1
-	if bodyRow < 0 {
+	if !m.inBody(y) {
 		return hitNone, -1
 	}
+	bodyRow := y - 1
 	if x < sidebarW {
 		if ci := bodyRow - 3; ci >= 0 && ci < len(m.cats) {
 			return hitCat, ci
