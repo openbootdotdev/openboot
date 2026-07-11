@@ -108,6 +108,9 @@ func (m Model) updateGitMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) gitHitTest(x, y int) (string, int) {
+	if !m.inBody(y) {
+		return "", -1
+	}
 	bodyRow := y - 1
 	// gitBody layout: 2 blank + title + subtitle + blank = 5 rows before fields
 	if bodyRow == 5 {

@@ -39,13 +39,14 @@ func fg(c lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c)
 }
 
-// hoverBg wraps s with a hard ANSI true-color background. It strips any
-// \e[49m inside s first — lipgloss's bar/truncCell/MaxWidth helpers emit
-// background resets that would otherwise cut the highlight short.
+// hoverBg paints a hard ANSI true-color background across the whole row.
+// lipgloss ends every styled span with a FULL reset (\e[0m), which also clears
+// the background — so re-establish the background after each reset, otherwise
+// only the first span would be highlighted. cHover = #3d3d4a → rgb(61,61,74).
 func hoverBg(s string) string {
-	s = strings.ReplaceAll(s, "\x1b[49m", "")
-	// cHover = #3d3d4a → rgb(61,61,74)
-	return "\x1b[48;2;61;61;74m" + s + "\x1b[49m"
+	const bg = "\x1b[48;2;61;61;74m"
+	s = strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+bg)
+	return bg + s + "\x1b[0m"
 }
 
 // spinnerFrames matches the braille spinner used across the codebase and the design.
