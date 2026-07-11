@@ -102,7 +102,7 @@ func applyEnvOverrides(cfg *config.Config) {
 	}
 }
 
-func runInstallCmd(cmd *cobra.Command, args []string) error {
+func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo // top-level install dispatch: routes source (sync / wizard / RemoteConfig) × mode (pick / silent / dry-run / TTY-pipeline / linear); splitting the branch table scatters the flow
 	applyEnvOverrides(installCfg)
 
 	if installCfg.RemoteConfig == nil {
@@ -151,6 +151,13 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
 	}
 
+	// On a TTY, stream the apply through the wizard's live pipeline so a slug /
+	// preset / RemoteConfig install shares the full-screen visuals instead of
+	// the linear "Step N" output. Non-interactive runs keep RunContext.
+	if !installCfg.Silent && !installCfg.DryRun && !installCfg.Update && system.HasTTY() {
+		return runPipelineInstall(cmd.Context())
+	}
+
 	err := installer.RunContext(cmd.Context(), installCfg)
 	if errors.Is(err, installer.ErrUserCancelled) {
 		return nil
@@ -168,6 +175,39 @@ func runInstallCmd(cmd *cobra.Command, args []string) error {
 func shouldLaunchWizard(src *installSource) bool {
 	return src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun &&
 		!installCfg.Update && system.HasTTY()
+}
+
+// runPipelineInstall resolves the plan (with linear pre-flight prep) and applies
+// it through the wizard's live pipeline screen, so a slug/preset/RemoteConfig
+// install streams like the wizard. ApplyContext is the same engine RunContext
+// uses; only the reporter differs. Follow-ups that can't run inside the
+// alt-screen (screen-recording reminder) happen after, on a normal terminal.
+func runPipelineInstall(ctx context.Context) error {
+	plan, err := installer.PlanForConfig(installCfg)
+	if err != nil {
+		if errors.Is(err, installer.ErrUserCancelled) {
+			return nil
+		}
+		return err
+	}
+	// Silence keeps the in-apply reminder/prompts out of the alt-screen; it's
+	// re-run afterwards via ShowScreenRecordingReminderAfterTUI.
+	plan.Silent = true
+
+	runErr := wizard.RunPipeline(installCfg.Version, wizard.PhasesForPlan(plan),
+		func(ctx context.Context, r installer.Reporter) error {
+			return installer.ApplyContext(ctx, plan, r)
+		})
+	if errors.Is(runErr, wizard.ErrAborted) || errors.Is(runErr, context.Canceled) {
+		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
+	}
+	// The install ran (cleanly or with soft errors): show the reminder on the
+	// restored terminal, then persist the sync source on a clean run.
+	installer.ShowScreenRecordingReminderAfterTUI(plan)
+	if runErr == nil {
+		saveSyncSourceIfRemote(installCfg)
+	}
+	return runErr
 }
 
 // runInstallWizard launches the full-screen install TUI and runs the resulting
@@ -420,7 +460,7 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 	// step-errors surface as that error, so a config-step failure isn't hidden.
 	if !installCfg.Silent && system.HasTTY() {
 		execErr := wizard.RunPipeline(installCfg.Version, syncPipelinePhases(plan),
-			func(ctx context.Context) error {
+			func(ctx context.Context, _ installer.Reporter) error {
 				_, err := syncpkg.ExecuteContext(ctx, plan, false)
 				return err
 			})

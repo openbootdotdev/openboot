@@ -152,13 +152,28 @@ func (m Model) startPipeline() tea.Cmd {
 			sink := func(ev progress.Event) { ch <- evMsg{ev: ev} }
 			restoreBrew := brew.SetProgressSink(sink)
 			restoreNpm := npm.SetProgressSink(sink)
-			err := run(ctx)
+			// chanReporter feeds section headers (→ phase activation) and outcome
+			// log lines onto the same channel, so an ApplyContext-based run
+			// streams exactly like the wizard's own install.
+			err := run(ctx, chanReporter{ch: ch})
 			restoreBrew()
 			restoreNpm()
 			ch <- installDoneMsg{err: err}
 		}()
 		return nil
 	}
+}
+
+// PhasesForPlan derives pipeline phases from a resolved installer plan, so a
+// RemoteConfig/preset install (install <slug>) can drive RunPipeline with the
+// same sidebar the wizard builds.
+func PhasesForPlan(plan installer.InstallPlan) []PipelinePhase {
+	ps := buildPhases(plan)
+	out := make([]PipelinePhase, len(ps))
+	for i, p := range ps {
+		out[i] = PipelinePhase{Name: p.name, Total: p.total, Pkg: p.pkg}
+	}
+	return out
 }
 
 // buildPhases derives the pipeline sidebar from the plan. Package-phase totals

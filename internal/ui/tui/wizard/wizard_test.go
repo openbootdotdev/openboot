@@ -679,7 +679,7 @@ func TestPipelineDrainsChannelAndCompletes(t *testing.T) {
 	m.screen, m.installing = scrInstall, true
 	m.phases = toPhaseStates([]PipelinePhase{{Name: "Homebrew", Total: 1, Pkg: true}})
 	m.pipelineCtx = context.Background()
-	m.pipelineRun = func(context.Context) error { return nil } // completes instantly
+	m.pipelineRun = func(context.Context, installer.Reporter) error { return nil } // completes instantly
 
 	p := tea.NewProgram(m, tea.WithInput(pr), tea.WithOutput(io.Discard), tea.WithoutRenderer())
 	done := make(chan tea.Model, 1)
@@ -720,8 +720,32 @@ func TestPipelineModeReachesDone(t *testing.T) {
 func TestPipelineReplayDisabled(t *testing.T) {
 	m := New("1.0.0", &config.InstallOptions{})
 	m.screen, m.done = scrInstall, true
-	m.pipelineRun = func(context.Context) error { return nil } // marks pipeline mode
+	m.pipelineRun = func(context.Context, installer.Reporter) error { return nil } // marks pipeline mode
 	next, _ := m.Update(key("r"))
 	// 'r' must NOT restart the wizard probe in pipeline mode — screen stays put.
 	assert.Equal(t, scrInstall, next.(Model).screen, "replay is a no-op in pipeline mode")
+}
+
+// PhasesForPlan drives the slug/preset pipeline sidebar from an installer plan.
+func TestPhasesForPlan(t *testing.T) {
+	plan := installer.InstallPlan{
+		Formulae:       []string{"jq", "ripgrep"},
+		Casks:          []string{"orbstack"},
+		InstallOhMyZsh: true,
+		DotfilesURL:    "https://github.com/x/dotfiles",
+	}
+	ps := PhasesForPlan(plan)
+
+	byName := map[string]PipelinePhase{}
+	for _, p := range ps {
+		byName[p.Name] = p
+	}
+	require.Contains(t, byName, "Homebrew")
+	assert.Equal(t, 2, byName["Homebrew"].Total)
+	assert.True(t, byName["Homebrew"].Pkg)
+	require.Contains(t, byName, "Applications")
+	require.Contains(t, byName, "Shell")
+	assert.False(t, byName["Shell"].Pkg, "config steps are not per-item package phases")
+	require.Contains(t, byName, "Dotfiles")
+	assert.NotContains(t, byName, "npm globals", "no npm in this plan")
 }

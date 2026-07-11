@@ -84,6 +84,23 @@ func runInstallContext(ctx context.Context, opts *config.InstallOptions, st *con
 	return ApplyContext(ctx, plan, ConsoleReporter{})
 }
 
+// PlanForConfig runs the pre-flight dependency check and resolves the install
+// plan for cfg — the linear RunContext flow up to (but not including) Apply. It
+// exists so the wizard pipeline can do the interactive prep on a normal
+// terminal, then stream the apply itself via ApplyContext with its own Reporter.
+func PlanForConfig(cfg *config.Config) (InstallPlan, error) {
+	opts := cfg.ToInstallOptions()
+	st := cfg.ToInstallState()
+	if err := checkDependencies(opts, st); err != nil {
+		return InstallPlan{}, fmt.Errorf("check dependencies: %w", err)
+	}
+	plan, err := Plan(opts, st)
+	if err != nil {
+		return InstallPlan{}, fmt.Errorf("plan install: %w", err)
+	}
+	return plan, nil
+}
+
 // Apply executes a resolved InstallPlan, reporting progress via r.
 // All user interaction has already happened in Plan(); this function only performs actions.
 func Apply(plan InstallPlan, r Reporter) error {
