@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -111,7 +112,7 @@ func (m Model) startInstall() (tea.Model, tea.Cmd) {
 // spawnInstall runs the install engine on a background goroutine, streaming
 // progress onto the event channel. It returns immediately.
 func (m Model) spawnInstall(ctx context.Context, plan installer.InstallPlan) tea.Cmd {
-	ch := m.events
+	ch, done := m.events, m.installDone
 	return func() tea.Msg {
 		go func() {
 			sink := func(ev progress.Event) { ch <- evMsg{ev: ev} }
@@ -120,6 +121,11 @@ func (m Model) spawnInstall(ctx context.Context, plan installer.InstallPlan) tea
 			err := installer.ApplyContext(ctx, plan, chanReporter{ch: ch})
 			restoreBrew()
 			restoreNpm()
+			// Signal that the engine has stopped touching os.Stdout (ApplyContext
+			// returned) BEFORE the channel send, so Run can restore stdout without
+			// racing us — even on a force-quit where nothing drains the channel and
+			// the send below could block on a full buffer.
+			close(done)
 			ch <- installDoneMsg{err: err}
 		}()
 		return nil
@@ -146,7 +152,7 @@ func toPhaseStates(ps []PipelinePhase) []phaseState {
 // path) on a goroutine, wiring the same brew/npm sinks as spawnInstall so
 // package progress streams into the shared install screen.
 func (m Model) startPipeline() tea.Cmd {
-	ch, run, ctx := m.events, m.pipelineRun, m.pipelineCtx
+	ch, done, run, ctx := m.events, m.installDone, m.pipelineRun, m.pipelineCtx
 	return func() tea.Msg {
 		go func() {
 			sink := func(ev progress.Event) { ch <- evMsg{ev: ev} }
@@ -158,6 +164,8 @@ func (m Model) startPipeline() tea.Cmd {
 			err := run(ctx, chanReporter{ch: ch})
 			restoreBrew()
 			restoreNpm()
+			// See spawnInstall: close before the send so Run can join safely.
+			close(done)
 			ch <- installDoneMsg{err: err}
 		}()
 		return nil
@@ -231,8 +239,14 @@ func (m Model) onInstallEvent(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.installing = false
 		m.done = true
 		m.installErr = t.err
-		if m.aborting && m.installErr == nil {
-			m.installErr = ErrAborted
+		if m.aborting {
+			// A ctrl+c cancel SIGKILLs the in-flight brew/npm subprocess, so t.err
+			// is usually non-nil ("signal: killed"). The old `&& t.err == nil` guard
+			// therefore left ErrAborted unset for the common case (abort during the
+			// package phase), and the CLI misreported the abort as an install
+			// failure. Join so errors.Is(err, ErrAborted) holds while the underlying
+			// cause stays in the chain for the log.
+			m.installErr = errors.Join(ErrAborted, t.err)
 		}
 		if m.cancel != nil {
 			m.cancel()

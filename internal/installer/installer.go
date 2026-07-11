@@ -120,27 +120,37 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 		softErrs = append(softErrs, fmt.Errorf("brew: %w", err))
 	}
 
+	// ctrl+c cancels ctx. brew/npm honour it (exec.CommandContext), but the
+	// config steps below take no ctx, so without these gates an aborted install
+	// would keep symlinking dotfiles and rewriting macOS defaults after the user
+	// asked to stop. Bail between phases so an abort skips not-yet-started work.
+	if err := ctx.Err(); err != nil {
+		return abortWith(softErrs, err)
+	}
+
 	if err := applyNpm(ctx, plan, r); err != nil {
 		r.Error(fmt.Sprintf("npm package installation failed: %v", err))
 		softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
 	}
 
 	if !plan.PackagesOnly {
-		if err := applyShell(plan, r); err != nil {
-			r.Error(fmt.Sprintf("Shell setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+		configSteps := []struct {
+			name, failMsg string
+			apply         func(InstallPlan, Reporter) error
+		}{
+			{"shell", "Shell setup failed", applyShell},
+			{"dotfiles", "Dotfiles setup failed", applyDotfiles},
+			{"macos", "macOS configuration failed", applyMacOSPrefs},
+			{"post-install", "Post-install script failed", applyPostInstall},
 		}
-		if err := applyDotfiles(plan, r); err != nil {
-			r.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
-		}
-		if err := applyMacOSPrefs(plan, r); err != nil {
-			r.Error(fmt.Sprintf("macOS configuration failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
-		}
-		if err := applyPostInstall(plan, r); err != nil {
-			r.Error(fmt.Sprintf("Post-install script failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("post-install: %w", err))
+		for _, s := range configSteps {
+			if err := ctx.Err(); err != nil {
+				return abortWith(softErrs, err)
+			}
+			if err := s.apply(plan, r); err != nil {
+				r.Error(fmt.Sprintf("%s: %v", s.failMsg, err))
+				softErrs = append(softErrs, fmt.Errorf("%s: %w", s.name, err))
+			}
 		}
 	}
 
@@ -152,6 +162,14 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 	}
 	slog.Info("install_completed", "soft_errors", 0)
 	return nil
+}
+
+// abortWith joins the soft errors accumulated so far with the context
+// cancellation cause, for when ApplyContext bails out early on a cancelled
+// context (ctrl+c). Returning here stops the remaining steps so an aborted
+// install doesn't keep mutating the system.
+func abortWith(softErrs []error, cause error) error {
+	return errors.Join(append(softErrs, cause)...)
 }
 
 func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {

@@ -93,6 +93,7 @@ type Model struct {
 
 	// ── install ──
 	events      chan tea.Msg
+	installDone chan struct{} // closed by the install goroutine once ApplyContext returns (Run joins on it)
 	plan        installer.InstallPlan
 	phases      []phaseState
 	logs        []logLine
@@ -120,9 +121,10 @@ func New(version string, opts *config.InstallOptions) Model {
 		loadouts:  newLoadouts(),
 		installed: map[string]bool{},
 		cats:      config.GetCategories(),
-		hoverRow:  -1,
-		selected:  map[string]bool{},
-		events:    make(chan tea.Msg, 1024),
+		hoverRow:    -1,
+		selected:    map[string]bool{},
+		events:      make(chan tea.Msg, 1024),
+		installDone: make(chan struct{}),
 	}
 }
 
@@ -375,7 +377,25 @@ func Run(version string, opts *config.InstallOptions) (plan installer.InstallPla
 		return installer.InstallPlan{}, false, fmt.Errorf("run wizard: %w", runErr)
 	}
 	fm := final.(Model)
+	// Join the install goroutine before the deferred restore() flips os.Stdout
+	// back, so a force-quit (2nd ctrl+c) can neither race the engine's stdout
+	// writes nor return control to the shell while it is still mutating the system.
+	fm.joinInstall()
 	return fm.plan, fm.confirmed, fm.installErr
+}
+
+// joinInstall blocks until the install goroutine has finished (it closes
+// installDone once ApplyContext returns and the brew/npm sinks are restored).
+// No-op when no install was started. The timeout is a safety valve so a wedged
+// subprocess can't hang the process on the terminal indefinitely.
+func (m Model) joinInstall() {
+	if !m.confirmed && m.pipelineRun == nil {
+		return // no install goroutine was ever spawned
+	}
+	select {
+	case <-m.installDone:
+	case <-time.After(30 * time.Second):
+	}
 }
 
 // redirectOutput sends stdout+stderr to /dev/null for the alt-screen's lifetime
@@ -417,5 +437,7 @@ func RunPipeline(version string, phases []PipelinePhase, run func(context.Contex
 	if runErr != nil {
 		return fmt.Errorf("run install: %w", runErr)
 	}
-	return final.(Model).installErr
+	fm := final.(Model)
+	fm.joinInstall() // see Run: join before the deferred restore()
+	return fm.installErr
 }
