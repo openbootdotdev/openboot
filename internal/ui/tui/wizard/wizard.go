@@ -76,6 +76,7 @@ type Model struct {
 	query    string
 	typing   bool
 	selFocus focusPane
+	hoverRow int // mouse hover index in pool(), -1 when not on a package row
 	selected map[string]bool
 
 	// ── git identity (captured only when none is configured) ──
@@ -115,6 +116,7 @@ func New(version string, opts *config.InstallOptions) Model {
 		loadouts:  newLoadouts(),
 		installed: map[string]bool{},
 		cats:      config.GetCategories(),
+		hoverRow:  -1,
 		selected:  map[string]bool{},
 		events:    make(chan tea.Msg, 1024),
 	}
@@ -180,16 +182,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.MouseMsg:
-		if m.screen == scrSelect {
-			return m.updateSelectMouse(msg)
-		}
-		return m, nil
+		return m.routeMouse(msg)
 
 	case probeDoneMsg:
 		return m.onProbeDone(msg)
 
 	case evMsg, reporterMsg, installDoneMsg:
 		return m.onInstallEvent(msg)
+	}
+	return m, nil
+}
+
+// routeMouse dispatches a mouse event to the active screen's handler.
+func (m Model) routeMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch m.screen {
+	case scrBoot:
+		return m.updateBootMouse(msg)
+	case scrSelect:
+		return m.updateSelectMouse(msg)
+	case scrGit:
+		return m.updateGitMouse(msg)
+	case scrConfirm:
+		return m.updateConfirmMouse(msg)
+	case scrInstall:
+		return m.updateInstallMouse(msg)
 	}
 	return m, nil
 }
@@ -347,7 +363,7 @@ func Run(version string, opts *config.InstallOptions) (plan installer.InstallPla
 		}()
 	}
 
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
 	final, runErr := p.Run()
 	if runErr != nil {
 		return installer.InstallPlan{}, false, fmt.Errorf("run wizard: %w", runErr)

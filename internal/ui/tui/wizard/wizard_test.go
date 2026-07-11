@@ -239,6 +239,76 @@ func TestSelectMouseWheelScrolls(t *testing.T) {
 	assert.Equal(t, 0, m.rowCur, "wheel up moves it back")
 }
 
+func TestBootMouseClickPicksLoadout(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	require.Equal(t, scrBoot, m.screen)
+	require.GreaterOrEqual(t, len(m.loadouts), 2)
+
+	// Click the second loadout row. Geometry: 4 header + 4 probes + 3 footer
+	// = loadouts start at body row 11 → screen row 12. Loadout 1 at row 13.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 10, Y: 13})
+	assert.Equal(t, scrSelect, m.screen, "clicking a loadout enters the select screen")
+	assert.Equal(t, 1, m.loadCur, "click lands on loadout index 1")
+}
+
+func TestBootMouseHoverHighlightsLoadout(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	require.Equal(t, scrBoot, m.screen)
+	require.Equal(t, -1, m.hoverRow, "starts with no hover")
+
+	// Motion over the first loadout row (screen row 12) sets hoverRow.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionMotion, X: 10, Y: 12})
+	assert.Equal(t, 0, m.hoverRow, "hover over loadout 0")
+
+	// Motion off the loadout area clears it.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionMotion, X: 10, Y: 1})
+	assert.Equal(t, -1, m.hoverRow, "hover off loadout clears indicator")
+}
+
+func TestGitMouseClickFocusesField(t *testing.T) {
+	defer stubGitConfig("", "")()
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrGit, m.screen)
+	require.Equal(t, 0, m.gitField, "name field focused by default")
+
+	// Click the email field row (body row 6 → screen row 7).
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 10, Y: 7})
+	assert.Equal(t, 1, m.gitField, "click switches focus to email field")
+}
+
+func TestConfirmMouseClickTogglesRow(t *testing.T) {
+	defer stubGitConfig("Jane Dev", "jane@ex.io")()
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrConfirm, m.screen)
+	require.True(t, m.confShell)
+	require.GreaterOrEqual(t, len(m.confirmRows()), 1)
+
+	// Click the first toggleable row (body row 8 → screen row 9).
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 10, Y: 9})
+	assert.False(t, m.confShell, "click toggles the first confirm row off")
+}
+
+func TestSelectMouseHoverHighlightsRow(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	require.GreaterOrEqual(t, len(m.pool()), 2)
+	require.Equal(t, -1, m.hoverRow, "starts with no hover")
+
+	// Motion over the first package row sets hoverRow.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionMotion, X: sidebarW + 5, Y: 3})
+	assert.Equal(t, 0, m.hoverRow, "hover over row 0")
+
+	// Motion over chrome (sidebar or title) clears hoverRow.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionMotion, X: 2, Y: 1})
+	assert.Equal(t, -1, m.hoverRow, "hover over chrome clears the indicator")
+}
+
 func TestTryInstallNoopWhenNothingToInstall(t *testing.T) {
 	m := finishProbes(sized(96, 30))
 	m = send(m, key("c")) // empty selection

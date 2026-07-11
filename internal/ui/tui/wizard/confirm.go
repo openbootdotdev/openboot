@@ -42,7 +42,7 @@ func (m Model) confirmRows() []confirmRow {
 func (m Model) enterConfirm() (tea.Model, tea.Cmd) {
 	m.preview = installer.PlanFromSelection(m.opts, m.selected)
 	m.confShell, m.confDotfiles, m.confPrefs = true, true, true
-	m.confCur = 0
+	m.confCur, m.hoverRow = 0, -1
 	m.screen = scrConfirm
 	return m, nil
 }
@@ -113,7 +113,11 @@ func (m Model) confirmBody(_, _ int) string {
 
 	rows := m.confirmRows()
 	for i, r := range rows {
-		b = append(b, pad+m.renderConfirmRow(r, i == clamp(m.confCur, 0, len(rows)-1)))
+		line := m.renderConfirmRow(r, i == clamp(m.confCur, 0, len(rows)-1))
+		if i == m.hoverRow {
+			line = hoverBg(line)
+		}
+		b = append(b, pad+line)
 	}
 	if len(rows) > 0 {
 		b = append(b, "")
@@ -149,4 +153,42 @@ func (m Model) renderConfirmRow(r confirmRow, cursor bool) string {
 		nameStyle = fg(cWhite).Bold(true)
 	}
 	return prefix + box + " " + nameStyle.Render(padTo(name, 12)) + fg(cDim).Render(desc)
+}
+
+// ── confirm: mouse ──
+
+func (m Model) updateConfirmMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action == tea.MouseActionMotion {
+		_, idx := m.confirmHitTest(msg.Y)
+		m.hoverRow = idx
+		return m, nil
+	}
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionPress {
+		return m, nil
+	}
+	if _, idx := m.confirmHitTest(msg.Y); idx >= 0 {
+		m.confCur = idx
+		rows := m.confirmRows()
+		switch rows[clamp(idx, 0, len(rows)-1)] {
+		case rowShell:
+			m.confShell = !m.confShell
+		case rowDotfiles:
+			m.confDotfiles = !m.confDotfiles
+		case rowPrefs:
+			m.confPrefs = !m.confPrefs
+		}
+	}
+	return m, nil
+}
+
+// confirmHitTest maps a screen Y coordinate to a confirm-row index.
+// Toggleable rows start at body row 8 (title + subtitle + blank + packages
+// + git + blank = 7 headers before the first toggle row).
+func (m Model) confirmHitTest(y int) (string, int) {
+	bodyRow := y - 1
+	idx := bodyRow - 8
+	if idx >= 0 && idx < len(m.confirmRows()) {
+		return "row", idx
+	}
+	return "", -1
 }
