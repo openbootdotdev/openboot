@@ -281,6 +281,16 @@ func (m *Model) applyProgressEvent(ev progress.Event) {
 			m.curStep = ev.Name
 		}
 	case progress.StepOK:
+		// The npm outer retry (applyNpm) re-runs the install and re-emits an
+		// "already installed" skip for every package a prior attempt installed —
+		// breaking the one-terminal-event-per-package invariant. Ignore a skip for
+		// a package that already had a terminal event, so skippedPkgs (which the
+		// completion footer subtracts from the package total) can't be inflated
+		// past the total and render a negative "N packages".
+		if ev.Detail == progress.SkipDetail && m.terminalSeen[termKey(ev)] {
+			return
+		}
+		m.markTerminal(ev)
 		m.incPhase(ev.Phase)
 		text := ev.Name
 		if ev.Detail != "" {
@@ -293,8 +303,26 @@ func (m *Model) applyProgressEvent(ev progress.Event) {
 			m.appendLog(logLine{mark: "✓", markColor: cAccent, text: text, color: cMuted})
 		}
 	case progress.StepFail:
+		m.markTerminal(ev)
 		m.incPhase(ev.Phase)
 		m.appendLog(logLine{mark: "✗", markColor: cDanger, text: ev.Name + " (" + ev.Detail + ")", color: cDanger})
+	}
+}
+
+// termKey identifies a package's terminal event by phase + name. Empty for
+// unnamed events (e.g. the batch StepStart), which are never deduped.
+func termKey(ev progress.Event) string {
+	if ev.Name == "" {
+		return ""
+	}
+	return ev.Phase + "/" + ev.Name
+}
+
+// markTerminal records that a package produced a terminal event, so a later
+// re-emitted skip for it (npm retry) can be recognised as a duplicate.
+func (m *Model) markTerminal(ev progress.Event) {
+	if k := termKey(ev); k != "" {
+		m.terminalSeen[k] = true
 	}
 }
 

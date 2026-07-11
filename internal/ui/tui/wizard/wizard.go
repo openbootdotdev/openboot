@@ -92,19 +92,20 @@ type Model struct {
 	confCur      int
 
 	// ── install ──
-	events      chan tea.Msg
-	installDone chan struct{} // closed by the install goroutine once ApplyContext returns (Run joins on it)
-	plan        installer.InstallPlan
-	phases      []phaseState
-	logs        []logLine
-	curStep     string
-	installing  bool
-	aborting    bool // ctrl+c received mid-install; waiting for the engine to stop
-	done        bool
-	installErr  error
-	skippedPkgs int // terminal events with SkipDetail (already installed)
-	installTick int // ticks value when install started, for elapsed
-	cancel      context.CancelFunc
+	events       chan tea.Msg
+	installDone  chan struct{} // closed by the install goroutine once ApplyContext returns (Run joins on it)
+	plan         installer.InstallPlan
+	phases       []phaseState
+	logs         []logLine
+	curStep      string
+	installing   bool
+	aborting     bool // ctrl+c received mid-install; waiting for the engine to stop
+	done         bool
+	installErr   error
+	skippedPkgs  int             // terminal events with SkipDetail (already installed)
+	terminalSeen map[string]bool // packages that produced a terminal event, for skip dedup (npm retry)
+	installTick  int             // ticks value when install started, for elapsed
+	cancel       context.CancelFunc
 
 	// ── pipeline mode (RunPipeline: sync-source & slug installs reuse this screen) ──
 	pipelineRun func(context.Context, installer.Reporter) error // non-nil ⇒ start on install screen
@@ -114,17 +115,18 @@ type Model struct {
 // New builds a wizard model for the given version and resolved install options.
 func New(version string, opts *config.InstallOptions) Model {
 	return Model{
-		version:   version,
-		opts:      opts,
-		screen:    scrBoot,
-		probes:    newProbes(),
-		loadouts:  newLoadouts(),
-		installed: map[string]bool{},
-		cats:      config.GetCategories(),
-		hoverRow:    -1,
-		selected:    map[string]bool{},
-		events:      make(chan tea.Msg, 1024),
-		installDone: make(chan struct{}),
+		version:      version,
+		opts:         opts,
+		screen:       scrBoot,
+		probes:       newProbes(),
+		loadouts:     newLoadouts(),
+		installed:    map[string]bool{},
+		cats:         config.GetCategories(),
+		hoverRow:     -1,
+		selected:     map[string]bool{},
+		events:       make(chan tea.Msg, 1024),
+		installDone:  make(chan struct{}),
+		terminalSeen: map[string]bool{},
 	}
 }
 
@@ -150,11 +152,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		return m, nil
+		// Re-clamp the select scroll to the new height: selectList renders from a
+		// re-clamped copy, but selectHitTest reads the stored scroll, so without
+		// this a click right after a resize (before any mouse motion re-clamps)
+		// could toggle the wrong package. Harmless on the other screens.
+		return m.clampSelScroll(), nil
 
 	case tickMsg:
+		// Stop animating once the install screen is done: nothing on it spins, and
+		// leaving the clock running makes the completion footer's elapsed time keep
+		// counting up while the user reads it. Checking before the increment
+		// freezes elapsed() exactly at completion.
+		if m.done {
+			return m, nil
+		}
 		m.ticks++
-		// Keep ticking while anything is animating (probing or installing).
 		return m, tickCmd()
 
 	case tea.KeyMsg:

@@ -63,9 +63,13 @@ func (m Model) pool() []config.Package {
 	return nil
 }
 
-// selVisible is the number of package rows the list area can show.
+// selVisible is the number of package rows the list area can show. It must match
+// selectList's own count (body height − search row − blank) exactly, or the
+// scroll clamp and the render disagree: leaving blank rows at the bottom and
+// rows the keyboard cursor can never reach. body height = m.height − title −
+// status = m.height − 2; the list then spends 2 rows on the search + blank.
 func (m Model) selVisible() int {
-	v := m.height - 6 // chrome (2) + search row + blank + slack
+	v := m.height - 4
 	if v < 3 {
 		v = 3
 	}
@@ -286,6 +290,9 @@ func (m Model) selectHitTest(x, y int) (selHit, int) {
 		}
 		return hitNone, -1
 	}
+	if x == sidebarW {
+		return hitNone, -1 // the vertical divider column — neither pane
+	}
 	if bodyRow < 2 {
 		return hitNone, -1
 	}
@@ -427,9 +434,9 @@ func (m Model) selectList(w, h int) []string {
 	}
 	for i := start; i < end; i++ {
 		line := m.renderRow(pool[i], i == m2.rowCur, w)
-		// Subtle background highlight on the row the mouse is hovering over, so
-		// the user sees where a click would land. Skip when it's also the keyboard
-		// cursor — that row already has a prominent marker (› + bold).
+		// Subtle background highlight on the row the mouse is hovering over, so the
+		// user sees where a click would land — including when it's also the
+		// keyboard cursor, so the "clickable" affordance is never dropped.
 		if i == m.hoverRow {
 			line = hoverBg(line)
 		}
