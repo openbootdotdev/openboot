@@ -104,6 +104,10 @@ type Model struct {
 	skippedPkgs int // terminal events with SkipDetail (already installed)
 	installTick int // ticks value when install started, for elapsed
 	cancel      context.CancelFunc
+
+	// ── pipeline mode (RunPipeline: sync-source install reuses this screen) ──
+	pipelineRun func(context.Context) error // non-nil ⇒ start on the install screen
+	pipelineCtx context.Context
 }
 
 // New builds a wizard model for the given version and resolved install options.
@@ -123,6 +127,9 @@ func New(version string, opts *config.InstallOptions) Model {
 }
 
 func (m Model) Init() tea.Cmd {
+	if m.pipelineRun != nil {
+		return tea.Batch(tickCmd(), m.startPipeline())
+	}
 	return tea.Batch(tickCmd(), m.runProbe(0))
 }
 
@@ -349,19 +356,8 @@ func truncCell(s string, w int) string {
 func Run(version string, opts *config.InstallOptions) (plan installer.InstallPlan, confirmed bool, err error) {
 	m := New(version, opts)
 
-	// While the alt-screen is up, redirect BOTH stdout and stderr away from the
-	// terminal: the install engine's subprocesses (git clone, stow, chsh…) write
-	// progress to os.Stderr, which would otherwise paint over Bubble Tea's
-	// full-screen UI. The engine's own output reaches the wizard via the event
-	// channel; the terminal it renders to is realOut (WithOutput below).
-	realOut, realErr := os.Stdout, os.Stderr
-	if devnull, derr := os.OpenFile(os.DevNull, os.O_WRONLY, 0); derr == nil {
-		os.Stdout, os.Stderr = devnull, devnull
-		defer func() {
-			os.Stdout, os.Stderr = realOut, realErr
-			_ = devnull.Close()
-		}()
-	}
+	realOut, restore := redirectOutput()
+	defer restore()
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
 	final, runErr := p.Run()
@@ -370,4 +366,46 @@ func Run(version string, opts *config.InstallOptions) (plan installer.InstallPla
 	}
 	fm := final.(Model)
 	return fm.plan, fm.confirmed, fm.installErr
+}
+
+// redirectOutput sends stdout+stderr to /dev/null for the alt-screen's lifetime
+// (subprocess progress must not paint over Bubble Tea) and returns the real
+// stdout to render onto plus a restore func.
+func redirectOutput() (realOut *os.File, restore func()) {
+	realOut, realErr := os.Stdout, os.Stderr
+	if devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0); err == nil {
+		os.Stdout, os.Stderr = devnull, devnull
+		return realOut, func() {
+			os.Stdout, os.Stderr = realOut, realErr
+			_ = devnull.Close()
+		}
+	}
+	return realOut, func() {}
+}
+
+// RunPipeline renders the wizard's live install screen for an externally-built
+// plan, so the sync-source path (install <slug>) shares the wizard's install
+// visuals instead of the linear StickyProgress. phases seed the pipeline
+// sidebar; run does the work on a goroutine, its package progress streaming
+// through the brew/npm sinks RunPipeline registers. Returns run's error
+// (ErrAborted on ctrl+c).
+func RunPipeline(version string, phases []PipelinePhase, run func(context.Context) error) error {
+	m := New(version, &config.InstallOptions{Version: version})
+	m.screen = scrInstall
+	m.installing = true
+	m.phases = toPhaseStates(phases)
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is stored on the model and called on ctrl+c / done
+	m.cancel = cancel
+	m.pipelineCtx = ctx
+	m.pipelineRun = run
+
+	realOut, restore := redirectOutput()
+	defer restore()
+
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
+	final, runErr := p.Run()
+	if runErr != nil {
+		return fmt.Errorf("run install: %w", runErr)
+	}
+	return final.(Model).installErr
 }

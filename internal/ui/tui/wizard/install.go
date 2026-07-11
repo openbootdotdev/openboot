@@ -126,6 +126,41 @@ func (m Model) spawnInstall(ctx context.Context, plan installer.InstallPlan) tea
 	}
 }
 
+// PipelinePhase describes one row of the install pipeline for RunPipeline. Use
+// the progress.Phase* names for package phases so streamed events line up.
+type PipelinePhase struct {
+	Name  string
+	Total int
+	Pkg   bool // true for per-item package phases (brew/cask/npm)
+}
+
+func toPhaseStates(ps []PipelinePhase) []phaseState {
+	out := make([]phaseState, len(ps))
+	for i, p := range ps {
+		out[i] = phaseState{name: p.Name, total: p.Total, pkg: p.Pkg}
+	}
+	return out
+}
+
+// startPipeline runs an externally-supplied plan (RunPipeline / sync-source
+// path) on a goroutine, wiring the same brew/npm sinks as spawnInstall so
+// package progress streams into the shared install screen.
+func (m Model) startPipeline() tea.Cmd {
+	ch, run, ctx := m.events, m.pipelineRun, m.pipelineCtx
+	return func() tea.Msg {
+		go func() {
+			sink := func(ev progress.Event) { ch <- evMsg{ev: ev} }
+			restoreBrew := brew.SetProgressSink(sink)
+			restoreNpm := npm.SetProgressSink(sink)
+			err := run(ctx)
+			restoreBrew()
+			restoreNpm()
+			ch <- installDoneMsg{err: err}
+		}()
+		return nil
+	}
+}
+
 // buildPhases derives the pipeline sidebar from the plan. Package-phase totals
 // count every planned package: the engine's streaming invariant is that each
 // one produces exactly one terminal event (installed, failed, or
@@ -355,7 +390,9 @@ func (m Model) updateInstall(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.done {
 		switch msg.String() {
 		case "r":
-			return m.replay()
+			if m.pipelineRun == nil { // replay is a wizard-only action
+				return m.replay()
+			}
 		case "q", "enter", "esc":
 			return m, tea.Quit
 		}

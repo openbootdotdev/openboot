@@ -663,3 +663,32 @@ func logTexts(ls []logLine) []string {
 	}
 	return out
 }
+
+// Pipeline mode (RunPipeline / sync-source path) reuses the install screen with
+// externally-built phases; installDoneMsg must mark it done and, on a clean run,
+// check-mark all phases.
+func TestPipelineModeReachesDone(t *testing.T) {
+	m := New("1.0.0", &config.InstallOptions{})
+	m.screen = scrInstall
+	m.installing = true
+	m.phases = toPhaseStates([]PipelinePhase{
+		{Name: "Homebrew", Total: 2, Pkg: true},
+		{Name: "macOS prefs", Total: 1},
+	})
+
+	m = send(m, installDoneMsg{err: nil})
+	assert.True(t, m.done, "installDoneMsg marks the screen done")
+	assert.False(t, m.installing)
+	for _, p := range m.phases {
+		assert.True(t, p.finished, "a clean run check-marks every phase (incl. config steps)")
+	}
+}
+
+func TestPipelineReplayDisabled(t *testing.T) {
+	m := New("1.0.0", &config.InstallOptions{})
+	m.screen, m.done = scrInstall, true
+	m.pipelineRun = func(context.Context) error { return nil } // marks pipeline mode
+	next, _ := m.Update(key("r"))
+	// 'r' must NOT restart the wizard probe in pipeline mode — screen stays put.
+	assert.Equal(t, scrInstall, next.(Model).screen, "replay is a no-op in pipeline mode")
+}

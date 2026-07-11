@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
+	"github.com/openbootdotdev/openboot/internal/progress"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -408,25 +410,65 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 		}
 	}
 
-	ui.Println()
 	plan := buildInstallPlan(diff, rc)
-	result, execErr := syncpkg.Execute(plan, false)
 
-	ui.Println()
-	if result.Installed > 0 {
-		ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
+	// Apply through the wizard's live pipeline screen (on a TTY) so the sync
+	// install shares the full-screen streaming visuals; fall back to the linear
+	// Execute + printed summary when there's no TTY (scripts, piped output).
+	var result *syncpkg.SyncResult
+	run := func(context.Context) error {
+		var err error
+		result, err = syncpkg.Execute(plan, false)
+		return err
 	}
-	if result.Updated > 0 {
-		ui.Success(fmt.Sprintf("Updated %d setting(s)", result.Updated))
-	}
-	for _, e := range result.Errors {
-		ui.Error(fmt.Sprintf("Failed: %s", e))
+	var execErr error
+	if !installCfg.Silent && system.HasTTY() {
+		execErr = wizard.RunPipeline(installCfg.Version, syncPipelinePhases(plan), run)
+	} else {
+		ui.Println()
+		execErr = run(context.Background())
+		ui.Println()
+		if result.Installed > 0 {
+			ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
+		}
+		if result.Updated > 0 {
+			ui.Success(fmt.Sprintf("Updated %d setting(s)", result.Updated))
+		}
+		for _, e := range result.Errors {
+			ui.Error(fmt.Sprintf("Failed: %s", e))
+		}
 	}
 
-	if execErr == nil || result.Installed > 0 || result.Updated > 0 {
+	if result != nil && (execErr == nil || result.Installed > 0 || result.Updated > 0) {
 		updateSyncedAt(source, "", rc)
 	}
 	return execErr
+}
+
+// syncPipelinePhases derives the wizard pipeline sidebar from a sync plan.
+// Taps run but aren't shown (they emit no per-item progress); config steps
+// (dotfiles/shell/macOS) show as single rows that complete when Execute returns.
+func syncPipelinePhases(p *syncpkg.SyncPlan) []wizard.PipelinePhase {
+	var ps []wizard.PipelinePhase
+	if n := len(p.InstallFormulae); n > 0 {
+		ps = append(ps, wizard.PipelinePhase{Name: progress.PhaseHomebrew, Total: n, Pkg: true})
+	}
+	if n := len(p.InstallCasks); n > 0 {
+		ps = append(ps, wizard.PipelinePhase{Name: progress.PhaseApplications, Total: n, Pkg: true})
+	}
+	if n := len(p.InstallNpm); n > 0 {
+		ps = append(ps, wizard.PipelinePhase{Name: progress.PhaseNpm, Total: n, Pkg: true})
+	}
+	if p.UpdateDotfiles != "" {
+		ps = append(ps, wizard.PipelinePhase{Name: "Dotfiles", Total: 1})
+	}
+	if p.UpdateShell {
+		ps = append(ps, wizard.PipelinePhase{Name: "Shell", Total: 1})
+	}
+	if len(p.UpdateMacOSPrefs) > 0 {
+		ps = append(ps, wizard.PipelinePhase{Name: "macOS prefs", Total: 1})
+	}
+	return ps
 }
 
 // printSyncSourceHeader shows the "→ Syncing with X (last synced Y)" line at
