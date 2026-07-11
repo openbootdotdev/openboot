@@ -91,6 +91,16 @@ func runInstallContext(ctx context.Context, opts *config.InstallOptions, st *con
 func PlanForConfig(cfg *config.Config) (InstallPlan, error) {
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
+	// Mirror runInstallContext's install_started event: the pipeline path skips
+	// runInstallContext, so without this a streamed install logs install_completed
+	// (from ApplyContext) with no matching install_started.
+	slog.Info("install_started",
+		"version", opts.Version,
+		"preset", opts.Preset,
+		"user", opts.User,
+		"dry_run", opts.DryRun,
+		"silent", opts.Silent,
+	)
 	if err := checkDependencies(opts, st); err != nil {
 		return InstallPlan{}, fmt.Errorf("check dependencies: %w", err)
 	}
