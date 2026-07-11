@@ -20,6 +20,13 @@ func TestShowScreenRecordingReminderFromPlan_DryRun_NoOp(t *testing.T) {
 	})
 }
 
+// RunPostInstallAfterTUI must be a no-op (no prompt, no error) when the plan has
+// no post-install script — it's called on every pipeline install. The
+// script-present path needs a TTY + real exec, so it's covered by e2e, not here.
+func TestRunPostInstallAfterTUI_NoOpWhenEmpty(t *testing.T) {
+	assert.NoError(t, RunPostInstallAfterTUI(InstallPlan{}))
+}
+
 func TestShowScreenRecordingReminderFromPlan_Silent_NoOp(t *testing.T) {
 	plan := InstallPlan{DryRun: false, Silent: true}
 	assert.NotPanics(t, func() {

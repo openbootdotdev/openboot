@@ -216,6 +216,25 @@ func ShowScreenRecordingReminderAfterTUI(plan InstallPlan) {
 	showScreenRecordingReminderFromPlan(plan)
 }
 
+// RunPostInstallAfterTUI runs the plan's post-install script on a normal
+// terminal after the full-screen wizard has torn down. The wizard forces
+// plan.Silent=true to keep prompts out of the alt-screen — but that also gates
+// out post-install *execution* (applyPostInstall skips when Silent), so a
+// slug/RemoteConfig install streamed through the pipeline would silently drop a
+// script the linear path would have previewed, confirmed, and run. The CLI
+// defers it here with Silent cleared, so the script gets its preview + confirm
+// and runs, matching the linear installer. No-op when there is no script.
+func RunPostInstallAfterTUI(plan InstallPlan) error {
+	if len(plan.PostInstall) == 0 {
+		return nil
+	}
+	plan.Silent = false
+	if err := applyPostInstall(plan, ConsoleReporter{}); err != nil {
+		return fmt.Errorf("post-install: %w", err)
+	}
+	return nil
+}
+
 func showScreenRecordingReminderFromPlan(plan InstallPlan) {
 	if plan.DryRun || plan.Silent {
 		return
