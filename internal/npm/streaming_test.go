@@ -26,12 +26,12 @@ func TestNpmStepHelpersEmitWhenStreaming(t *testing.T) {
 
 	assert.NotPanics(t, func() {
 		npmStepStart(nil, "typescript")
-		npmStepDone(nil, "typescript", true, "")
-		npmStepDone(nil, "eslint", false, "E404")
+		npmStepDone(nil, "typescript", true, "", "2.1s")
+		npmStepDone(nil, "eslint", false, "E404", "0.3s")
 	})
 
 	require.Len(t, got, 3)
 	assert.Equal(t, progress.Event{Phase: progress.PhaseNpm, Name: "typescript", Status: progress.StepStart, Command: "npm install -g typescript"}, got[0])
-	assert.Equal(t, progress.Event{Phase: progress.PhaseNpm, Name: "typescript", Status: progress.StepOK}, got[1])
+	assert.Equal(t, progress.Event{Phase: progress.PhaseNpm, Name: "typescript", Status: progress.StepOK, Detail: "2.1s"}, got[1])
 	assert.Equal(t, progress.Event{Phase: progress.PhaseNpm, Name: "eslint", Status: progress.StepFail, Detail: "E404"}, got[2])
 }
