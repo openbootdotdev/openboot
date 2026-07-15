@@ -217,25 +217,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
-			// First ctrl+c during a running install requests an abort: cancel
-			// the context and keep the TUI up until the engine reports back
-			// (installDoneMsg), so the goroutine is joined and the abort is
-			// reported honestly. A second ctrl+c force-quits.
-			if m.screen == scrInstall && m.installing && !m.aborting {
-				m.aborting = true
-				if m.cancel != nil {
-					m.cancel()
-				}
-				return m, nil
-			}
-			if m.cancel != nil {
-				m.cancel()
-			}
-			if m.installing {
-				m.installErr = ErrAborted
-			}
-			m.quit = true
-			return m, tea.Quit
+			return m.onCtrlC()
 		}
 		switch m.screen {
 		case scrBoot:
@@ -266,6 +248,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onInstallEvent(msg)
 	}
 	return m, nil
+}
+
+// onCtrlC implements the global abort semantics. The first ctrl+c during a
+// running install requests an abort: cancel the context and keep the TUI up
+// until the engine reports back (installDoneMsg), so the goroutine is joined
+// and the abort is reported honestly. A second ctrl+c force-quits; outside an
+// install it quits immediately.
+func (m Model) onCtrlC() (tea.Model, tea.Cmd) {
+	if m.screen == scrInstall && m.installing && !m.aborting {
+		m.aborting = true
+		if m.cancel != nil {
+			m.cancel()
+		}
+		return m, nil
+	}
+	if m.cancel != nil {
+		m.cancel()
+	}
+	if m.installing {
+		m.installErr = ErrAborted
+	}
+	m.quit = true
+	return m, tea.Quit
 }
 
 // routeMouse dispatches a mouse event to the active screen's handler.
