@@ -62,3 +62,33 @@ func TestPlanFromSelectionIncludesOnlinePicks(t *testing.T) {
 	assert.Contains(t, plan.Npm, "web-only-tool")
 	assert.Equal(t, online, plan.OnlinePkgs)
 }
+
+// Config-mode plans: the remote config filtered by the wizard's selection,
+// with openboot.dev picks appended and all declarative fields carried.
+func TestPlanForRemoteSelection(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Packages:     config.PackageEntryList{{Name: "cowsay"}, {Name: "fortune"}},
+		Casks:        config.PackageEntryList{{Name: "warp"}},
+		Npm:          config.PackageEntryList{{Name: "left-pad"}},
+		Taps:         []string{"acme/tap"},
+		DotfilesRepo: "https://github.com/alice/dotfiles",
+		Shell:        &config.RemoteShellConfig{OhMyZsh: true, Theme: "agnoster", Plugins: []string{"git"}},
+		PostInstall:  []string{"echo hi"},
+	}
+	sel := map[string]bool{"cowsay": true, "warp": true, "web-x": true} // fortune & left-pad deselected
+	online := []config.Package{{Name: "web-x", IsNpm: true}}
+
+	plan := PlanForRemoteSelection(&config.InstallOptions{}, rc, sel, online)
+
+	assert.Equal(t, []string{"cowsay"}, plan.Formulae)
+	assert.Equal(t, []string{"warp"}, plan.Casks)
+	assert.Equal(t, []string{"web-x"}, plan.Npm, "online pick lands with its npm type")
+	assert.Equal(t, []string{"acme/tap"}, plan.Taps, "taps ride along untouched")
+	assert.Equal(t, "https://github.com/alice/dotfiles", plan.DotfilesURL)
+	assert.True(t, plan.InstallOhMyZsh)
+	assert.Equal(t, "agnoster", plan.ShellTheme)
+	assert.Equal(t, []string{"echo hi"}, plan.PostInstall)
+	assert.True(t, plan.SelectedPkgs["web-x"])
+	assert.False(t, plan.SelectedPkgs["fortune"])
+	assert.Equal(t, online, plan.OnlinePkgs)
+}

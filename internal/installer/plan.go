@@ -369,6 +369,57 @@ func PlanFromSelection(opts *config.InstallOptions, selected map[string]bool, on
 	return plan
 }
 
+// PlanForRemoteSelection builds a ready-to-Apply InstallPlan from a remote
+// config filtered to the wizard's package selection, plus any openboot.dev
+// search picks made on the select screen. It is the config-mode counterpart
+// of PlanFromSelection: everything non-package (git, dotfiles, shell, macOS
+// prefs, dock, login items, post-install) comes from the remote config via
+// planFromRemoteConfig, exactly like the declarative slug path — no prompts.
+func PlanForRemoteSelection(opts *config.InstallOptions, rc *config.RemoteConfig, selected map[string]bool, online []config.Package) InstallPlan {
+	f := *rc
+	f.Packages = filterEntriesBySelection(rc.Packages, selected)
+	f.Casks = filterEntriesBySelection(rc.Casks, selected)
+	f.Npm = filterEntriesBySelection(rc.Npm, selected)
+
+	plan := InstallPlan{
+		Version:          opts.Version,
+		DryRun:           opts.DryRun,
+		Silent:           opts.Silent,
+		PackagesOnly:     opts.PackagesOnly,
+		AllowPostInstall: opts.AllowPostInstall,
+		RemoteConfig:     &f,
+	}
+	st := &config.InstallState{RemoteConfig: &f}
+	planFromRemoteConfig(opts, st, &plan)
+
+	for _, p := range online {
+		if !selected[p.Name] || plan.SelectedPkgs[p.Name] {
+			continue
+		}
+		switch {
+		case p.IsNpm:
+			plan.Npm = append(plan.Npm, p.Name)
+		case p.IsCask:
+			plan.Casks = append(plan.Casks, p.Name)
+		default:
+			plan.Formulae = append(plan.Formulae, p.Name)
+		}
+		plan.SelectedPkgs[p.Name] = true
+		plan.OnlinePkgs = append(plan.OnlinePkgs, p)
+	}
+	return plan
+}
+
+func filterEntriesBySelection(in config.PackageEntryList, selected map[string]bool) config.PackageEntryList {
+	out := make(config.PackageEntryList, 0, len(in))
+	for _, e := range in {
+		if selected[e.Name] {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // PlanFromSnapshot builds an InstallPlan from snapshot state without any interactive
 // prompts. All decisions are derived from st.Snapshot* fields and opts.
 func PlanFromSnapshot(opts *config.InstallOptions, st *config.InstallState) InstallPlan {

@@ -11,10 +11,14 @@ import (
 func (m Model) statusContent() (mode string, color lipgloss.Color, keys, right string) {
 	switch m.screen {
 	case scrBoot:
-		if m.probeIdx < len(m.probes) {
-			return "BOOT", cInfo, "probing this Mac…", "~ % openboot install"
+		cmdline := "~ % openboot install"
+		if m.srcLabel != "" {
+			cmdline += " " + m.srcLabel
 		}
-		return "BOOT", cInfo, "1 / 2 / 3 pick a loadout · c hand-pick from scratch · ↵ select", "~ % openboot install"
+		if m.probeIdx < len(m.probes) {
+			return "BOOT", cInfo, "probing this Mac…", cmdline
+		}
+		return "BOOT", cInfo, "1 / 2 / 3 pick a loadout · c hand-pick from scratch · ↵ select", cmdline
 
 	case scrSelect:
 		return "SELECT", cAccent,

@@ -36,6 +36,27 @@ type searchDoneMsg struct {
 	results []config.Package
 }
 
+// categoriesFromConfig maps a remote config's package lists onto sidebar
+// categories, so the select screen browses a config the same way it browses
+// the catalog. Empty lists produce no category.
+func categoriesFromConfig(rc *config.RemoteConfig) []config.Category {
+	var cats []config.Category
+	add := func(name string, entries config.PackageEntryList, cask, npm bool) {
+		if len(entries) == 0 {
+			return
+		}
+		pkgs := make([]config.Package, 0, len(entries))
+		for _, e := range entries {
+			pkgs = append(pkgs, config.Package{Name: e.Name, Description: e.Desc, IsCask: cask, IsNpm: npm})
+		}
+		cats = append(cats, config.Category{Name: name, Packages: pkgs})
+	}
+	add("cli tools", rc.Packages, false, false)
+	add("apps", rc.Casks, true, false)
+	add("npm", rc.Npm, false, true)
+	return cats
+}
+
 // ── selection helpers ──
 
 func (m Model) isInstalled(name string) bool { return m.installed[name] }
