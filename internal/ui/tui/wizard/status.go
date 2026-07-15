@@ -31,13 +31,13 @@ func (m Model) statusContent() (mode string, color lipgloss.Color, keys, right s
 	default: // scrInstall
 		if m.done {
 			return "DONE", cAccent, "r replay from boot · q quit",
-				fmt.Sprintf("%d steps · %ds", m.totalSteps(), m.elapsed())
+				fmt.Sprintf("%d steps · %s", m.totalSteps(), fmtElapsed(m.elapsed()))
 		}
 		if m.aborting {
 			return "ABORT", cDanger, "aborting — waiting for the current step to stop · ctrl+c again to force quit",
-				fmt.Sprintf("%d/%d · %ds", m.completedSteps(), m.totalSteps(), m.elapsed())
+				fmt.Sprintf("%d/%d · %s", m.completedSteps(), m.totalSteps(), fmtElapsed(m.elapsed()))
 		}
 		return "INSTALL", cWarn, "installing — everything is logged to ~/.openboot/logs",
-			fmt.Sprintf("%d/%d · %ds", m.completedSteps(), m.totalSteps(), m.elapsed())
+			fmt.Sprintf("%d/%d · %s", m.completedSteps(), m.totalSteps(), fmtElapsed(m.elapsed()))
 	}
 }

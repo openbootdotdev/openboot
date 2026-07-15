@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -39,12 +40,33 @@ func fg(c lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c)
 }
 
-// hoverBg paints a hard ANSI true-color background across the whole row.
-// lipgloss ends every styled span with a FULL reset (\e[0m), which also clears
-// the background — so re-establish the background after each reset, otherwise
-// only the first span would be highlighted. cHover = #3d3d4a → rgb(61,61,74).
+// cHover is the row-hover background (#3d3d4a in the design).
+var cHover = lipgloss.Color("#3d3d4a")
+
+// hoverBgSeq is the raw background escape for cHover under the terminal's
+// actual colour profile, extracted once from a lipgloss render so it
+// downsamples on 256/16-colour terminals and disappears entirely (empty
+// string) when colour isn't supported — instead of hardcoding a truecolor
+// sequence that those terminals would mangle.
+var hoverBgSeq = sync.OnceValue(func() string {
+	const probe = "\x01"
+	rendered := lipgloss.NewStyle().Background(cHover).Render(probe)
+	i := strings.Index(rendered, probe)
+	if i <= 0 {
+		return ""
+	}
+	return rendered[:i]
+})
+
+// hoverBg paints the hover background across the whole row. lipgloss ends
+// every styled span with a FULL reset (\e[0m), which also clears the
+// background — so re-establish the background after each reset, otherwise
+// only the first span would be highlighted.
 func hoverBg(s string) string {
-	const bg = "\x1b[48;2;61;61;74m"
+	bg := hoverBgSeq()
+	if bg == "" {
+		return s // colourless terminal — hover simply has no visual, nothing breaks
+	}
 	s = strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+bg)
 	return bg + s + "\x1b[0m"
 }

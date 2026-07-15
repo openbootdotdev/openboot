@@ -14,7 +14,7 @@ func TestPlanFromSelectionDefaults(t *testing.T) {
 	sel := config.GetPackagesForPreset("developer")
 	require.NotEmpty(t, sel)
 
-	plan := PlanFromSelection(opts, sel)
+	plan := PlanFromSelection(opts, sel, nil)
 
 	assert.Equal(t, "1.0.0", plan.Version)
 	assert.Positive(t, len(plan.Formulae)+len(plan.Casks)+len(plan.Npm), "packages categorized")
@@ -35,7 +35,7 @@ func TestPlanFromSelectionDefaults(t *testing.T) {
 
 func TestPlanFromSelectionPackagesOnly(t *testing.T) {
 	opts := &config.InstallOptions{PackagesOnly: true}
-	plan := PlanFromSelection(opts, config.GetPackagesForPreset("minimal"))
+	plan := PlanFromSelection(opts, config.GetPackagesForPreset("minimal"), nil)
 
 	assert.True(t, plan.PackagesOnly)
 	assert.False(t, plan.InstallOhMyZsh)
@@ -46,9 +46,19 @@ func TestPlanFromSelectionPackagesOnly(t *testing.T) {
 
 func TestPlanFromSelectionSkipFlags(t *testing.T) {
 	opts := &config.InstallOptions{Shell: "skip", Dotfiles: "skip", Macos: "skip"}
-	plan := PlanFromSelection(opts, config.GetPackagesForPreset("minimal"))
+	plan := PlanFromSelection(opts, config.GetPackagesForPreset("minimal"), nil)
 
 	assert.False(t, plan.InstallOhMyZsh)
 	assert.Empty(t, plan.DotfilesURL)
 	assert.Empty(t, plan.MacOSPrefs)
+}
+
+// Online picks come from openboot.dev search — not in the local catalog, so
+// their type info must flow through OnlinePkgs into categorization.
+func TestPlanFromSelectionIncludesOnlinePicks(t *testing.T) {
+	opts := &config.InstallOptions{PackagesOnly: true}
+	online := []config.Package{{Name: "web-only-tool", IsNpm: true}}
+	plan := PlanFromSelection(opts, map[string]bool{"web-only-tool": true}, online)
+	assert.Contains(t, plan.Npm, "web-only-tool")
+	assert.Equal(t, online, plan.OnlinePkgs)
 }

@@ -309,7 +309,9 @@ func planMacOSDecision(opts *config.InstallOptions) ([]macos.Preference, error) 
 }
 
 // PlanFromSelection builds a ready-to-Apply InstallPlan from an explicit
-// package selection gathered by the install TUI. It applies system-config
+// package selection gathered by the install TUI. online carries packages the
+// wizard picked from openboot.dev search — they aren't in the local catalog,
+// so categorization needs their type info. It applies system-config
 // defaults (existing git identity, oh-my-zsh, dotfiles, macOS prefs) without
 // any interactive prompts — all interaction already happened in the wizard.
 //
@@ -317,8 +319,8 @@ func planMacOSDecision(opts *config.InstallOptions) ([]macos.Preference, error) 
 // absent the git step is skipped rather than prompting, since the TUI has no
 // name/email screen. CLI overrides (--packages-only, --shell/--macos/--dotfiles
 // skip) are still honored via opts.
-func PlanFromSelection(opts *config.InstallOptions, selected map[string]bool) InstallPlan {
-	st := &config.InstallState{SelectedPkgs: selected}
+func PlanFromSelection(opts *config.InstallOptions, selected map[string]bool, online []config.Package) InstallPlan {
+	st := &config.InstallState{SelectedPkgs: selected, OnlinePkgs: online}
 
 	plan := InstallPlan{
 		Version:          opts.Version,
@@ -327,6 +329,7 @@ func PlanFromSelection(opts *config.InstallOptions, selected map[string]bool) In
 		PackagesOnly:     opts.PackagesOnly,
 		AllowPostInstall: opts.AllowPostInstall,
 		SelectedPkgs:     selected,
+		OnlinePkgs:       online,
 	}
 
 	cats := categorizeSelectedPackages(opts, st)

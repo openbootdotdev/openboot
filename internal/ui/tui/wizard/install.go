@@ -65,7 +65,7 @@ func (r chanReporter) Muted(s string)   { r.ch <- reporterMsg{kind: rMuted, text
 // ── starting the install ──
 
 func (m Model) startInstall() (tea.Model, tea.Cmd) {
-	plan := installer.PlanFromSelection(m.opts, m.selected)
+	plan := installer.PlanFromSelection(m.opts, m.selected, m.selectedOnlinePkgs())
 	// Apply a git identity captured on the git screen (fresh Mac). When git is
 	// already configured, these stay empty and PlanFromSelection's existing
 	// config is used instead.
@@ -265,9 +265,32 @@ func (m Model) onInstallEvent(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quit = true
 			return m, tea.Quit
 		}
+		m.appendSummary()
 		return m, nil
 	}
 	return m, nil
+}
+
+// appendSummary writes the run's outcome into the log tail — the counts, and
+// crucially the names of any failed packages, which would otherwise have
+// scrolled out of the visible log by the time the user reads the DONE screen.
+func (m *Model) appendSummary() {
+	installed := m.pkgCount() - m.skippedPkgs - len(m.failedPkgs)
+	if installed < 0 {
+		installed = 0
+	}
+	text := fmt.Sprintf("%d installed · %d already present · %s",
+		installed, m.skippedPkgs, fmtElapsed(m.elapsed()))
+	m.appendLog(logLine{}) // spacer
+	if len(m.failedPkgs) == 0 && m.installErr == nil {
+		m.appendLog(logLine{mark: "✓", markColor: cAccent, text: text, color: cTextHi})
+		return
+	}
+	m.appendLog(logLine{mark: "!", markColor: cWarn, text: text, color: cTextHi})
+	if len(m.failedPkgs) > 0 {
+		m.appendLog(logLine{mark: "✗", markColor: cDanger,
+			text: fmt.Sprintf("%d failed: %s", len(m.failedPkgs), strings.Join(m.failedPkgs, ", ")), color: cDanger})
+	}
 }
 
 func (m *Model) applyProgressEvent(ev progress.Event) {
@@ -305,6 +328,9 @@ func (m *Model) applyProgressEvent(ev progress.Event) {
 	case progress.StepFail:
 		m.markTerminal(ev)
 		m.incPhase(ev.Phase)
+		if ev.Name != "" {
+			m.failedPkgs = append(m.failedPkgs, ev.Name)
+		}
 		m.appendLog(logLine{mark: "✗", markColor: cDanger, text: ev.Name + " (" + ev.Detail + ")", color: cDanger})
 	}
 }
@@ -441,6 +467,15 @@ func (m Model) elapsed() int {
 	return (m.ticks - m.installTick) * int(tickInterval.Milliseconds()) / 1000
 }
 
+// fmtElapsed renders whole seconds as "42s" or "3m24s" — a raw "7204s" after a
+// long cask install reads as noise.
+func fmtElapsed(secs int) string {
+	if secs < 60 {
+		return fmt.Sprintf("%ds", secs)
+	}
+	return fmt.Sprintf("%dm%ds", secs/60, secs%60)
+}
+
 // ── key handling ──
 
 func (m Model) updateInstall(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -561,7 +596,7 @@ func (m Model) installFooter(w int) []string {
 	if m.done {
 		pkgN := m.pkgCount() - m.skippedPkgs
 		head := fg(cAccent).Render("✓") + " " + fg(cTextHi).Bold(true).Render("This Mac is dev-ready.") +
-			"  " + fg(cDim3).Render(fmt.Sprintf("%d packages · %ds", pkgN, m.elapsed()))
+			"  " + fg(cDim3).Render(fmt.Sprintf("%d packages · %s", pkgN, fmtElapsed(m.elapsed())))
 		if m.installErr != nil {
 			head = fg(cWarn).Render("!") + " " + fg(cTextHi).Bold(true).Render("Finished with some errors.") +
 				"  " + fg(cDim3).Render("see log above")
