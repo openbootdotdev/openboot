@@ -64,8 +64,17 @@ func (r chanReporter) Muted(s string)   { r.ch <- reporterMsg{kind: rMuted, text
 
 // ── starting the install ──
 
+// buildPlan resolves the current selection into an install plan — from the
+// remote config in config mode, from the catalog selection otherwise.
+func (m Model) buildPlan() installer.InstallPlan {
+	if m.rc != nil {
+		return installer.PlanForRemoteSelection(m.opts, m.rc, m.selected, m.selectedOnlinePkgs())
+	}
+	return installer.PlanFromSelection(m.opts, m.selected, m.selectedOnlinePkgs())
+}
+
 func (m Model) startInstall() (tea.Model, tea.Cmd) {
-	plan := installer.PlanFromSelection(m.opts, m.selected, m.selectedOnlinePkgs())
+	plan := m.buildPlan()
 	// Apply a git identity captured on the git screen (fresh Mac). When git is
 	// already configured, these stay empty and PlanFromSelection's existing
 	// config is used instead.
@@ -93,7 +102,12 @@ func (m Model) startInstall() (tea.Model, tea.Cmd) {
 	plan.Silent = true
 
 	m.plan = plan
-	m.phases = buildPhases(plan)
+	// The alt-screen can't host the post-install script's confirm prompt; the
+	// CLI runs it after teardown from the returned plan (m.plan keeps it) —
+	// strip it from the streamed apply so ApplyContext doesn't execute it here.
+	streamed := plan
+	streamed.PostInstall = nil
+	m.phases = buildPhases(streamed)
 	m.logs = nil
 	m.skippedPkgs = 0
 	m.aborting = false
@@ -106,7 +120,7 @@ func (m Model) startInstall() (tea.Model, tea.Cmd) {
 	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is stored on the model and called on ctrl+c and install completion
 	m.cancel = cancel
 
-	return m, tea.Batch(m.spawnInstall(ctx, plan), waitForEvent(m.events))
+	return m, tea.Batch(m.spawnInstall(ctx, streamed), waitForEvent(m.events))
 }
 
 // spawnInstall runs the install engine on a background goroutine, streaming

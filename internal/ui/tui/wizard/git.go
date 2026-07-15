@@ -20,6 +20,12 @@ func (m Model) needsGitCapture() (need bool, name, email string) {
 	if m.opts.PackagesOnly {
 		return false, "", ""
 	}
+	// Config-mode installs are declarative — the git step already no-ops
+	// safely when no identity exists (matching the slug pipeline path), so
+	// don't interpose a prompt the config never asked for.
+	if m.rc != nil {
+		return false, "", ""
+	}
 	name, email = gitConfigLookup()
 	if name != "" && email != "" {
 		return false, name, email

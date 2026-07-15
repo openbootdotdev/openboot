@@ -136,6 +136,12 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 				return perr
 			}
 			installCfg.RemoteConfig = rc
+		} else if !installCfg.Silent && !installCfg.DryRun && !installCfg.Update && system.HasTTY() {
+			// The full-screen config wizard owns the whole interactive flow
+			// (select the config's packages → review → live install) —
+			// replacing the linear 3-way prompt + customizer that used to
+			// precede the pipeline screen for slug / -u / --from / alias.
+			return runConfigWizard(installCfg.RemoteConfig)
 		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
 			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
 			if err != nil {
@@ -272,6 +278,35 @@ func runInstallWizard() error {
 		return fmt.Errorf("install wizard: %w", err)
 	}
 	return nil
+}
+
+// runConfigWizard launches the full-screen wizard in config mode for a fetched
+// remote config. Follow-ups the alt-screen can't host — the post-install
+// script (needs a preview + confirm) and the screen-recording reminder — run
+// here afterwards, on a normal terminal, mirroring runPipelineInstall's order.
+func runConfigWizard(rc *config.RemoteConfig) error {
+	opts := installCfg.ToInstallOptions()
+	plan, confirmed, err := wizard.RunForConfig(installCfg.Version, opts, rc)
+	if errors.Is(err, wizard.ErrAborted) || errors.Is(err, context.Canceled) {
+		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
+	}
+	if !confirmed {
+		if err != nil {
+			return fmt.Errorf("install wizard: %w", err)
+		}
+		ui.Info("Cancelled.")
+		return nil
+	}
+	if err == nil && len(plan.PostInstall) > 0 {
+		if piErr := installer.RunPostInstallAfterTUI(plan); piErr != nil {
+			ui.Error(fmt.Sprintf("Post-install script failed: %v", piErr))
+		}
+	}
+	installer.ShowScreenRecordingReminderAfterTUI(plan)
+	if err == nil {
+		saveSyncSourceIfRemote(installCfg)
+	}
+	return err
 }
 
 // ── Source resolution ─────────────────────────────────────────────────────────
