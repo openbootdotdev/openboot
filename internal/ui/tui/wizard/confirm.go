@@ -40,7 +40,7 @@ func (m Model) confirmRows() []confirmRow {
 
 // enterConfirm computes the plan preview and shows the confirm screen.
 func (m Model) enterConfirm() (tea.Model, tea.Cmd) {
-	m.preview = installer.PlanFromSelection(m.opts, m.selected)
+	m.preview = installer.PlanFromSelection(m.opts, m.selected, m.selectedOnlinePkgs())
 	m.confShell, m.confDotfiles, m.confPrefs = true, true, true
 	m.confCur, m.hoverRow = 0, -1
 	m.screen = scrConfirm

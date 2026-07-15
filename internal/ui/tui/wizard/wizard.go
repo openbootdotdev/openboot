@@ -3,8 +3,10 @@
 // live pipeline install, under a persistent title bar and status bar.
 //
 // It replaces the previous interactive planning prompts (preset select, package
-// selector, per-step confirms) and the linear Apply output. Non-interactive
-// paths (--silent, --dry-run, presets, --from, -u, sync) never reach here.
+// selector, per-step confirms) and the linear Apply output. Preset installs
+// (-p) enter it with the loadout preselected. Non-interactive paths (--silent,
+// --dry-run, --from, -u, sync) never reach the full wizard; slug/sync installs
+// reuse only the live install screen via RunPipeline.
 package wizard
 
 import (
@@ -79,6 +81,12 @@ type Model struct {
 	hoverRow int // mouse hover index in pool(), -1 when not on a package row
 	selected map[string]bool
 
+	// ── select: online search (packages beyond the local catalog) ──
+	searchSeq     int              // debounce generation; stale ticks/results are dropped
+	onlineBusy    bool             // a search request is in flight
+	onlineResults []config.Package // current query's online hits (deduped vs catalog)
+	onlineKnown   map[string]bool  // names sourced from openboot.dev, for the row badge
+
 	// ── git identity (captured only when none is configured) ──
 	gitName  string
 	gitEmail string
@@ -103,6 +111,7 @@ type Model struct {
 	done         bool
 	installErr   error
 	skippedPkgs  int             // terminal events with SkipDetail (already installed)
+	failedPkgs   []string        // packages whose terminal event was StepFail, for the completion summary
 	terminalSeen map[string]bool // packages that produced a terminal event, for skip dedup (npm retry)
 	installTick  int             // ticks value when install started, for elapsed
 	cancel       context.CancelFunc
@@ -124,6 +133,7 @@ func New(version string, opts *config.InstallOptions) Model {
 		cats:         config.GetCategories(),
 		hoverRow:     -1,
 		selected:     map[string]bool{},
+		onlineKnown:  map[string]bool{},
 		events:       make(chan tea.Msg, 1024),
 		installDone:  make(chan struct{}),
 		terminalSeen: map[string]bool{},
@@ -210,6 +220,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case probeDoneMsg:
 		return m.onProbeDone(msg)
 
+	case searchTickMsg:
+		return m.onSearchTick(msg)
+
+	case searchDoneMsg:
+		return m.onSearchDone(msg)
+
 	case evMsg, reporterMsg, installDoneMsg:
 		return m.onInstallEvent(msg)
 	}
@@ -239,9 +255,20 @@ func (m Model) spinner() string {
 
 // ── View / chrome ──────────────────────────────────────────────────────────
 
+// minTermW/minTermH are the smallest terminal the layout renders legibly in:
+// below this the two-pane screens truncate into garbage, so show a resize
+// hint instead of a broken frame. Keys (q / ctrl+c) still work.
+const (
+	minTermW = 60
+	minTermH = 15
+)
+
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
+	}
+	if m.width < minTermW || m.height < minTermH {
+		return m.smallTermView()
 	}
 	bodyH := m.height - 2
 	if bodyH < 1 {
@@ -263,6 +290,22 @@ func (m Model) View() string {
 	}
 
 	return m.titleBar() + "\n" + fitBlock(body, m.width, bodyH) + "\n" + m.statusBar()
+}
+
+// smallTermView replaces the whole frame when the terminal is smaller than
+// the layout can survive. Plain short lines so it stays legible at any size;
+// ctrl+c (handled globally) still quits.
+func (m Model) smallTermView() string {
+	lines := []string{
+		"",
+		" " + fg(cAccent).Render("▲") + " " + fg(cTextHi).Render("openboot"),
+		"",
+		" " + fg(cWarn).Render(fmt.Sprintf("terminal too small — %d×%d", m.width, m.height)),
+		" " + fg(cMuted).Render(fmt.Sprintf("resize to at least %d×%d to continue", minTermW, minTermH)),
+		"",
+		" " + fg(cDim2).Render("ctrl+c quit"),
+	}
+	return fitBlock(strings.Join(lines, "\n"), m.width, m.height)
 }
 
 // inBody reports whether screen row y is inside the rendered body (rows

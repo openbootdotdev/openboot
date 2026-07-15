@@ -101,6 +101,15 @@ func (m Model) onProbeDone(msg probeDoneMsg) (tea.Model, tea.Cmd) {
 	if m.probeIdx < len(m.probes) {
 		return m, m.runProbe(m.probeIdx)
 	}
+	// A preset given on the CLI (-p / OPENBOOT_PRESET) already answers the
+	// loadout question — skip straight to the select screen with it applied,
+	// so the flag means "start from this loadout, review, install" instead of
+	// bypassing the wizard entirely.
+	if m.opts.Preset != "" {
+		if _, ok := config.GetPreset(m.opts.Preset); ok {
+			return m.enterSelect(config.GetPackagesForPreset(m.opts.Preset))
+		}
+	}
 	return m, nil // probing complete; wait for a loadout choice
 }
 
