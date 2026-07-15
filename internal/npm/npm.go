@@ -250,8 +250,9 @@ func installSequentialContext(ctx context.Context, toInstall []string) (failed [
 
 	for _, pkg := range remaining {
 		npmStepStart(bar, pkg)
+		start := time.Now()
 		errMsg := installNpmPackageWithRetryContext(ctx, pkg)
-		npmStepDone(bar, pkg, errMsg == "", errMsg)
+		npmStepDone(bar, pkg, errMsg == "", errMsg, ui.FormatDuration(time.Since(start)))
 		if errMsg != "" {
 			failed = append(failed, pkg)
 		}

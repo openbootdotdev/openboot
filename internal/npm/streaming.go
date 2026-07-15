@@ -43,11 +43,14 @@ func npmStepStart(bar *ui.StickyProgress, name string) {
 }
 
 // npmStepDone reports the result of a single npm package install, preserving
-// the exact console output when not streaming.
-func npmStepDone(bar *ui.StickyProgress, name string, ok bool, errMsg string) {
+// the exact console output when not streaming. duration is the measured
+// install time (e.g. "2.1s") carried as the success Detail so streaming
+// renderers show npm rows with the same timing brew rows get; empty means
+// no per-package timing is available.
+func npmStepDone(bar *ui.StickyProgress, name string, ok bool, errMsg, duration string) {
 	if streaming() {
 		if ok {
-			progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Name: name, Status: progress.StepOK})
+			progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Name: name, Status: progress.StepOK, Detail: duration})
 		} else {
 			progressSink.Emit(progress.Event{Phase: progress.PhaseNpm, Name: name, Status: progress.StepFail, Detail: errMsg})
 		}
