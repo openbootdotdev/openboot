@@ -2,6 +2,7 @@ package wizard
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -422,9 +423,16 @@ func TestCtrlCDuringInstallAbortsHonestly(t *testing.T) {
 	assert.Nil(t, cmd, "first ctrl+c must not quit — it waits for the engine")
 	require.True(t, m.aborting)
 
-	next, _ = m.Update(installDoneMsg{})
+	// Cancelling the context SIGKILLs the in-flight brew/npm subprocess, so the
+	// engine reports a NON-nil error, not a clean nil. The abort must still be
+	// recognised as ErrAborted — the regression was that the old guard only set
+	// ErrAborted when the error happened to be nil, so an abort during the
+	// package phase (the common case) was misreported as an install failure.
+	killErr := errors.New("signal: killed")
+	next, _ = m.Update(installDoneMsg{err: killErr})
 	m = next.(Model)
-	assert.ErrorIs(t, m.installErr, ErrAborted)
+	assert.ErrorIs(t, m.installErr, ErrAborted, "abort with a killed subprocess is still ErrAborted")
+	assert.ErrorIs(t, m.installErr, killErr, "underlying cause stays in the chain for the log")
 	assert.True(t, m.quit)
 	for _, p := range m.phases {
 		assert.False(t, p.finished, "aborted phases must not show as finished")
@@ -654,6 +662,26 @@ func TestInstallGoroutineStreamsToDone(t *testing.T) {
 	// Every phase ends finished once done.
 	for _, p := range m.phases {
 		assert.Truef(t, p.finished, "phase %q finished", p.name)
+	}
+	// C2: the goroutine closes installDone once ApplyContext returns, so Run's
+	// joinInstall can wait for it before restoring os.Stdout (no force-quit race).
+	select {
+	case <-m.installDone:
+	default:
+		t.Fatal("installDone must be closed once the install goroutine finishes")
+	}
+}
+
+// joinInstall must not block when no install goroutine was ever started (e.g.
+// the user quit on the boot/select screen) — otherwise Run would hang 30s.
+func TestJoinInstallNoopWhenNoInstall(t *testing.T) {
+	m := New("1", &config.InstallOptions{})
+	returned := make(chan struct{})
+	go func() { m.joinInstall(); close(returned) }()
+	select {
+	case <-returned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("joinInstall must be a no-op when no install ran")
 	}
 }
 

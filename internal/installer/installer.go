@@ -91,6 +91,16 @@ func runInstallContext(ctx context.Context, opts *config.InstallOptions, st *con
 func PlanForConfig(cfg *config.Config) (InstallPlan, error) {
 	opts := cfg.ToInstallOptions()
 	st := cfg.ToInstallState()
+	// Mirror runInstallContext's install_started event: the pipeline path skips
+	// runInstallContext, so without this a streamed install logs install_completed
+	// (from ApplyContext) with no matching install_started.
+	slog.Info("install_started",
+		"version", opts.Version,
+		"preset", opts.Preset,
+		"user", opts.User,
+		"dry_run", opts.DryRun,
+		"silent", opts.Silent,
+	)
 	if err := checkDependencies(opts, st); err != nil {
 		return InstallPlan{}, fmt.Errorf("check dependencies: %w", err)
 	}
@@ -120,27 +130,37 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 		softErrs = append(softErrs, fmt.Errorf("brew: %w", err))
 	}
 
+	// ctrl+c cancels ctx. brew/npm honour it (exec.CommandContext), but the
+	// config steps below take no ctx, so without these gates an aborted install
+	// would keep symlinking dotfiles and rewriting macOS defaults after the user
+	// asked to stop. Bail between phases so an abort skips not-yet-started work.
+	if err := ctx.Err(); err != nil {
+		return abortWith(softErrs, err)
+	}
+
 	if err := applyNpm(ctx, plan, r); err != nil {
 		r.Error(fmt.Sprintf("npm package installation failed: %v", err))
 		softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
 	}
 
 	if !plan.PackagesOnly {
-		if err := applyShell(plan, r); err != nil {
-			r.Error(fmt.Sprintf("Shell setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("shell: %w", err))
+		configSteps := []struct {
+			name, failMsg string
+			apply         func(InstallPlan, Reporter) error
+		}{
+			{"shell", "Shell setup failed", applyShell},
+			{"dotfiles", "Dotfiles setup failed", applyDotfiles},
+			{"macos", "macOS configuration failed", applyMacOSPrefs},
+			{"post-install", "Post-install script failed", applyPostInstall},
 		}
-		if err := applyDotfiles(plan, r); err != nil {
-			r.Error(fmt.Sprintf("Dotfiles setup failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("dotfiles: %w", err))
-		}
-		if err := applyMacOSPrefs(plan, r); err != nil {
-			r.Error(fmt.Sprintf("macOS configuration failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("macos: %w", err))
-		}
-		if err := applyPostInstall(plan, r); err != nil {
-			r.Error(fmt.Sprintf("Post-install script failed: %v", err))
-			softErrs = append(softErrs, fmt.Errorf("post-install: %w", err))
+		for _, s := range configSteps {
+			if err := ctx.Err(); err != nil {
+				return abortWith(softErrs, err)
+			}
+			if err := s.apply(plan, r); err != nil {
+				r.Error(fmt.Sprintf("%s: %v", s.failMsg, err))
+				softErrs = append(softErrs, fmt.Errorf("%s: %w", s.name, err))
+			}
 		}
 	}
 
@@ -152,6 +172,14 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 	}
 	slog.Info("install_completed", "soft_errors", 0)
 	return nil
+}
+
+// abortWith joins the soft errors accumulated so far with the context
+// cancellation cause, for when ApplyContext bails out early on a cancelled
+// context (ctrl+c). Returning here stops the remaining steps so an aborted
+// install doesn't keep mutating the system.
+func abortWith(softErrs []error, cause error) error {
+	return errors.Join(append(softErrs, cause)...)
 }
 
 func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
@@ -196,6 +224,25 @@ func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 func ShowScreenRecordingReminderAfterTUI(plan InstallPlan) {
 	plan.Silent = false
 	showScreenRecordingReminderFromPlan(plan)
+}
+
+// RunPostInstallAfterTUI runs the plan's post-install script on a normal
+// terminal after the full-screen wizard has torn down. The wizard forces
+// plan.Silent=true to keep prompts out of the alt-screen — but that also gates
+// out post-install *execution* (applyPostInstall skips when Silent), so a
+// slug/RemoteConfig install streamed through the pipeline would silently drop a
+// script the linear path would have previewed, confirmed, and run. The CLI
+// defers it here with Silent cleared, so the script gets its preview + confirm
+// and runs, matching the linear installer. No-op when there is no script.
+func RunPostInstallAfterTUI(plan InstallPlan) error {
+	if len(plan.PostInstall) == 0 {
+		return nil
+	}
+	plan.Silent = false
+	if err := applyPostInstall(plan, ConsoleReporter{}); err != nil {
+		return fmt.Errorf("post-install: %w", err)
+	}
+	return nil
 }
 
 func showScreenRecordingReminderFromPlan(plan InstallPlan) {

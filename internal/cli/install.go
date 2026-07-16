@@ -194,20 +194,43 @@ func runPipelineInstall(ctx context.Context) error {
 	// re-run afterwards via ShowScreenRecordingReminderAfterTUI.
 	plan.Silent = true
 
-	runErr := wizard.RunPipeline(installCfg.Version, wizard.PhasesForPlan(plan),
+	// Post-install needs a script preview + confirm, which the alt-screen can't
+	// host. Strip it from the streamed plan and run it after teardown on a normal
+	// terminal (Silent=true would otherwise gate it out entirely — the R1 bug).
+	streamed, deferredPostInstall := splitPostInstall(plan)
+
+	runErr := wizard.RunPipeline(installCfg.Version, wizard.PhasesForPlan(streamed),
 		func(ctx context.Context, r installer.Reporter) error {
-			return installer.ApplyContext(ctx, plan, r)
+			return installer.ApplyContext(ctx, streamed, r)
 		})
 	if errors.Is(runErr, wizard.ErrAborted) || errors.Is(runErr, context.Canceled) {
 		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
 	}
-	// The install ran (cleanly or with soft errors): show the reminder on the
-	// restored terminal, then persist the sync source on a clean run.
+	// The install ran (cleanly or with soft errors). On a clean run, run the
+	// deferred post-install script (Step 8, matching the linear order) before the
+	// reminder; a failing script is a soft error, not fatal. Then show the
+	// reminder and persist the sync source.
+	if runErr == nil && len(deferredPostInstall) > 0 {
+		plan.PostInstall = deferredPostInstall
+		if piErr := installer.RunPostInstallAfterTUI(plan); piErr != nil {
+			ui.Error(fmt.Sprintf("Post-install script failed: %v", piErr))
+		}
+	}
 	installer.ShowScreenRecordingReminderAfterTUI(plan)
 	if runErr == nil {
 		saveSyncSourceIfRemote(installCfg)
 	}
 	return runErr
+}
+
+// splitPostInstall separates a plan into the version streamed through the wizard
+// pipeline (post-install removed — the alt-screen can't host its confirm) and
+// the post-install script to run after teardown. Keeping it a pure function
+// makes the split testable without a TTY.
+func splitPostInstall(plan installer.InstallPlan) (streamed installer.InstallPlan, postInstall []string) {
+	postInstall = plan.PostInstall
+	plan.PostInstall = nil
+	return plan, postInstall
 }
 
 // runInstallWizard launches the full-screen install TUI and runs the resulting
