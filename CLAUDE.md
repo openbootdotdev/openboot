@@ -5,7 +5,7 @@
 OpenBoot is a **macOS-only** Go 1.25 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
 
 Entry point: `cmd/openboot/main.go` → `internal/cli.Execute()`.
-Core flow: `openboot install` orchestrates plan → apply in `internal/installer/installer.go`. Bare interactive `openboot install` on a TTY runs the full-screen install TUI in `internal/ui/tui/wizard/` (boot probe → select → live install); explicit sources (`-p`, `--from`, `-u`, sync), `--silent`, and `--dry-run` use the linear flow.
+Core flow: `openboot install` orchestrates plan → apply in `internal/installer/installer.go`. Bare interactive `openboot install` on a TTY runs the full-screen install TUI in `internal/ui/tui/wizard/` (boot probe → select → live install); `-p <preset>` enters the same wizard with the loadout preselected, and slug/`-u`/`--from`/alias installs enter it in config mode (`RunForConfig`: the config's own packages on the select screen, preselected). Sync-source installs keep their linear diff pre-flight but stream the apply through the wizard's live install screen (`RunPipeline`). `--silent`, `--dry-run`, `--update`, and non-TTY runs use the linear flow.
 
 For full contribution guide (test layering L1–L4, Runner interface, hook setup) see @CONTRIBUTING.md.
 For AI agents: @AGENTS.md indexes invariants enforced by `internal/archtest`; @docs/HARNESS.md is the steering meta-doc for where to encode new rules.

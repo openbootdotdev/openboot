@@ -136,6 +136,12 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 				return perr
 			}
 			installCfg.RemoteConfig = rc
+		} else if !installCfg.Silent && !installCfg.DryRun && !installCfg.Update && system.HasTTY() {
+			// The full-screen config wizard owns the whole interactive flow
+			// (select the config's packages → review → live install) —
+			// replacing the linear 3-way prompt + customizer that used to
+			// precede the pipeline screen for slug / -u / --from / alias.
+			return runConfigWizard(installCfg.RemoteConfig)
 		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
 			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
 			if err != nil {
@@ -168,13 +174,31 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 	return err
 }
 
-// shouldLaunchWizard reports whether this run is a bare interactive
-// `openboot install` on a TTY — the case the full-screen wizard (boot probe →
-// select → live install) owns. Explicit sources (-p, --from, -u, sync),
-// --silent, --dry-run, and --update keep their existing flows.
+// shouldLaunchWizard reports whether this run gets the full-screen wizard
+// (boot probe → select → live install) on a TTY: a bare `openboot install`,
+// or a valid preset (-p / OPENBOOT_PRESET / positional), which enters the
+// wizard with that loadout preselected on the select screen. Remote sources
+// (--from, -u, slug, sync), --silent, --dry-run, and --update keep their
+// existing flows.
 func shouldLaunchWizard(src *installSource) bool {
-	return src.kind == sourceNone && !installCfg.Silent && !installCfg.DryRun &&
+	return wizardSource(src) && !installCfg.Silent && !installCfg.DryRun &&
 		!installCfg.Update && system.HasTTY()
+}
+
+// wizardSource is the source-kind half of the wizard-routing decision, split
+// from the TTY/mode checks so it's testable without a terminal.
+func wizardSource(src *installSource) bool {
+	switch src.kind {
+	case sourceNone:
+		return true
+	case sourcePreset:
+		// An unknown preset must keep the linear path, which rejects it with a
+		// clear error instead of silently opening an empty wizard.
+		_, ok := config.GetPreset(installCfg.Preset)
+		return ok
+	default:
+		return false
+	}
 }
 
 // runPipelineInstall resolves the plan (with linear pre-flight prep) and applies
@@ -254,6 +278,35 @@ func runInstallWizard() error {
 		return fmt.Errorf("install wizard: %w", err)
 	}
 	return nil
+}
+
+// runConfigWizard launches the full-screen wizard in config mode for a fetched
+// remote config. Follow-ups the alt-screen can't host — the post-install
+// script (needs a preview + confirm) and the screen-recording reminder — run
+// here afterwards, on a normal terminal, mirroring runPipelineInstall's order.
+func runConfigWizard(rc *config.RemoteConfig) error {
+	opts := installCfg.ToInstallOptions()
+	plan, confirmed, err := wizard.RunForConfig(installCfg.Version, opts, rc)
+	if errors.Is(err, wizard.ErrAborted) || errors.Is(err, context.Canceled) {
+		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
+	}
+	if !confirmed {
+		if err != nil {
+			return fmt.Errorf("install wizard: %w", err)
+		}
+		ui.Info("Cancelled.")
+		return nil
+	}
+	if err == nil && len(plan.PostInstall) > 0 {
+		if piErr := installer.RunPostInstallAfterTUI(plan); piErr != nil {
+			ui.Error(fmt.Sprintf("Post-install script failed: %v", piErr))
+		}
+	}
+	installer.ShowScreenRecordingReminderAfterTUI(plan)
+	if err == nil {
+		saveSyncSourceIfRemote(installCfg)
+	}
+	return err
 }
 
 // ── Source resolution ─────────────────────────────────────────────────────────

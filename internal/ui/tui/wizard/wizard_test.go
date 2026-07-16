@@ -636,7 +636,7 @@ func TestInstallGoroutineStreamsToDone(t *testing.T) {
 	m := New("1", opts)
 	m.screen = scrInstall
 
-	plan := installer.PlanFromSelection(opts, config.GetPackagesForPreset("minimal"))
+	plan := installer.PlanFromSelection(opts, config.GetPackagesForPreset("minimal"), nil)
 	plan.Silent = true
 	m.plan = plan
 	m.phases = buildPhases(plan)
@@ -776,4 +776,139 @@ func TestPhasesForPlan(t *testing.T) {
 	assert.False(t, byName["Shell"].Pkg, "config steps are not per-item package phases")
 	require.Contains(t, byName, "Dotfiles")
 	assert.NotContains(t, byName, "npm globals", "no npm in this plan")
+}
+
+// ── deep-polish additions: small terminals, preset entry, online search,
+// completion summary, hover colour degradation ──
+
+func TestSmallTerminalShowsResizeHint(t *testing.T) {
+	m := sized(48, 12)
+	v := m.View()
+	assert.Contains(t, v, "terminal too small")
+	assert.Contains(t, v, "resize to at least 60×15")
+
+	// Growing the window restores the real frame.
+	m = send(m, tea.WindowSizeMsg{Width: 96, Height: 30})
+	assert.NotContains(t, m.View(), "terminal too small")
+}
+
+func TestPresetOptionAutoAdvancesToSelect(t *testing.T) {
+	m := New("1.4.0", &config.InstallOptions{Version: "1.4.0", Preset: "developer"})
+	m = send(m, tea.WindowSizeMsg{Width: 96, Height: 30})
+	m = finishProbes(m)
+	require.Equal(t, scrSelect, m.screen, "-p skips the loadout question")
+	assert.Equal(t, config.GetPackagesForPreset("developer"), m.selected)
+}
+
+func TestUnknownPresetStaysOnBoot(t *testing.T) {
+	m := New("1.4.0", &config.InstallOptions{Version: "1.4.0", Preset: "bogus"})
+	m = send(m, tea.WindowSizeMsg{Width: 96, Height: 30})
+	m = finishProbes(m)
+	assert.Equal(t, scrBoot, m.screen)
+}
+
+func TestOnlineSearchFindsTogglesAndSurvivesFilterClear(t *testing.T) {
+	restore := searchOnline
+	searchOnline = func(string) ([]config.Package, error) {
+		return []config.Package{
+			{Name: "web-only-tool", Description: "only on openboot.dev", IsNpm: true},
+			{Name: "curl", Description: "already in the catalog"}, // must be deduped
+		}, nil
+	}
+	defer func() { searchOnline = restore }()
+
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	m = send(m, key("/"))
+	for _, r := range "web-only" {
+		m = send(m, key(string(r)))
+	}
+	seq := m.searchSeq
+
+	// A stale generation must be ignored outright.
+	m = send(m, searchDoneMsg{seq: seq - 1, results: []config.Package{{Name: "stale"}}})
+	require.Empty(t, m.onlineResults)
+
+	// The debounce tick for the live generation arms the lookup…
+	next, cmd := m.Update(searchTickMsg{seq: seq, query: strings.TrimSpace(m.query)})
+	m = next.(Model)
+	require.True(t, m.onlineBusy)
+	require.NotNil(t, cmd)
+	// …whose result lands as a searchDoneMsg (stub is synchronous).
+	m = send(m, cmd().(searchDoneMsg))
+	require.False(t, m.onlineBusy)
+	require.Len(t, m.onlineResults, 1, "catalog dupes are filtered out")
+
+	// The online hit is in the pool; enter toggles the cursor row, clears the
+	// filter, and the pick survives in the synthetic online category.
+	pool := m.pool()
+	idx := -1
+	for i, p := range pool {
+		if p.Name == "web-only-tool" {
+			idx = i
+		}
+	}
+	require.GreaterOrEqual(t, idx, 0, "online hit joins the filtered pool")
+	m.rowCur = idx
+	m = send(m, key("enter"))
+	assert.True(t, m.selected["web-only-tool"])
+	assert.Empty(t, m.query, "enter-toggle clears the filter")
+
+	foundCat := false
+	for _, c := range m.cats {
+		if c.Name == onlineCatName {
+			foundCat = true
+			assert.Len(t, c.Packages, 1)
+		}
+	}
+	require.True(t, foundCat, "online pick is homed in the sidebar category")
+
+	online := m.selectedOnlinePkgs()
+	require.Len(t, online, 1)
+	assert.True(t, online[0].IsNpm, "type info survives for categorization")
+
+	// Deselecting removes the pick and the now-empty category.
+	m.catCur = len(m.cats) - 1
+	m.rowCur = 0
+	m = send(m, key("space"))
+	assert.False(t, m.selected["web-only-tool"])
+	for _, c := range m.cats {
+		assert.NotEqual(t, onlineCatName, c.Name, "empty online category is dropped")
+	}
+	assert.Less(t, m.catCur, len(m.cats), "category cursor re-clamped")
+}
+
+func TestCompletionSummaryListsFailures(t *testing.T) {
+	m := installFrame(sized(96, 30), 96, 30)
+	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "ripgrep", Status: progress.StepFail, Detail: "build error"}})
+	m = send(m, installDoneMsg{err: errors.New("1 package failed")})
+	require.True(t, m.done)
+
+	var logText strings.Builder
+	for _, l := range m.logs {
+		logText.WriteString(l.text + "\n")
+	}
+	assert.Contains(t, logText.String(), "installed · 0 already present", "summary counts land in the log")
+	assert.Contains(t, logText.String(), "1 failed: ripgrep", "failed package names are restated at the end")
+}
+
+func TestCompletionSummaryCleanRun(t *testing.T) {
+	m := installFrame(sized(96, 30), 96, 30)
+	m = send(m, installDoneMsg{})
+	var logText strings.Builder
+	for _, l := range m.logs {
+		logText.WriteString(l.text + "\n")
+	}
+	assert.Contains(t, logText.String(), "installed ·")
+	assert.NotContains(t, logText.String(), "failed:")
+}
+
+func TestHoverBgFollowsColorProfile(t *testing.T) {
+	// Under `go test` stdout is a pipe, so the lipgloss profile is usually
+	// colourless — hover must become a no-op, never a hardcoded escape.
+	if seq := hoverBgSeq(); seq == "" {
+		assert.Equal(t, "row", hoverBg("row"))
+	} else {
+		assert.True(t, strings.HasPrefix(hoverBg("row"), seq))
+	}
 }

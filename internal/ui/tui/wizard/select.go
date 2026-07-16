@@ -3,11 +3,59 @@ package wizard
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/openbootdotdev/openboot/internal/config"
+	"github.com/openbootdotdev/openboot/internal/search"
 )
+
+// searchOnline is a seam so tests can stub the openboot.dev search client.
+var searchOnline = search.SearchOnline
+
+const (
+	// onlineCatName is the synthetic sidebar category that holds packages
+	// picked from openboot.dev search results (they aren't in the local
+	// catalog, so without a home they'd vanish when the filter clears).
+	onlineCatName  = "online"
+	searchDebounce = 450 * time.Millisecond
+	searchMinRunes = 2 // don't hit the network for 1-char queries
+	onlineMaxHits  = 20
+)
+
+// searchTickMsg fires after the debounce delay; stale generations are dropped.
+type searchTickMsg struct {
+	seq   int
+	query string
+}
+
+// searchDoneMsg carries the online results for generation seq.
+type searchDoneMsg struct {
+	seq     int
+	results []config.Package
+}
+
+// categoriesFromConfig maps a remote config's package lists onto sidebar
+// categories, so the select screen browses a config the same way it browses
+// the catalog. Empty lists produce no category.
+func categoriesFromConfig(rc *config.RemoteConfig) []config.Category {
+	var cats []config.Category
+	add := func(name string, entries config.PackageEntryList, cask, npm bool) {
+		if len(entries) == 0 {
+			return
+		}
+		pkgs := make([]config.Package, 0, len(entries))
+		for _, e := range entries {
+			pkgs = append(pkgs, config.Package{Name: e.Name, Description: e.Desc, IsCask: cask, IsNpm: npm})
+		}
+		cats = append(cats, config.Category{Name: name, Packages: pkgs})
+	}
+	add("cli tools", rc.Packages, false, false)
+	add("apps", rc.Casks, true, false)
+	add("npm", rc.Npm, false, true)
+	return cats
+}
 
 // ── selection helpers ──
 
@@ -43,7 +91,8 @@ func (m Model) skippedCount() int { return m.selCount() - m.toInstallCount() }
 func (m Model) estMin() int { return estMinutes(m.toInstallCount()) }
 
 // pool returns the packages shown in the right pane: the active category, or —
-// when a query is present — a substring match across the whole catalog.
+// when a query is present — a substring match across the whole catalog plus
+// any online hits for the query (already deduped against the catalog).
 func (m Model) pool() []config.Package {
 	q := strings.TrimSpace(strings.ToLower(m.query))
 	if q != "" {
@@ -55,12 +104,160 @@ func (m Model) pool() []config.Package {
 				}
 			}
 		}
-		return out
+		return append(out, m.onlineResults...)
 	}
 	if m.catCur >= 0 && m.catCur < len(m.cats) {
 		return m.cats[m.catCur].Packages
 	}
 	return nil
+}
+
+// ── online search (debounced openboot.dev lookup while filtering) ──
+
+// queryChanged resets list position and (re)arms the search debounce for the
+// current query. Every call bumps the generation, so in-flight lookups for a
+// stale query can never land.
+func (m *Model) queryChanged() tea.Cmd {
+	m.rowCur, m.scroll = 0, 0
+	m.onlineResults, m.onlineBusy = nil, false
+	m.searchSeq++
+	q := strings.TrimSpace(m.query)
+	if len([]rune(q)) < searchMinRunes {
+		return nil
+	}
+	seq := m.searchSeq
+	return tea.Tick(searchDebounce, func(time.Time) tea.Msg {
+		return searchTickMsg{seq: seq, query: q}
+	})
+}
+
+// clearOnline drops transient search state and invalidates in-flight lookups.
+func (m *Model) clearOnline() {
+	m.onlineResults, m.onlineBusy = nil, false
+	m.searchSeq++
+}
+
+func (m Model) onSearchTick(msg searchTickMsg) (tea.Model, tea.Cmd) {
+	if msg.seq != m.searchSeq || !m.typing || strings.TrimSpace(m.query) != msg.query {
+		return m, nil // typed past it — a newer generation is armed
+	}
+	m.onlineBusy = true
+	seq := msg.seq
+	return m, func() tea.Msg {
+		res, err := searchOnline(msg.query)
+		if err != nil {
+			res = nil // offline / API down: quietly show local hits only
+		}
+		return searchDoneMsg{seq: seq, results: res}
+	}
+}
+
+func (m Model) onSearchDone(msg searchDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.seq != m.searchSeq {
+		return m, nil
+	}
+	m.onlineBusy = false
+	m.onlineResults = m.filterOnline(msg.results)
+	for _, p := range m.onlineResults {
+		m.onlineKnown[p.Name] = true
+	}
+	return m, nil
+}
+
+// filterOnline dedupes online hits against the catalog (including earlier
+// online picks) and against themselves, and caps the list.
+func (m Model) filterOnline(in []config.Package) []config.Package {
+	seen := map[string]bool{}
+	for _, c := range m.cats {
+		for _, p := range c.Packages {
+			seen[p.Name] = true
+		}
+	}
+	var out []config.Package
+	for _, p := range in {
+		if p.Name == "" || seen[p.Name] {
+			continue
+		}
+		seen[p.Name] = true
+		out = append(out, p)
+		if len(out) >= onlineMaxHits {
+			break
+		}
+	}
+	return out
+}
+
+// togglePkg flips selection for p. Online picks are materialised into the
+// synthetic "online" sidebar category so they stay visible (and deselectable)
+// after the filter clears — they have no home in the local catalog.
+func (m *Model) togglePkg(p config.Package) {
+	if m.isInstalled(p.Name) {
+		return
+	}
+	m.toggle(p.Name)
+	if !m.onlineKnown[p.Name] {
+		return
+	}
+	if m.selected[p.Name] {
+		m.addOnlinePick(p)
+	} else {
+		m.removeOnlinePick(p.Name)
+	}
+}
+
+func (m *Model) addOnlinePick(p config.Package) {
+	for i := range m.cats {
+		if m.cats[i].Name != onlineCatName {
+			continue
+		}
+		for _, q := range m.cats[i].Packages {
+			if q.Name == p.Name {
+				return
+			}
+		}
+		m.cats[i].Packages = append(m.cats[i].Packages, p)
+		return
+	}
+	m.cats = append(m.cats, config.Category{Name: onlineCatName, Packages: []config.Package{p}})
+}
+
+func (m *Model) removeOnlinePick(name string) {
+	for i := range m.cats {
+		if m.cats[i].Name != onlineCatName {
+			continue
+		}
+		kept := m.cats[i].Packages[:0]
+		for _, q := range m.cats[i].Packages {
+			if q.Name != name {
+				kept = append(kept, q)
+			}
+		}
+		m.cats[i].Packages = kept
+		if len(kept) == 0 {
+			m.cats = append(m.cats[:i], m.cats[i+1:]...)
+			if m.catCur >= len(m.cats) {
+				m.catCur = len(m.cats) - 1
+			}
+		}
+		return
+	}
+}
+
+// selectedOnlinePkgs returns the online picks that are currently selected —
+// the extra packages the plan needs beyond the catalog selection.
+func (m Model) selectedOnlinePkgs() []config.Package {
+	var out []config.Package
+	for _, c := range m.cats {
+		if c.Name != onlineCatName {
+			continue
+		}
+		for _, p := range c.Packages {
+			if m.selected[p.Name] {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
 }
 
 // selVisible is the number of package rows the list area can show. It must match
@@ -98,23 +295,23 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 	s := msg.String()
 
 	if m.typing {
+		var cmd tea.Cmd
 		switch s {
 		case "esc":
 			m.query, m.typing, m.rowCur, m.scroll = "", false, 0, 0
+			m.clearOnline()
 		case "enter":
 			if strings.TrimSpace(m.query) != "" && len(pool) > 0 {
-				p := pool[clamp(m.rowCur, 0, last)]
-				if !m.isInstalled(p.Name) {
-					m.toggle(p.Name)
-				}
+				m.togglePkg(pool[clamp(m.rowCur, 0, last)])
 				m.query, m.typing, m.rowCur, m.scroll = "", false, 0, 0
+				m.clearOnline()
 			} else {
 				return m.tryInstall()
 			}
 		case "backspace":
 			if len(m.query) > 0 {
 				m.query = trimLast(m.query)
-				m.rowCur, m.scroll = 0, 0
+				cmd = m.queryChanged()
 			}
 		case "up":
 			if m.rowCur > 0 {
@@ -129,10 +326,10 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 			// (bubbletea coalesces pasted/fast text into one message).
 			if msg.Type == tea.KeyRunes || s == " " {
 				m.query += s
-				m.rowCur, m.scroll = 0, 0
+				cmd = m.queryChanged()
 			}
 		}
-		return m.clampSelScroll(), nil
+		return m.clampSelScroll(), cmd
 	}
 
 	switch s {
@@ -143,8 +340,10 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 		// Filtering searches across categories, so it's a list operation —
 		// pull focus to the list so ↑↓ behaves predictably after it clears.
 		m.typing, m.query, m.rowCur, m.scroll, m.selFocus = true, "", 0, 0, focusList
+		m.clearOnline()
 	case "esc":
 		m.query, m.rowCur, m.scroll = "", 0, 0
+		m.clearOnline()
 	case "left", "h":
 		m.selFocus = focusCats
 	case "right", "l":
@@ -161,10 +360,7 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 		m = m.selMoveDown()
 	case " ":
 		if len(pool) > 0 {
-			p := pool[clamp(m.rowCur, 0, last)]
-			if !m.isInstalled(p.Name) {
-				m.toggle(p.Name)
-			}
+			m.togglePkg(pool[clamp(m.rowCur, 0, last)])
 		}
 	case "a":
 		for _, p := range pool {
@@ -257,12 +453,13 @@ func (m Model) updateSelectMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.catCur, m.query, m.typing = idx, "", false
 			m.selFocus = focusCats
 			m.rowCur, m.scroll = 0, 0
+			m.clearOnline()
 		case hitPkg:
 			m.rowCur = idx
 			m.selFocus = focusList
 			pool := m.pool()
-			if idx < len(pool) && !m.isInstalled(pool[idx].Name) {
-				m.toggle(pool[idx].Name)
+			if idx < len(pool) {
+				m.togglePkg(pool[idx])
 			}
 		case hitNone:
 			// click landed on chrome or blank space — nothing to do
@@ -419,7 +616,14 @@ func (m Model) selectList(w, h int) []string {
 	}
 	match := ""
 	if strings.TrimSpace(m.query) != "" {
-		match = fg(cDim3).Render(fmt.Sprintf("%d hits", len(pool)))
+		hits := fmt.Sprintf("%d hits", len(pool))
+		switch {
+		case m.onlineBusy:
+			hits += " · " + m.spinner() + " openboot.dev"
+		case len(m.onlineResults) > 0:
+			hits += fmt.Sprintf(" · %d from openboot.dev", len(m.onlineResults))
+		}
+		match = fg(cDim3).Render(hits)
 	}
 	rows = append(rows, bar("  "+icon+"  "+queryText, match+" ", w))
 	rows = append(rows, "")
@@ -472,8 +676,13 @@ func (m Model) renderRow(p config.Package, cursor bool, w int) string {
 	}
 
 	tail := fg(cDim3).Render(pkgType(p))
-	if installed {
+	switch {
+	case installed:
 		tail = fg(cInstalled).Render("installed")
+	case m.onlineKnown[p.Name]:
+		// Cyan type badge marks a row sourced from openboot.dev search rather
+		// than the local catalog.
+		tail = fg(cInfo).Render(pkgType(p))
 	}
 
 	name := padTo(nameStyle.Render(p.Name), 20)

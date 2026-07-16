@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/openbootdotdev/openboot/internal/installer"
 )
 
 // The confirm screen is the last stop before the engine runs: it shows exactly
@@ -40,7 +38,7 @@ func (m Model) confirmRows() []confirmRow {
 
 // enterConfirm computes the plan preview and shows the confirm screen.
 func (m Model) enterConfirm() (tea.Model, tea.Cmd) {
-	m.preview = installer.PlanFromSelection(m.opts, m.selected)
+	m.preview = m.buildPlan()
 	m.confShell, m.confDotfiles, m.confPrefs = true, true, true
 	m.confCur, m.hoverRow = 0, -1
 	m.screen = scrConfirm
@@ -97,18 +95,29 @@ func (m Model) confirmBody(_, _ int) string {
 	if skipped > 0 {
 		pkgLine += fg(cDim3).Render(fmt.Sprintf(" · %d already present", skipped))
 	}
-	b = append(b, pad+"  "+fg(cDim2).Render(padTo("packages", 12))+pkgLine)
+	b = append(b, pad+"  "+fg(cDim2).Render(padTo("packages", 13))+pkgLine)
 
 	// Git identity (informational).
 	gitVal := m.gitName + " <" + m.gitEmail + ">"
 	if strings.TrimSpace(m.gitName) == "" {
-		if m.preview.SkipGit {
+		switch {
+		case m.preview.SkipGit:
 			gitVal = "not configured — skipped"
-		} else {
+		case strings.TrimSpace(m.preview.GitName) == "":
+			// Config-mode plans carry no identity: the git step keeps an
+			// existing config and no-ops when there is none.
+			gitVal = "existing config kept — skipped when absent"
+		default:
 			gitVal = m.preview.GitName + " <" + m.preview.GitEmail + ">"
 		}
 	}
-	b = append(b, pad+"  "+fg(cDim2).Render(padTo("git", 12))+fg(cMuted).Render(gitVal))
+	b = append(b, pad+"  "+fg(cDim2).Render(padTo("git", 13))+fg(cMuted).Render(gitVal))
+	// Post-install (informational): the script can't run inside the
+	// alt-screen, so it executes after the wizard, with its own confirm.
+	if n := len(m.preview.PostInstall); n > 0 {
+		b = append(b, pad+"  "+fg(cDim2).Render(padTo("post-install", 13))+
+			fg(cMuted).Render(fmt.Sprintf("%d command(s) · runs after the wizard, asks first", n)))
+	}
 	b = append(b, "")
 
 	rows := m.confirmRows()
@@ -181,15 +190,24 @@ func (m Model) updateConfirmMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// confirmHeaderRows is the number of body rows above the first toggleable row
+// (2 blanks + title + subtitle + blank + packages + git + blank = 8, plus one
+// for the post-install line when the plan carries a script).
+func (m Model) confirmHeaderRows() int {
+	n := 8
+	if len(m.preview.PostInstall) > 0 {
+		n++
+	}
+	return n
+}
+
 // confirmHitTest maps a screen Y coordinate to a confirm-row index.
-// Toggleable rows start at body row 8 (title + subtitle + blank + packages
-// + git + blank = 7 headers before the first toggle row).
 func (m Model) confirmHitTest(y int) (string, int) {
 	if !m.inBody(y) {
 		return "", -1
 	}
 	bodyRow := y - 1
-	idx := bodyRow - 8
+	idx := bodyRow - m.confirmHeaderRows()
 	if idx >= 0 && idx < len(m.confirmRows()) {
 		return "row", idx
 	}

@@ -3,8 +3,12 @@
 // live pipeline install, under a persistent title bar and status bar.
 //
 // It replaces the previous interactive planning prompts (preset select, package
-// selector, per-step confirms) and the linear Apply output. Non-interactive
-// paths (--silent, --dry-run, presets, --from, -u, sync) never reach here.
+// selector, per-step confirms) and the linear Apply output. Preset installs
+// (-p) enter it with the loadout preselected; remote-config installs (slug,
+// -u, --from, alias) enter config mode via RunForConfig, with the config's own
+// packages on the select screen. Non-interactive paths (--silent, --dry-run,
+// --update, no TTY) never reach the wizard; sync-source installs keep their
+// linear diff pre-flight and reuse only the live install screen (RunPipeline).
 package wizard
 
 import (
@@ -55,6 +59,13 @@ type Model struct {
 	version string
 	opts    *config.InstallOptions
 
+	// rc, when non-nil, puts the wizard in config mode (install <slug> / -u /
+	// --from / alias): the select screen shows the config's own packages
+	// instead of the catalog, probing auto-advances past the loadout question,
+	// and the plan is built from the filtered config.
+	rc       *config.RemoteConfig
+	srcLabel string // "user/slug" (or config name) shown in the status bar
+
 	width, height int
 	screen        screen
 	ticks         int // monotonic, drives spinner + elapsed
@@ -78,6 +89,12 @@ type Model struct {
 	selFocus focusPane
 	hoverRow int // mouse hover index in pool(), -1 when not on a package row
 	selected map[string]bool
+
+	// ── select: online search (packages beyond the local catalog) ──
+	searchSeq     int              // debounce generation; stale ticks/results are dropped
+	onlineBusy    bool             // a search request is in flight
+	onlineResults []config.Package // current query's online hits (deduped vs catalog)
+	onlineKnown   map[string]bool  // names sourced from openboot.dev, for the row badge
 
 	// ── git identity (captured only when none is configured) ──
 	gitName  string
@@ -103,6 +120,7 @@ type Model struct {
 	done         bool
 	installErr   error
 	skippedPkgs  int             // terminal events with SkipDetail (already installed)
+	failedPkgs   []string        // packages whose terminal event was StepFail, for the completion summary
 	terminalSeen map[string]bool // packages that produced a terminal event, for skip dedup (npm retry)
 	installTick  int             // ticks value when install started, for elapsed
 	cancel       context.CancelFunc
@@ -124,10 +142,38 @@ func New(version string, opts *config.InstallOptions) Model {
 		cats:         config.GetCategories(),
 		hoverRow:     -1,
 		selected:     map[string]bool{},
+		onlineKnown:  map[string]bool{},
 		events:       make(chan tea.Msg, 1024),
 		installDone:  make(chan struct{}),
 		terminalSeen: map[string]bool{},
 	}
+}
+
+// NewForConfig builds a wizard model for a remote-config install: the sidebar
+// categories are the config's own package lists, everything preselected —
+// review-and-prune, mirroring the config's declarative intent.
+func NewForConfig(version string, opts *config.InstallOptions, rc *config.RemoteConfig) Model {
+	m := New(version, opts)
+	m.rc = rc
+	m.srcLabel = configLabel(rc)
+	m.cats = categoriesFromConfig(rc)
+	for _, c := range m.cats {
+		for _, p := range c.Packages {
+			m.selected[p.Name] = true
+		}
+	}
+	return m
+}
+
+// configLabel names a remote config for display: user/slug when known.
+func configLabel(rc *config.RemoteConfig) string {
+	if rc.Username != "" && rc.Slug != "" {
+		return rc.Username + "/" + rc.Slug
+	}
+	if rc.Name != "" {
+		return rc.Name
+	}
+	return "config"
 }
 
 func (m Model) Init() tea.Cmd {
@@ -171,25 +217,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
-			// First ctrl+c during a running install requests an abort: cancel
-			// the context and keep the TUI up until the engine reports back
-			// (installDoneMsg), so the goroutine is joined and the abort is
-			// reported honestly. A second ctrl+c force-quits.
-			if m.screen == scrInstall && m.installing && !m.aborting {
-				m.aborting = true
-				if m.cancel != nil {
-					m.cancel()
-				}
-				return m, nil
-			}
-			if m.cancel != nil {
-				m.cancel()
-			}
-			if m.installing {
-				m.installErr = ErrAborted
-			}
-			m.quit = true
-			return m, tea.Quit
+			return m.onCtrlC()
 		}
 		switch m.screen {
 		case scrBoot:
@@ -210,10 +238,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case probeDoneMsg:
 		return m.onProbeDone(msg)
 
+	case searchTickMsg:
+		return m.onSearchTick(msg)
+
+	case searchDoneMsg:
+		return m.onSearchDone(msg)
+
 	case evMsg, reporterMsg, installDoneMsg:
 		return m.onInstallEvent(msg)
 	}
 	return m, nil
+}
+
+// onCtrlC implements the global abort semantics. The first ctrl+c during a
+// running install requests an abort: cancel the context and keep the TUI up
+// until the engine reports back (installDoneMsg), so the goroutine is joined
+// and the abort is reported honestly. A second ctrl+c force-quits; outside an
+// install it quits immediately.
+func (m Model) onCtrlC() (tea.Model, tea.Cmd) {
+	if m.screen == scrInstall && m.installing && !m.aborting {
+		m.aborting = true
+		if m.cancel != nil {
+			m.cancel()
+		}
+		return m, nil
+	}
+	if m.cancel != nil {
+		m.cancel()
+	}
+	if m.installing {
+		m.installErr = ErrAborted
+	}
+	m.quit = true
+	return m, tea.Quit
 }
 
 // routeMouse dispatches a mouse event to the active screen's handler.
@@ -239,9 +296,20 @@ func (m Model) spinner() string {
 
 // ── View / chrome ──────────────────────────────────────────────────────────
 
+// minTermW/minTermH are the smallest terminal the layout renders legibly in:
+// below this the two-pane screens truncate into garbage, so show a resize
+// hint instead of a broken frame. Keys (q / ctrl+c) still work.
+const (
+	minTermW = 60
+	minTermH = 15
+)
+
 func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
+	}
+	if m.width < minTermW || m.height < minTermH {
+		return m.smallTermView()
 	}
 	bodyH := m.height - 2
 	if bodyH < 1 {
@@ -263,6 +331,22 @@ func (m Model) View() string {
 	}
 
 	return m.titleBar() + "\n" + fitBlock(body, m.width, bodyH) + "\n" + m.statusBar()
+}
+
+// smallTermView replaces the whole frame when the terminal is smaller than
+// the layout can survive. Plain short lines so it stays legible at any size;
+// ctrl+c (handled globally) still quits.
+func (m Model) smallTermView() string {
+	lines := []string{
+		"",
+		" " + fg(cAccent).Render("▲") + " " + fg(cTextHi).Render("openboot"),
+		"",
+		" " + fg(cWarn).Render(fmt.Sprintf("terminal too small — %d×%d", m.width, m.height)),
+		" " + fg(cMuted).Render(fmt.Sprintf("resize to at least %d×%d to continue", minTermW, minTermH)),
+		"",
+		" " + fg(cDim2).Render("ctrl+c quit"),
+	}
+	return fitBlock(strings.Join(lines, "\n"), m.width, m.height)
 }
 
 // inBody reports whether screen row y is inside the rendered body (rows
@@ -378,8 +462,19 @@ func truncCell(s string, w int) string {
 // flow keeps the TUI alive until the engine goroutine reports done, so the
 // redirect isn't restored under its feet.
 func Run(version string, opts *config.InstallOptions) (plan installer.InstallPlan, confirmed bool, err error) {
-	m := New(version, opts)
+	return runProgram(New(version, opts))
+}
 
+// RunForConfig launches the wizard in config mode for a fetched remote config
+// (install <slug> / -u / --from / alias): boot probe → select (the config's
+// packages, preselected) → review → live install. Returns like Run; the
+// returned plan keeps the config's post-install script for the CLI to run
+// after teardown (the alt-screen can't host its confirm prompt).
+func RunForConfig(version string, opts *config.InstallOptions, rc *config.RemoteConfig) (plan installer.InstallPlan, confirmed bool, err error) {
+	return runProgram(NewForConfig(version, opts, rc))
+}
+
+func runProgram(m Model) (plan installer.InstallPlan, confirmed bool, err error) {
 	realOut, restore := redirectOutput()
 	defer restore()
 
