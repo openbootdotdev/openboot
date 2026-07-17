@@ -15,6 +15,15 @@ import (
 var searchOnline = search.SearchOnline
 
 const (
+	// reviewCatName is the synthetic sidebar category the select screen opens
+	// on: the packages the loadout picked, gathered out of every category. The
+	// screen's question is "install these?" (↵ is bound to install), so the
+	// cursor has to land on the answer. Opening on a real category instead
+	// answered with whichever one sits at index 0 — packages the user never
+	// chose — while the ones they did chose stayed scattered behind nine other
+	// categories, reachable only by clicking through each in turn.
+	reviewCatName = "selected"
+
 	// onlineCatName is the synthetic sidebar category that holds packages
 	// picked from openboot.dev search results (they aren't in the local
 	// catalog, so without a home they'd vanish when the filter clears).
@@ -55,6 +64,59 @@ func categoriesFromConfig(rc *config.RemoteConfig) []config.Category {
 	add("apps", rc.Casks, true, false)
 	add("npm", rc.Npm, false, true)
 	return cats
+}
+
+// ── the "selected" review category ──
+
+// reviewPackages gathers every selected package out of cats, in catalog order.
+func reviewPackages(cats []config.Category, selected map[string]bool) []config.Package {
+	var out []config.Package
+	for _, c := range cats {
+		if c.Name == reviewCatName {
+			continue // it is built from the real categories; don't fold it in
+		}
+		for _, p := range c.Packages {
+			if selected[p.Name] {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
+
+// pinReviewCat puts the synthetic "selected" category first in the sidebar, so
+// entering the screen with catCur 0 lands on the loadout's picks.
+//
+// Two cases skip it. Config mode: the sidebar already *is* the config's own
+// package lists with everything preselected, so a review category would just
+// concatenate all of them. Hand-picking from scratch ("c" on the boot screen):
+// there is nothing to review, and an empty pane says less than the catalog.
+func (m *Model) pinReviewCat() {
+	if m.rc != nil || m.selCount() == 0 {
+		return
+	}
+	review := config.Category{Name: reviewCatName, Packages: reviewPackages(m.cats, m.selected)}
+	m.cats = append([]config.Category{review}, m.cats...)
+}
+
+func (m Model) isReviewCat(i int) bool {
+	return i >= 0 && i < len(m.cats) && m.cats[i].Name == reviewCatName
+}
+
+// setCat moves the sidebar cursor to category i and resets the list position.
+//
+// The review category is a snapshot taken on entry, not a live view of the
+// selection. Standing in it and unchecking a row leaves the row in place with
+// an empty box, so a mis-toggle costs one keypress to undo — and so "a" and
+// "x" mean re-check and clear-all rather than acting on a list that empties
+// itself out from under them.
+func (m Model) setCat(i int) Model {
+	m.catCur = i
+	m.rowCur, m.scroll = 0, 0
+	if m.isReviewCat(i) {
+		m.cats[i].Packages = reviewPackages(m.cats, m.selected)
+	}
+	return m
 }
 
 // ── selection helpers ──
@@ -98,6 +160,9 @@ func (m Model) pool() []config.Package {
 	if q != "" {
 		var out []config.Package
 		for _, c := range m.cats {
+			if c.Name == reviewCatName {
+				continue // a copy of rows that live in real categories — would double every hit
+			}
 			for _, p := range c.Packages {
 				if strings.Contains(strings.ToLower(p.Name+" "+p.Description), q) {
 					out = append(out, p)
@@ -359,7 +424,11 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 	case "down", "j":
 		m = m.selMoveDown()
 	case " ":
-		if len(pool) > 0 {
+		// Space acts on the list cursor, and renderRow draws that cursor only
+		// while the list holds focus — exactly one pane shows a pointer at a
+		// time. With the sidebar focused there is therefore no visible target,
+		// and toggling rowCur anyway flipped a row the user couldn't see.
+		if m.selFocus == focusList && len(pool) > 0 {
 			m.togglePkg(pool[clamp(m.rowCur, 0, last)])
 		}
 	case "a":
@@ -382,8 +451,7 @@ func (m Model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) { //nolint:gocy
 func (m Model) selMoveUp() Model {
 	if m.selFocus == focusCats && m.query == "" {
 		if m.catCur > 0 {
-			m.catCur--
-			m.rowCur, m.scroll = 0, 0
+			m = m.setCat(m.catCur - 1)
 		}
 		return m
 	}
@@ -396,8 +464,7 @@ func (m Model) selMoveUp() Model {
 func (m Model) selMoveDown() Model {
 	if m.selFocus == focusCats && m.query == "" {
 		if m.catCur < len(m.cats)-1 {
-			m.catCur++
-			m.rowCur, m.scroll = 0, 0
+			m = m.setCat(m.catCur + 1)
 		}
 		return m
 	}
@@ -450,9 +517,9 @@ func (m Model) updateSelectMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		switch kind, idx := m.selectHitTest(msg.X, msg.Y); kind {
 		case hitCat:
-			m.catCur, m.query, m.typing = idx, "", false
+			m.query, m.typing = "", false
+			m = m.setCat(idx)
 			m.selFocus = focusCats
-			m.rowCur, m.scroll = 0, 0
 			m.clearOnline()
 		case hitPkg:
 			m.rowCur = idx
@@ -547,10 +614,19 @@ func (m Model) selectSidebar(h int) []string {
 
 	q := strings.TrimSpace(m.query)
 	for i, c := range m.cats {
-		selN, total := 0, len(c.Packages)
+		// Two facts, two channels: the count says where your selection is, the
+		// colour says whether any of it will actually run. Folding them into
+		// one number (counting only not-yet-installed packages) left a machine
+		// that already has everything with a flat grey total on every category
+		// and no way to find its own selection.
+		selN, todo, total := 0, 0, len(c.Packages)
 		for _, p := range c.Packages {
-			if m.selected[p.Name] && !m.installed[p.Name] {
-				selN++
+			if !m.selected[p.Name] {
+				continue
+			}
+			selN++
+			if !m.installed[p.Name] {
+				todo++
 			}
 		}
 		active := i == m.catCur && q == ""
@@ -569,7 +645,7 @@ func (m Model) selectSidebar(h int) []string {
 				nameStyle = fg(cText)
 			}
 		}
-		if selN > 0 {
+		if todo > 0 {
 			countStyle = fg(cAccentHi)
 		}
 		count := fmt.Sprintf("%d", total)

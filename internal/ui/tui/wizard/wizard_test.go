@@ -1,6 +1,7 @@
 package wizard
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -570,6 +571,138 @@ func TestHoverUsesReverseVideo(t *testing.T) {
 	styled := hoverBg("a" + "\x1b[0m" + "b")
 	assert.Equal(t, 2, strings.Count(styled, rev), "reverse re-established after the inner reset")
 	assert.False(t, strings.HasSuffix(styled, rev), "the closing reset is not re-opened")
+}
+
+// Picking a loadout must open the select screen on a "selected" review
+// category so the cursor lands on what the user actually chose, not on
+// whichever catalog category happens to sit at index 0.
+func TestSelectOpensOnReviewCategory(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2")) // developer loadout
+
+	require.NotEmpty(t, m.cats)
+	assert.Equal(t, reviewCatName, m.cats[0].Name, "review category is pinned first")
+	assert.Equal(t, 0, m.catCur, "cursor opens on the review category")
+
+	want := config.GetPackagesForPreset("developer")
+	pool := m.pool()
+	assert.Len(t, pool, len(want), "review category holds exactly the loadout's picks")
+	for _, p := range pool {
+		assert.True(t, want[p.Name], "%s wasn't part of the loadout", p.Name)
+	}
+}
+
+// Hand-picking from scratch has nothing to review yet, so it must fall back to
+// browsing the catalog rather than opening on an empty pane.
+func TestHandPickSkipsReviewCategory(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c"))
+	for _, c := range m.cats {
+		assert.NotEqual(t, reviewCatName, c.Name, "nothing selected yet — no review category")
+	}
+}
+
+// Config-mode installs already show the config's own package lists with
+// everything preselected; a review category on top would just repeat them.
+func TestConfigModeSkipsReviewCategory(t *testing.T) {
+	rc := &config.RemoteConfig{
+		Packages: config.PackageEntryList{{Name: "curl"}},
+	}
+	m := sizedConfig(rc)
+	m = finishProbes(m)
+	for _, c := range m.cats {
+		assert.NotEqual(t, reviewCatName, c.Name, "config mode browses the config's own lists")
+	}
+}
+
+// Space acts on the list cursor, and the pointer glyph is only drawn while the
+// list holds focus (TestSelectFocusIsVisuallyIndicated). Toggling on sidebar
+// focus flipped a row the user had no way to see was the target.
+func TestSpaceIgnoredWhileSidebarFocused(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("c")) // hand-pick, empty selection
+	m.installed = map[string]bool{}
+	require.Zero(t, m.selCount())
+
+	m = send(m, key("left")) // focus the sidebar
+	require.Equal(t, focusCats, m.selFocus)
+	m = send(m, key("space"))
+	assert.Zero(t, m.selCount(), "space with sidebar focused must not toggle an invisible row")
+
+	m = send(m, key("right")) // back to the list
+	m = send(m, key("space"))
+	assert.Equal(t, 1, m.selCount(), "space with list focused toggles the cursor row as before")
+}
+
+// The sidebar count must distinguish "selected" from "will actually run":
+// folding installed-but-selected packages out of the count left every
+// category on a fully up-to-date machine showing a flat, colourless total,
+// with no way to tell where the loadout's picks landed.
+func TestSidebarCountShowsSelectedEvenWhenAllInstalled(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2")) // developer loadout
+
+	// Mark every selected package installed, so nothing is left "to do".
+	installed := map[string]bool{}
+	for name, on := range m.selected {
+		if on {
+			installed[name] = true
+		}
+	}
+	m.installed = installed
+
+	rows := m.selectSidebar(28)
+	joined := strings.Join(rows, "\n")
+	assert.Contains(t, joined, fmt.Sprintf("%d/%d", len(installed), len(installed)),
+		"review category must still report its full selected count, got:\n%s", joined)
+}
+
+// The review category is a snapshot taken on entry; re-entering it after a
+// selection change must refresh, not keep showing stale rows.
+func TestReviewCategoryRefreshesOnReentry(t *testing.T) {
+	m := finishProbes(sized(96, 30))
+	m = send(m, key("2")) // developer loadout, opens on "selected"
+	before := len(m.pool())
+	require.Positive(t, before)
+
+	// Move off the review category to one with an unselected package — not
+	// necessarily the very next one, since the developer preset already fills
+	// some catalog categories completely.
+	m = send(m, key("left")) // sidebar focus
+	var extra config.Package
+	for {
+		for _, p := range m.pool() {
+			if !m.selected[p.Name] {
+				extra = p
+				break
+			}
+		}
+		if extra.Name != "" {
+			break
+		}
+		before := m.catCur
+		m = send(m, key("down"))
+		require.NotEqual(t, before, m.catCur, "ran out of categories without finding an unselected package")
+	}
+	require.NotEqual(t, 0, m.catCur, "must have moved off the review category")
+	m = send(m, key("right")) // back to the list to toggle
+	pool := m.pool()
+	m.rowCur = 0
+	for i, p := range pool {
+		if p.Name == extra.Name {
+			m.rowCur = i
+			break
+		}
+	}
+	m = send(m, key("space"))
+	require.True(t, m.selected[extra.Name])
+
+	// Back to the review category: it must include the new pick.
+	m = send(m, key("left"))
+	for m.catCur != 0 {
+		m = send(m, key("up"))
+	}
+	assert.Equal(t, before+1, len(m.pool()), "review category refreshed to include the new pick")
 }
 
 // The text ramp must stay terminal-relative: a hex grey is a guess about the

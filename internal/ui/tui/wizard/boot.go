@@ -226,6 +226,9 @@ func (m Model) pickLoadout(i int) (tea.Model, tea.Cmd) {
 func (m Model) enterSelect(sel map[string]bool) (tea.Model, tea.Cmd) {
 	m.selected = sel
 	m.screen = scrSelect
+	// pinReviewCat prepends "selected", so catCur 0 opens on the loadout's own
+	// picks rather than on whichever category happens to be first.
+	m.pinReviewCat()
 	m.catCur, m.rowCur, m.scroll = 0, 0, 0
 	m.query, m.typing = "", false
 	m.hoverRow = -1
