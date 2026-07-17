@@ -239,9 +239,9 @@ func TestBootMouseClickPicksLoadout(t *testing.T) {
 	require.Equal(t, scrBoot, m.screen)
 	require.GreaterOrEqual(t, len(m.loadouts), 2)
 
-	// Click the second loadout row. Geometry: 4 header + 4 probes + 3 footer
-	// = loadouts start at body row 11 → screen row 12. Loadout 1 at row 13.
-	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 10, Y: 13})
+	// Click the second loadout row. Geometry: 3 header + 4 probes + 3 footer
+	// = loadouts start at body row 10 → screen row 11. Loadout 1 at row 12.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 10, Y: 12})
 	assert.Equal(t, scrSelect, m.screen, "clicking a loadout enters the select screen")
 	assert.Equal(t, 1, m.loadCur, "click lands on loadout index 1")
 }
@@ -251,8 +251,8 @@ func TestBootMouseHoverHighlightsLoadout(t *testing.T) {
 	require.Equal(t, scrBoot, m.screen)
 	require.Equal(t, -1, m.hoverRow, "starts with no hover")
 
-	// Motion over the first loadout row (screen row 12) sets hoverRow.
-	m = send(m, tea.MouseMsg{Action: tea.MouseActionMotion, X: 10, Y: 12})
+	// Motion over the first loadout row (screen row 11) sets hoverRow.
+	m = send(m, tea.MouseMsg{Action: tea.MouseActionMotion, X: 10, Y: 11})
 	assert.Equal(t, 0, m.hoverRow, "hover over loadout 0")
 
 	// Motion off the loadout area clears it.
