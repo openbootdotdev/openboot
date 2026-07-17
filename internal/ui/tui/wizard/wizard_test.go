@@ -903,12 +903,33 @@ func TestCompletionSummaryCleanRun(t *testing.T) {
 	assert.NotContains(t, logText.String(), "failed:")
 }
 
-func TestHoverBgFollowsColorProfile(t *testing.T) {
-	// Under `go test` stdout is a pipe, so the lipgloss profile is usually
-	// colourless — hover must become a no-op, never a hardcoded escape.
-	if seq := hoverBgSeq(); seq == "" {
-		assert.Equal(t, "row", hoverBg("row"))
-	} else {
-		assert.True(t, strings.HasPrefix(hoverBg("row"), seq))
+// Hover must not depend on a background colour we guessed: reverse video is
+// defined at every colour depth, so the marker survives themes we can't see.
+func TestHoverUsesReverseVideo(t *testing.T) {
+	const rev = "\x1b[7m"
+	out := hoverBg("row")
+	assert.True(t, strings.HasPrefix(out, rev), "row opens in reverse")
+	assert.True(t, strings.HasSuffix(out, "\x1b[0m"), "row closes with a reset")
+
+	// A styled span's own reset must not silently end the highlight: reverse is
+	// re-opened after it (once to open the row, once after the inner reset —
+	// the row's own closing reset is appended afterwards and must stay bare).
+	styled := hoverBg("a" + "\x1b[0m" + "b")
+	assert.Equal(t, 2, strings.Count(styled, rev), "reverse re-established after the inner reset")
+	assert.False(t, strings.HasSuffix(styled, rev), "the closing reset is not re-opened")
+}
+
+// The text ramp must stay terminal-relative: a hex grey is a guess about the
+// user's background, and the guess is what made pending rows and key hints
+// invisible on a translucent terminal. Brand hues are exempt — they're bright
+// enough to carry anywhere and they're the product's identity.
+func TestTextRampIsTerminalRelative(t *testing.T) {
+	for name, c := range map[string]lipgloss.Color{
+		"cWhite": cWhite, "cTextHi": cTextHi, "cText": cText, "cMuted": cMuted,
+		"cMuted2": cMuted2, "cMuted3": cMuted3, "cDim": cDim, "cDim2": cDim2,
+		"cDim3": cDim3, "cDim4": cDim4, "cFaint": cFaint, "cBorder": cBorder,
+		"cInstalled": cInstalled,
+	} {
+		assert.NotContains(t, string(c), "#", "%s must use an ANSI index, not a hex guess at the background", name)
 	}
 }

@@ -561,8 +561,12 @@ func (m Model) pipelineSidebar(h int) []string {
 	rows = append(rows, " "+fg(cDim4).Render("PIPELINE"))
 	rows = append(rows, "")
 	for _, p := range m.phases {
-		icon := fg(cFaint).Render("○")
-		nameStyle := fg(cDim3)
+		// Pending phases keep a readable label: the glyph (○ / spinner / ✓)
+		// and its hue carry the state. Fading the label toward the background
+		// instead reads as "this step is missing", and vanishes outright on a
+		// terminal whose background isn't the one the palette assumed.
+		icon := fg(cMuted3).Render("○")
+		nameStyle := fg(cMuted)
 		switch {
 		case p.finished:
 			icon = fg(cAccent).Render("✓")
