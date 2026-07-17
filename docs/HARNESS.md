@@ -47,6 +47,7 @@ Three regulation categories:
 | Arch. | `no-os-getenv-home` | L1 | `internal/archtest/envhome_test.go` |
 | Arch. | `dryrun` — destructive ops must check `DryRun` | L1 | `internal/archtest/dryrun_test.go` |
 | Arch. | `no-raw-fmtprint` — UI output via `ui.*` helpers, not raw `fmt.Print*` | L1 | `internal/archtest/fmtprint_test.go` |
+| Arch. | `install.sh` must not prompt on stdin — under `curl \| bash` stdin is the script | L1 | `internal/archtest/installsh_test.go` |
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |
@@ -74,6 +75,7 @@ When you observe a recurring issue, decide where to encode the fix:
 | "Agent doesn't know about preset X." | Update `internal/config/data/presets.yaml`. Source of truth, not docs. |
 | "Agent introduced a new lint failure that golangci-lint should have caught." | Enable the relevant linter in `.golangci.yml`. |
 | "Agent broke a behaviour that has no test." | Write the test at the right tier — L1 covers both faked-runner units in `internal/<pkg>/` and real-subprocess integration in `test/integration/`. |
+| "A shipped release reached nobody: `install.sh`'s already-installed branch prompted on stdin, which under `curl \| bash` is the script itself, so it always took the don't-upgrade default." | Already handled by the `installsh` archtest. The wider lesson the sensor does *not* cover: `curl-bash-smoke` is gated `if: github.event_name != 'pull_request'` and only exercises the mock-server path, so the real `scripts/install.sh` brew branch has no behavioural test. Upgrade-over-existing-install is the case to add. |
 | "Agent missed a CLAUDE.md rule we keep restating." | Make it a hard or soft archtest rule (a docs rule that doesn't fail is a docs rule that drifts). |
 | "Agent did something safe but suboptimal." | Add to CLAUDE.md "Project-specific conventions" and consider whether it's encodable. |
 | "Agent guessed at an API contract." | Update `openboot-contract` repo + fixtures; CI already runs schema validation. |
