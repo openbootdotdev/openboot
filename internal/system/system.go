@@ -38,6 +38,17 @@ func RunCommandInDir(dir string, name string, args ...string) error {
 	return cmd.Run()
 }
 
+// RunCommandInDirSilent runs name with args in the given working directory and
+// captures its combined output instead of forwarding it to the terminal, so a
+// subprocess can't interleave its own chatter into a structured install log.
+// Callers surface the output themselves when the command fails.
+func RunCommandInDirSilent(dir string, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(context.Background(), name, args...) //nolint:gosec // intentional generic runner; callers are responsible for validating name and args
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(output)), err
+}
+
 func RunCommandSilent(name string, args ...string) (string, error) {
 	return RunCommandSilentContext(context.Background(), name, args...)
 }

@@ -82,9 +82,6 @@ func categorizeSelectedPackages(opts *config.InstallOptions, st *config.InstallS
 }
 
 func applyPackages(ctx context.Context, plan InstallPlan, r Reporter) error { //nolint:gocyclo // orchestrates multiple package categories; splitting would obscure the install sequence
-	r.Header("Step 4: Installation")
-	ui.Println()
-
 	if len(plan.Taps) > 0 {
 		if err := brew.InstallTaps(plan.Taps, plan.DryRun); err != nil {
 			r.Warn(fmt.Sprintf("Some taps failed: %v", err))
@@ -156,10 +153,11 @@ func applyPackages(ctx context.Context, plan InstallPlan, r Reporter) error { //
 
 	brewCtx, cancel := packageInstallContext(ctx, len(cliPkgs)+len(caskPkgs))
 	defer cancel()
+	// brewErr is returned, not reported: ApplyContext announces a step's failure
+	// once, under its own section heading. The packages that did land are still
+	// recorded below, so a partial failure doesn't lose the state for the ones
+	// that worked.
 	installedCli, installedCask, brewErr := brew.InstallWithProgress(brewCtx, cliPkgs, caskPkgs, plan.DryRun)
-	if brewErr != nil {
-		r.Error(fmt.Sprintf("Some packages failed: %v", brewErr))
-	}
 
 	if !plan.DryRun {
 		for _, pkg := range installedCli {
@@ -236,9 +234,6 @@ func applyNpm(ctx context.Context, plan InstallPlan, r Reporter) error { //nolin
 		return nil
 	}
 
-	ui.Println()
-	r.Header("NPM Global Packages")
-	ui.Println()
 	r.Info(fmt.Sprintf("Installing %d npm packages...", len(npmPkgs)))
 	ui.Println()
 
@@ -252,7 +247,6 @@ func applyNpm(ctx context.Context, plan InstallPlan, r Reporter) error { //nolin
 			break
 		}
 		if attempt == maxAttempts {
-			r.Error(fmt.Sprintf("npm package installation failed after %d attempts: %v", maxAttempts, lastErr))
 			return fmt.Errorf("npm installation failed after %d attempts: %w", maxAttempts, lastErr)
 		}
 		if plan.Silent || !system.HasTTY() {

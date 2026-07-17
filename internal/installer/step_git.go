@@ -8,12 +8,9 @@ import (
 )
 
 func applyGitConfig(plan InstallPlan, r Reporter) error {
-	r.Header("Step 1: Git Configuration")
-	ui.Println()
-
 	existingName, existingEmail := system.GetExistingGitConfig()
 	if existingName != "" && existingEmail != "" {
-		r.Success(fmt.Sprintf("✓ Already configured: %s <%s>", existingName, existingEmail))
+		r.Success(fmt.Sprintf("Already configured: %s <%s>", existingName, existingEmail))
 		ui.Println()
 		return nil
 	}

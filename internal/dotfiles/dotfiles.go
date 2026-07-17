@@ -17,13 +17,22 @@ var branchNameRe = regexp.MustCompile(`^[a-zA-Z0-9._/-]+$`)
 
 const defaultDotfilesDir = ".dotfiles"
 
-// gitExecFunc runs a git command with stdout/stderr forwarded to the terminal.
+// gitExecFunc runs a git command, capturing its output rather than forwarding
+// it to the terminal: these run inside a numbered section of the install log,
+// and git narrating itself there ("HEAD is now at 5a1dc8e feat: add Makefile…")
+// reads as noise the user can't act on. The output is attached to the error so
+// a failure is still diagnosable.
 // Replaced in tests to avoid forking real git processes.
 var gitExecFunc = func(args []string) error {
 	cmd := exec.Command("git", args...) //nolint:gosec // "git" is a hardcoded binary; args are validated by callers
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if trimmed := strings.TrimSpace(string(out)); trimmed != "" {
+			return fmt.Errorf("%w: %s", err, trimmed)
+		}
+		return err
+	}
+	return nil
 }
 
 // gitOutputFunc runs a git command and captures its stdout.
@@ -63,10 +72,19 @@ func Clone(repoURL string, dryRun bool) error {
 		return nil
 	}
 
+	// Captured like every other git call here: the clone's own progress
+	// ("Receiving objects: 100% (40/40)…") lands in the middle of a numbered
+	// install section and says nothing the surrounding lines don't. Its output
+	// is what diagnoses a failure, so it rides along with the error.
 	cmd := exec.Command("git", "clone", repoURL, dotfilesPath) //nolint:gosec // git binary is hardcoded; repoURL is validated by the caller
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if trimmed := strings.TrimSpace(string(out)); trimmed != "" {
+			return fmt.Errorf("%w: %s", err, trimmed)
+		}
+		return err
+	}
+	return nil
 }
 
 // handleExistingDotfiles manages the case where a dotfiles directory already
@@ -278,9 +296,16 @@ func linkWithMake(dotfilesPath string, dryRun bool) error {
 		}
 	}
 
-	if err := system.RunCommandInDir(dotfilesPath, "make", "install"); err != nil {
+	// Captured, not forwarded: this runs inside a numbered section of the
+	// install log, and the Makefile echoing its own recipe ("stow -v --target=…")
+	// there is noise. On failure the output is what diagnoses it, so it rides
+	// along with the error.
+	if out, err := system.RunCommandInDirSilent(dotfilesPath, "make", "install"); err != nil {
 		for _, pair := range allBacked {
 			restoreFile(pair[0], pair[1], false)
+		}
+		if out != "" {
+			return fmt.Errorf("make install: %w: %s", err, out)
 		}
 		return fmt.Errorf("make install: %w", err)
 	}
