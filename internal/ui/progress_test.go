@@ -159,16 +159,18 @@ func TestStickyProgressPkgElapsed(t *testing.T) {
 	assert.Contains(t, elapsed, "s")
 }
 
-func TestStickyProgressFallsBackWhenScrollRegionUnsupported(t *testing.T) {
+func TestStickyProgressStartFinishDoNotPanic(t *testing.T) {
+	// The renderer no longer reserves a scroll region — it draws a plain
+	// in-place status line that works on every terminal. Start/Finish must run
+	// cleanly regardless of TERM (here a dumb terminal that supports nothing).
 	t.Setenv("TERM", "dumb")
 	sp := NewStickyProgress(3)
-	sp.Start()
-	defer sp.Finish()
-	// Region should NOT have been attached.
-	sp.mu.Lock()
-	hasRegion := sp.region != nil
-	sp.mu.Unlock()
-	assert.False(t, hasRegion, "scroll region should be disabled on dumb TERM")
+	assert.NotPanics(t, func() {
+		sp.Start()
+		sp.SetCurrent("wget")
+		sp.IncrementWithStatus(true)
+		sp.Finish()
+	})
 }
 
 // Ctrl+C during a linear install must not exit from the progress goroutine:

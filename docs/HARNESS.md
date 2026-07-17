@@ -109,11 +109,16 @@ it survives doc rot.
   the in-session loop (Step 8), the sensor became dead code and was
   removed. If `--auto` ever comes back, the sensor needs to come back
   with it.
-- **No archtest rule for scroll-region usage.** `internal/ui/scrollregion.go`
-  detects support at runtime (`TERM`, TTY, terminal height) and falls back
-  to the inline `\r\033[K` renderer when unavailable. A static rule can't
-  see runtime terminal capabilities, so this stays a runtime concern. The
-  fallback is covered by `TestStickyProgressFallsBackWhenScrollRegionUnsupported`.
+- **No terminal scroll-region rendering.** StickyProgress once reserved the
+  bottom rows via a DECSTBM scroll region (`internal/ui/scrollregion.go`,
+  since removed) to keep a "sticky" status bar frozen while the log scrolled.
+  It rendered correctly only on terminals that fully honour scroll regions;
+  on ones that report a normal `TERM` but don't (e.g. some GPU/block
+  terminals), the reserved bar was dragged into the log and reprinted on
+  every tick, so the install read as garbage. Runtime detection couldn't tell
+  the two apart from `TERM`/TTY/height alone. It now draws a plain in-place
+  `\r\033[K` status line that trails top-to-bottom output on every terminal.
+  Don't reintroduce the scroll region.
 - **L4 runs on GitHub Actions, not a self-hosted runner.** `macos-14`
   runners are Apple Silicon VMs — each job gets a fresh clean macOS
   environment, which is exactly what L4 needs. Tart is no longer required.

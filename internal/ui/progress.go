@@ -39,9 +39,6 @@ type StickyProgress struct {
 	succeeded  int
 	failed     int
 	skipped    int
-
-	// Scroll region rendering (nil when terminal doesn't support it).
-	region *ScrollRegion
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -58,10 +55,6 @@ func (sp *StickyProgress) Start() {
 	sp.mu.Lock()
 	sp.active = true
 	sp.startTime = time.Now()
-	if IsScrollRegionSupported() {
-		sp.region = NewScrollRegion(2)
-		sp.region.Start()
-	}
 	sp.mu.Unlock()
 
 	signal.Stop(sp.sigCh)
@@ -90,16 +83,19 @@ func (sp *StickyProgress) Start() {
 	}()
 }
 
+// render draws the live status line in place: carriage-return to the start of
+// the current line, clear it, then write the spinner, progress count, current
+// package, and elapsed time. It writes no newline, so PrintLine's completed
+// rows scroll above it and this line trails the output.
+//
+// This deliberately does NOT reserve a "sticky" bottom bar via a terminal
+// scroll region (DECSTBM). That looked nicer where it worked, but it silently
+// corrupted on terminals that report a normal TERM yet don't honour scroll
+// regions — the reserved bar got dragged into the log and reprinted on every
+// tick, so the install read as garbage. A plain in-place status line renders
+// top-to-bottom on every terminal, which is the property that matters for a
+// one-shot install log. Don't reintroduce the scroll region.
 func (sp *StickyProgress) render() {
-	if sp.region != nil {
-		sp.region.DrawBottom(sp.formatLines())
-		return
-	}
-	sp.renderInline()
-}
-
-// renderInline is the fallback renderer used when scroll region is unavailable.
-func (sp *StickyProgress) renderInline() {
 	spinner := spinnerFrames[sp.spinnerIdx]
 	pkg := truncate(sp.currentPkg, 20)
 	elapsed := sp.pkgElapsed()
@@ -109,27 +105,6 @@ func (sp *StickyProgress) renderInline() {
 		progressTextStyle.Render(fmt.Sprintf("[%d/%d]", sp.completed+1, sp.total)),
 		currentPkgStyle.Render(pkg),
 		etaStyle.Render(elapsed))
-}
-
-// formatLines returns the two strings to render in the bottom-reserved scroll
-// region: a divider and a status line.
-func (sp *StickyProgress) formatLines() []string {
-	cols := 80
-	if sp.region != nil {
-		cols = sp.region.Cols()
-	}
-
-	spinner := spinnerFrames[sp.spinnerIdx]
-	pkg := truncate(sp.currentPkg, 20)
-	elapsed := sp.pkgElapsed()
-
-	divider := strings.Repeat("─", cols)
-	status := fmt.Sprintf("%s %s %s   %s",
-		spinner,
-		progressTextStyle.Render(fmt.Sprintf("[%d/%d]", sp.completed+1, sp.total)),
-		currentPkgStyle.Render(pkg),
-		etaStyle.Render(elapsed))
-	return []string{divider, status}
 }
 
 // pkgElapsed returns elapsed seconds for the current package, or "" if not yet started.
@@ -217,12 +192,7 @@ func (sp *StickyProgress) onInterrupt() (force bool) {
 	}
 	sp.aborting = true
 	sp.active = false
-	if sp.region != nil {
-		sp.region.Stop()
-		sp.region = nil
-	} else {
-		fmt.Printf("\r\033[K")
-	}
+	fmt.Printf("\r\033[K")
 	fmt.Println(mutedStyle.Render("  aborting — waiting for the current step to stop · ctrl+c again to force quit"))
 	return false
 }
@@ -233,12 +203,7 @@ func (sp *StickyProgress) Finish() {
 	sp.mu.Lock()
 	defer sp.mu.Unlock()
 	sp.active = false
-	if sp.region != nil {
-		sp.region.Stop()
-		sp.region = nil
-	} else {
-		fmt.Printf("\r\033[K")
-	}
+	fmt.Printf("\r\033[K")
 
 	elapsed := time.Since(sp.startTime)
 
