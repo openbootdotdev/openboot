@@ -8,9 +8,8 @@ live in the `tui/` subpackage.
 | File | Lines | Purpose |
 |------|-------|---------|
 | `ui.go` | 247 | Base styles, color helpers, output helpers (Header/Success/Error/Info/Warn/Muted/DryRun*), huh form wrappers (InputGitConfig, SelectPreset, Confirm, SelectOption, Input) |
-| `progress.go` | 246 | StickyProgress: per-package timing, succeeded/failed/skipped counters |
+| `progress.go` | 245 | StickyProgress: per-package timing, succeeded/failed/skipped counters, in-place status line |
 | `scanprogress.go` | 221 | ScanProgress: step timing, overall counter `[3/8]` |
-| `scrollregion.go` | 143 | ANSI scroll-region plumbing for StickyProgress |
 
 ## FILES (internal/ui/tui/)
 
