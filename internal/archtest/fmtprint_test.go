@@ -99,7 +99,7 @@ func findFmtPrint(gf goFile) []callSite {
 	return out
 }
 
-// TestNoRawFmtPrint enforces the CLAUDE.md rule:
+// TestNoRawFmtPrint enforces the AGENTS.md rule:
 //
 //	UI output must always go through ui.* helpers; raw fmt.Print* calls
 //	are bugs in user-facing paths.

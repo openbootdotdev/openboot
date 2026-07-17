@@ -13,7 +13,7 @@ var httpAllowedPaths = []string{
 	"internal/httputil", // owns the wrapper
 }
 
-// TestNoRawHTTPNewRequest enforces the CLAUDE.md rule:
+// TestNoRawHTTPNewRequest enforces the AGENTS.md rule:
 //
 //	HTTP with retry — use httputil.Do() — handles 429 + Retry-After.
 func TestNoRawHTTPNewRequest(t *testing.T) {

@@ -5,14 +5,14 @@ import "testing"
 // execAllowedPaths is the set of files/packages allowed to call os/exec
 // directly. Everything else must use internal/system or a documented runner.
 // Adding a path here is an intentional architectural decision — review the
-// rule in CLAUDE.md ("Subprocess") before extending.
+// rule in AGENTS.md ("Subprocess") before extending.
 var execAllowedPaths = []string{
 	"internal/system",         // canonical generic runner
 	"internal/brew/runner.go", // brew runner — wrapped, fakeable
 	"internal/npm/runner.go",  // npm runner — wrapped, fakeable
 }
 
-// TestNoDirectExec enforces the CLAUDE.md rule:
+// TestNoDirectExec enforces the AGENTS.md rule:
 //
 //	Do not call exec.Command directly from feature code —
 //	add to system/ if a wrapper is missing.

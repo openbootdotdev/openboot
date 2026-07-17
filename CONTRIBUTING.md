@@ -79,7 +79,7 @@ Integration tests live alongside L1 in `test/integration/` and *may* touch the r
 
 ## Architecture
 
-See [CLAUDE.md](CLAUDE.md) for how everything fits together.
+See [AGENTS.md](AGENTS.md) for the repository architecture and agent guidance.
 
 ## Questions
 

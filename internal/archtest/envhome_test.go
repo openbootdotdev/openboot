@@ -2,7 +2,7 @@ package archtest
 
 import "testing"
 
-// TestNoOsGetenvHome enforces the CLAUDE.md rule:
+// TestNoOsGetenvHome enforces the AGENTS.md rule:
 //
 //	Paths — os.UserHomeDir() — never hardcode `~` or `/Users/...`.
 //

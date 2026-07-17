@@ -1,7 +1,7 @@
 # archtest
 
 Architecture fitness functions for openboot. Each `*_test.go` file enforces one
-project-level invariant documented in [CLAUDE.md](../../CLAUDE.md#project-specific-conventions).
+project-level invariant documented in [AGENTS.md](../../AGENTS.md#project-specific-conventions).
 
 This is the **Architecture Fitness Harness** described in Martin Fowler's
 [Harness Engineering for Coding Agents](https://martinfowler.com/articles/harness-engineering.html):
@@ -29,6 +29,7 @@ from the baseline) are logged but do not fail the test.
 | `no-raw-http` | `http_test.go` | yes | "Use `httputil.Do()` — handles 429 + Retry-After" |
 | `no-os-getenv-home` | `envhome_test.go` | no (hard rule) | "Use `os.UserHomeDir()` — never hardcode `~` or `/Users/...`" |
 | `dryrun` | `dryrun_test.go` | yes | "Destructive ops: check `cfg.DryRun` first. Always." |
+| `agent-config` | `agentconfig_test.go` | no (hard rule) | "Keep `AGENTS.md` and shared skills canonical across agent tools" |
 
 ## Workflow
 
@@ -54,7 +55,7 @@ the new call site is justified — those baseline diffs are the audit trail.
      fail immediately on any hit. See `envhome_test.go`.
    - **Soft rule** (baseline existing call sites) — call `enforce(t, rule, found)`.
      Generate the baseline once with `ARCHTEST_UPDATE_BASELINE=1`.
-4. Document the rule in CLAUDE.md "Project-specific conventions" so agents
+4. Document the rule in AGENTS.md "Project-specific conventions" so agents
    read it before writing code.
 
 ## Why not just use `golangci-lint`?
