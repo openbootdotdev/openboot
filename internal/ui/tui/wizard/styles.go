@@ -2,37 +2,60 @@ package wizard
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Palette — mirrors the OpenBoot TUI Redesign v5 design tokens. The two anchor
-// colors (accent green #22c55e, info cyan #06b6d4) already match the existing
-// internal/ui palette; the rest are the grey ramp and status hues the design
-// leans on for depth.
+// Palette.
+//
+// Rule: never hardcode a colour whose job is to contrast with the background.
+// We don't know the background — the user picks it, and it may be translucent
+// over a wallpaper, which lifts the effective background far above whatever a
+// design mock assumed.
+//
+// The Redesign v5 tokens were a 10-step hex grey ramp mocked against #08080a.
+// Measured against a translucent terminal (effective bg ≈ #2b4247), the bottom
+// half of that ramp collapsed into the background — #3f3f46 landed at 1.0:1,
+// i.e. the exact luminance of the background, which no terminal can render as
+// visible text. Pending pipeline rows, sidebar counts and key hints simply
+// disappeared. (v0.63's own greys — #444/#555/#666 — measure 1.1/1.4/1.9:1
+// there and fail the same way; it only looked better because it used the
+// terminal's default foreground for most text.)
+//
+// So the text ramp is now the terminal's own ANSI palette, which the user's
+// theme guarantees is legible against the background they chose:
+//
+//	15 (bright white) — emphasis: cursor row, active phase, headings
+//	 7 (white)        — normal body text and anything load-bearing
+//	 8 (bright black) — decorative only: rules, placeholders, spent progress
+//
+// State is carried by glyph + accent hue (○ / spinner / ✓), never by fading a
+// label toward the background — that reads as "missing", not as "pending".
+//
+// The brand/status hues stay hex: they're bright enough to hold up anywhere
+// (measured 4.4–6.1:1 on the same translucent terminal) and they're the
+// product's identity, shared with the internal/ui palette.
 var (
 	cAccent   = lipgloss.Color("#22c55e") // primary green
 	cAccentHi = lipgloss.Color("#4ade80") // bright green — times, links
 	cInfo     = lipgloss.Color("#06b6d4") // cyan — probing / active spinner
-	cWarn     = lipgloss.Color("#f59e0b") // amber — installing / active search
-	cDanger   = lipgloss.Color("#ef4444") // red — failures
+	cWarn     = lipgloss.Color("#f59e0b") // amber — active search
 
-	cWhite  = lipgloss.Color("#ffffff") // cursor row name
-	cTextHi = lipgloss.Color("#e4e4e7") // emphasized body text
-	cText   = lipgloss.Color("#d4d4d8") // body text
-	cMuted  = lipgloss.Color("#a1a1aa") // secondary text
-	cMuted2 = lipgloss.Color("#8a8a92")
-	cMuted3 = lipgloss.Color("#71717a")
-	cDim    = lipgloss.Color("#63636c")
-	cDim2   = lipgloss.Color("#52525b")
-	cDim3   = lipgloss.Color("#3f3f46")
-	cDim4   = lipgloss.Color("#3a3a41")
-	cFaint  = lipgloss.Color("#2e2e34")
+	// Text ramp — terminal-relative. Names kept so call sites read the same.
+	cWhite  = lipgloss.Color("15") // cursor row name
+	cTextHi = lipgloss.Color("15") // emphasized body text
+	cText   = lipgloss.Color("7")  // body text
+	cMuted  = lipgloss.Color("7")  // secondary text
+	cMuted2 = lipgloss.Color("7")  // finished phase names
+	cMuted3 = lipgloss.Color("7")  // status-bar info — teaches keys, must read
+	cDim    = lipgloss.Color("7")  // package descriptions — chosen from, must read
+	cDim2   = lipgloss.Color("7")  // status-bar key hints — must read
+	cDim3   = lipgloss.Color("8")  // version, crumb, unselected box
+	cDim4   = lipgloss.Color("8")  // pane headings, counts, placeholders
+	cFaint  = lipgloss.Color("8")  // spent progress cells, pending glyph
 
-	cInstalled = lipgloss.Color("#3f6b4a") // dim green — already-installed rows
-	cBorder    = lipgloss.Color("#2b2b33") // panel dividers (brighter than the
-	//                                         design's #1c1c22 so it reads in a terminal)
+	cInstalled = lipgloss.Color("2") // green — already-installed rows
+	cBorder    = lipgloss.Color("8") // panel dividers
 )
 
 // fg returns a foreground-only style for c.
@@ -40,35 +63,20 @@ func fg(c lipgloss.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c)
 }
 
-// cHover is the row-hover background (#3d3d4a in the design).
-var cHover = lipgloss.Color("#3d3d4a")
-
-// hoverBgSeq is the raw background escape for cHover under the terminal's
-// actual colour profile, extracted once from a lipgloss render so it
-// downsamples on 256/16-colour terminals and disappears entirely (empty
-// string) when colour isn't supported — instead of hardcoding a truecolor
-// sequence that those terminals would mangle.
-var hoverBgSeq = sync.OnceValue(func() string {
-	const probe = "\x01"
-	rendered := lipgloss.NewStyle().Background(cHover).Render(probe)
-	i := strings.Index(rendered, probe)
-	if i <= 0 {
-		return ""
-	}
-	return rendered[:i]
-})
-
-// hoverBg paints the hover background across the whole row. lipgloss ends
-// every styled span with a FULL reset (\e[0m), which also clears the
-// background — so re-establish the background after each reset, otherwise
-// only the first span would be highlighted.
+// hoverBg marks the row under the mouse pointer using reverse video (SGR 7)
+// rather than a painted background colour. Any specific background we picked
+// would be a guess about the user's — the design's #3d3d4a sat at 1.2:1
+// against a translucent terminal, so the "highlight" was a no-op there.
+// Reverse swaps whatever fg/bg the row already has, so it is guaranteed
+// visible in every theme, at every colour depth, including monochrome.
+//
+// lipgloss ends each styled span with a FULL reset (\e[0m), which also clears
+// the reverse attribute — so re-establish it after every reset, otherwise only
+// the first span would be marked.
 func hoverBg(s string) string {
-	bg := hoverBgSeq()
-	if bg == "" {
-		return s // colourless terminal — hover simply has no visual, nothing breaks
-	}
-	s = strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+bg)
-	return bg + s + "\x1b[0m"
+	const rev = "\x1b[7m"
+	s = strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+rev)
+	return rev + s + "\x1b[0m"
 }
 
 // spinnerFrames matches the braille spinner used across the codebase and the design.

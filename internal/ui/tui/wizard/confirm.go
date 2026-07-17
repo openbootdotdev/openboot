@@ -73,7 +73,7 @@ func (m Model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.quit = true
 		return m, tea.Quit
 	case "enter":
-		return m.startInstall()
+		return m.finish()
 	}
 	return m, nil
 }

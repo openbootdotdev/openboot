@@ -14,7 +14,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/auth"
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
-	"github.com/openbootdotdev/openboot/internal/progress"
 	syncpkg "github.com/openbootdotdev/openboot/internal/sync"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
@@ -113,7 +112,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 
 		if src.kind == sourceSyncSource {
 			pickRaw, _ := cmd.Flags().GetString("pick")
-			return runSyncInstall(src.syncSource, pickRaw)
+			return runSyncInstall(cmd.Context(), src.syncSource, pickRaw)
 		}
 
 		if err := applyInstallSource(src); err != nil {
@@ -124,7 +123,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 		// let it fall through to the existing "--pick requires a remote
 		// config" error instead of silently dropping it.
 		if pickRaw, _ := cmd.Flags().GetString("pick"); pickRaw == "" && shouldLaunchWizard(src) {
-			return runInstallWizard()
+			return runInstallWizard(cmd.Context())
 		}
 	}
 
@@ -141,7 +140,7 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 			// (select the config's packages → review → live install) —
 			// replacing the linear 3-way prompt + customizer that used to
 			// precede the pipeline screen for slug / -u / --from / alias.
-			return runConfigWizard(installCfg.RemoteConfig)
+			return runConfigWizard(cmd.Context(), installCfg.RemoteConfig)
 		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
 			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
 			if err != nil {
@@ -155,13 +154,6 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 		}
 	} else if pickRaw != "" {
 		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
-	}
-
-	// On a TTY, stream the apply through the wizard's live pipeline so a slug /
-	// preset / RemoteConfig install shares the full-screen visuals instead of
-	// the linear "Step N" output. Non-interactive runs keep RunContext.
-	if !installCfg.Silent && !installCfg.DryRun && !installCfg.Update && system.HasTTY() {
-		return runPipelineInstall(cmd.Context())
 	}
 
 	err := installer.RunContext(cmd.Context(), installCfg)
@@ -201,112 +193,51 @@ func wizardSource(src *installSource) bool {
 	}
 }
 
-// runPipelineInstall resolves the plan (with linear pre-flight prep) and applies
-// it through the wizard's live pipeline screen, so a slug/preset/RemoteConfig
-// install streams like the wizard. ApplyContext is the same engine RunContext
-// uses; only the reporter differs. Follow-ups that can't run inside the
-// alt-screen (screen-recording reminder) happen after, on a normal terminal.
-func runPipelineInstall(ctx context.Context) error {
-	plan, err := installer.PlanForConfig(installCfg)
-	if err != nil {
-		if errors.Is(err, installer.ErrUserCancelled) {
-			return nil
-		}
-		return err
-	}
-	// Silence keeps the in-apply reminder/prompts out of the alt-screen; it's
-	// re-run afterwards via ShowScreenRecordingReminderAfterTUI.
-	plan.Silent = true
-
-	// Post-install needs a script preview + confirm, which the alt-screen can't
-	// host. Strip it from the streamed plan and run it after teardown on a normal
-	// terminal (Silent=true would otherwise gate it out entirely — the R1 bug).
-	streamed, deferredPostInstall := splitPostInstall(plan)
-
-	runErr := wizard.RunPipeline(installCfg.Version, wizard.PhasesForPlan(streamed),
-		func(ctx context.Context, r installer.Reporter) error {
-			return installer.ApplyContext(ctx, streamed, r)
-		})
-	if errors.Is(runErr, wizard.ErrAborted) || errors.Is(runErr, context.Canceled) {
+// applyReviewedPlan applies a plan the wizard resolved, on the normal
+// terminal. The alt-screen is torn down by the time we get here, which is the
+// whole point: brew/npm results stream into the scrollback, so after a
+// twenty-minute install the user can still scroll back, copy a failure, or
+// pipe the output — none of which survived a full-screen install.
+func applyReviewedPlan(ctx context.Context, plan installer.InstallPlan) error {
+	err := installer.ApplyReviewedPlan(ctx, plan)
+	if errors.Is(err, context.Canceled) {
 		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
 	}
-	// The install ran (cleanly or with soft errors). On a clean run, run the
-	// deferred post-install script (Step 8, matching the linear order) before the
-	// reminder; a failing script is a soft error, not fatal. Then show the
-	// reminder and persist the sync source.
-	if runErr == nil && len(deferredPostInstall) > 0 {
-		plan.PostInstall = deferredPostInstall
-		if piErr := installer.RunPostInstallAfterTUI(plan); piErr != nil {
-			ui.Error(fmt.Sprintf("Post-install script failed: %v", piErr))
-		}
-	}
-	installer.ShowScreenRecordingReminderAfterTUI(plan)
-	if runErr == nil {
-		saveSyncSourceIfRemote(installCfg)
-	}
-	return runErr
+	return err
 }
 
-// splitPostInstall separates a plan into the version streamed through the wizard
-// pipeline (post-install removed — the alt-screen can't host its confirm) and
-// the post-install script to run after teardown. Keeping it a pure function
-// makes the split testable without a TTY.
-func splitPostInstall(plan installer.InstallPlan) (streamed installer.InstallPlan, postInstall []string) {
-	postInstall = plan.PostInstall
-	plan.PostInstall = nil
-	return plan, postInstall
-}
-
-// runInstallWizard launches the full-screen install TUI and runs the resulting
-// install. The wizard owns the whole interactive flow (planning + apply); back
-// on the normal terminal, follow-ups that can't run inside the alt-screen
-// (screen-recording reminder) happen here.
-func runInstallWizard() error {
-	opts := installCfg.ToInstallOptions()
-	plan, confirmed, err := wizard.Run(installCfg.Version, opts)
-	// Show the screen-recording reminder for any install that actually ran —
-	// including one that ended in a soft error (e.g. a cask installed, then
-	// dotfiles failed), matching the linear installer. Skip it only on a user
-	// abort, where nagging would be noise.
-	if confirmed && !errors.Is(err, wizard.ErrAborted) {
-		installer.ShowScreenRecordingReminderAfterTUI(plan)
-	}
+// runInstallWizard runs the planning wizard for a bare or preset install, then
+// applies what the user reviewed.
+func runInstallWizard(ctx context.Context) error {
+	plan, confirmed, err := wizard.Run(installCfg.Version, installCfg.ToInstallOptions())
 	if err != nil {
-		if errors.Is(err, wizard.ErrAborted) {
-			return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
-		}
 		return fmt.Errorf("install wizard: %w", err)
 	}
-	return nil
-}
-
-// runConfigWizard launches the full-screen wizard in config mode for a fetched
-// remote config. Follow-ups the alt-screen can't host — the post-install
-// script (needs a preview + confirm) and the screen-recording reminder — run
-// here afterwards, on a normal terminal, mirroring runPipelineInstall's order.
-func runConfigWizard(rc *config.RemoteConfig) error {
-	opts := installCfg.ToInstallOptions()
-	plan, confirmed, err := wizard.RunForConfig(installCfg.Version, opts, rc)
-	if errors.Is(err, wizard.ErrAborted) || errors.Is(err, context.Canceled) {
-		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
-	}
 	if !confirmed {
-		if err != nil {
-			return fmt.Errorf("install wizard: %w", err)
-		}
 		ui.Info("Cancelled.")
 		return nil
 	}
-	if err == nil && len(plan.PostInstall) > 0 {
-		if piErr := installer.RunPostInstallAfterTUI(plan); piErr != nil {
-			ui.Error(fmt.Sprintf("Post-install script failed: %v", piErr))
-		}
+	return applyReviewedPlan(ctx, plan)
+}
+
+// runConfigWizard runs the planning wizard in config mode for a fetched remote
+// config, then applies what the user reviewed. The plan carries the config's
+// post-install script through to applyPostInstall's own preview + confirm,
+// which now works because we're on a normal terminal.
+func runConfigWizard(ctx context.Context, rc *config.RemoteConfig) error {
+	plan, confirmed, err := wizard.RunForConfig(installCfg.Version, installCfg.ToInstallOptions(), rc)
+	if err != nil {
+		return fmt.Errorf("install wizard: %w", err)
 	}
-	installer.ShowScreenRecordingReminderAfterTUI(plan)
-	if err == nil {
-		saveSyncSourceIfRemote(installCfg)
+	if !confirmed {
+		ui.Info("Cancelled.")
+		return nil
 	}
-	return err
+	if err := applyReviewedPlan(ctx, plan); err != nil {
+		return err
+	}
+	saveSyncSourceIfRemote(installCfg)
+	return nil
 }
 
 // ── Source resolution ─────────────────────────────────────────────────────────
@@ -439,7 +370,7 @@ func applyInstallSource(src *installSource) error {
 // runSyncInstall is the flow when `openboot install` is called without args
 // and a sync source exists. It fetches the remote config, shows a diff, and
 // applies only the additions (install is add-only).
-func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint:gocyclo // orchestrates --pick filter, dry-run, 3-way prompt, and customize TUI for the sync-source path; splitting would scatter the flow
+func runSyncInstall(ctx context.Context, source *syncpkg.SyncSource, pickRaw string) error { //nolint:gocyclo // orchestrates --pick filter, dry-run, 3-way prompt, and customize TUI for the sync-source path; splitting would scatter the flow
 	printSyncSourceHeader(source)
 
 	var token string
@@ -528,30 +459,10 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 
 	plan := buildInstallPlan(diff, rc)
 
-	// On a TTY, apply through the wizard's live pipeline screen so the sync
-	// install shares the full-screen streaming visuals. The install runs on
-	// RunPipeline's goroutine, so we must NOT read syncpkg.Execute's *result
-	// here (that would race the goroutine); we rely only on the returned error,
-	// which is delivered to us safely through the model. Execute's joined
-	// step-errors surface as that error, so a config-step failure isn't hidden.
-	if !installCfg.Silent && system.HasTTY() {
-		execErr := wizard.RunPipeline(installCfg.Version, syncPipelinePhases(plan),
-			func(ctx context.Context, _ installer.Reporter) error {
-				_, err := syncpkg.ExecuteContext(ctx, plan, false)
-				return err
-			})
-		if errors.Is(execErr, wizard.ErrAborted) || errors.Is(execErr, context.Canceled) {
-			return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
-		}
-		if execErr == nil {
-			updateSyncedAt(source, "", rc)
-		}
-		return execErr // joined step-errors, printed by cobra
-	}
-
-	// No TTY (scripts, piped output): linear synchronous apply + printed summary.
+	// Sync applies linearly on every path: the results belong in the scrollback,
+	// not in an alt-screen that discards them when it exits.
 	ui.Println()
-	result, execErr := syncpkg.Execute(plan, false)
+	result, execErr := syncpkg.ExecuteContext(ctx, plan, false)
 	ui.Println()
 	if result.Installed > 0 {
 		ui.Success(fmt.Sprintf("Installed %d package(s)", result.Installed))
@@ -562,36 +473,13 @@ func runSyncInstall(source *syncpkg.SyncSource, pickRaw string) error { //nolint
 	for _, e := range result.Errors {
 		ui.Error(fmt.Sprintf("Failed: %s", e))
 	}
+	if errors.Is(execErr, context.Canceled) {
+		return fmt.Errorf("installation aborted — partially applied changes are logged in ~/.openboot/logs")
+	}
 	if execErr == nil || result.Installed > 0 || result.Updated > 0 {
 		updateSyncedAt(source, "", rc)
 	}
 	return execErr
-}
-
-// syncPipelinePhases derives the wizard pipeline sidebar from a sync plan.
-// Taps run but aren't shown (they emit no per-item progress); config steps
-// (dotfiles/shell/macOS) show as single rows that complete when Execute returns.
-func syncPipelinePhases(p *syncpkg.SyncPlan) []wizard.PipelinePhase {
-	var ps []wizard.PipelinePhase
-	if n := len(p.InstallFormulae); n > 0 {
-		ps = append(ps, wizard.PipelinePhase{Name: progress.PhaseHomebrew, Total: n, Pkg: true})
-	}
-	if n := len(p.InstallCasks); n > 0 {
-		ps = append(ps, wizard.PipelinePhase{Name: progress.PhaseApplications, Total: n, Pkg: true})
-	}
-	if n := len(p.InstallNpm); n > 0 {
-		ps = append(ps, wizard.PipelinePhase{Name: progress.PhaseNpm, Total: n, Pkg: true})
-	}
-	if p.UpdateDotfiles != "" {
-		ps = append(ps, wizard.PipelinePhase{Name: "Dotfiles", Total: 1})
-	}
-	if p.UpdateShell {
-		ps = append(ps, wizard.PipelinePhase{Name: "Shell", Total: 1})
-	}
-	if len(p.UpdateMacOSPrefs) > 0 {
-		ps = append(ps, wizard.PipelinePhase{Name: "macOS prefs", Total: 1})
-	}
-	return ps
 }
 
 // printSyncSourceHeader shows the "→ Syncing with X (last synced Y)" line at

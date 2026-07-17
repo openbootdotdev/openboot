@@ -8,7 +8,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/installer"
 	"github.com/openbootdotdev/openboot/internal/macos"
-	"github.com/openbootdotdev/openboot/internal/progress"
 )
 
 // send routes a message through Update and returns the resulting Model.
@@ -102,34 +101,6 @@ func TestDumpFrames(t *testing.T) {
 	c.screen = scrConfirm
 	t.Log("\n===== CONFIRM (review) =====\n" + c.View())
 
-	// Install: synthetic pipeline (no real Apply).
-	inst := installFrame(m, W, H)
-	t.Log("\n===== INSTALL (running) =====\n" + inst.View())
-
-	done := send(inst, installDoneMsg{})
-	t.Log("\n===== INSTALL (done) =====\n" + done.View())
-}
-
-// installFrame sets up an install-screen model and feeds synthetic progress
-// events without running the real install engine.
-func installFrame(m Model, _, _ int) Model {
-	m.screen = scrInstall
-	m.installing = true
-	m.plan = installer.InstallPlan{
-		Formulae:   []string{"node", "go", "ripgrep", "fd", "bat"},
-		Casks:      []string{"visual-studio-code", "warp"},
-		Npm:        []string{"typescript", "eslint"},
-		MacOSPrefs: make([]macos.Preference, 61),
-	}
-	m.plan.InstallOhMyZsh = true
-	m.plan.DotfilesURL = "https://github.com/x/dotfiles"
-	m.phases = buildPhases(m.plan)
-	m.installTick = m.ticks
-
-	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "node", Status: progress.StepStart, Command: "brew install node"}})
-	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "node", Status: progress.StepOK, Detail: "2.1s"}})
-	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "go", Status: progress.StepStart, Command: "brew install go"}})
-	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "go", Status: progress.StepOK, Detail: "3.4s"}})
-	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "ripgrep", Status: progress.StepStart, Command: "brew install ripgrep"}})
-	return m
+	// There is no install frame: the wizard stops at the plan and the apply
+	// streams into the scrollback after the alt-screen is gone.
 }

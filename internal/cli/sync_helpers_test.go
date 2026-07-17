@@ -277,31 +277,3 @@ func TestUpdateSyncedAt_ZeroInstalledAt_UseNow(t *testing.T) {
 }
 
 // ── syncPipelinePhases ────────────────────────────────────────────────────────
-
-func TestSyncPipelinePhases(t *testing.T) {
-	plan := &syncpkg.SyncPlan{
-		InstallFormulae:  []string{"jq", "ripgrep"},
-		InstallCasks:     []string{"orbstack"},
-		InstallTaps:      []string{"some/tap"}, // runs, but not shown as a phase
-		UpdateDotfiles:   "https://github.com/x/dotfiles",
-		UpdateMacOSPrefs: []config.RemoteMacOSPref{{Key: "a"}, {Key: "b"}},
-		// no npm, no shell
-	}
-	ps := syncPipelinePhases(plan)
-
-	require.Len(t, ps, 4, "Homebrew, Applications, Dotfiles, macOS prefs — taps and npm/shell excluded")
-	assert.Equal(t, "Homebrew", ps[0].Name)
-	assert.Equal(t, 2, ps[0].Total)
-	assert.True(t, ps[0].Pkg)
-	assert.Equal(t, "Applications", ps[1].Name)
-	assert.True(t, ps[1].Pkg)
-	assert.Equal(t, "Dotfiles", ps[2].Name)
-	assert.Equal(t, 1, ps[2].Total)
-	assert.False(t, ps[2].Pkg, "config steps are not per-item package phases")
-	assert.Equal(t, "macOS prefs", ps[3].Name)
-	assert.Equal(t, 1, ps[3].Total)
-}
-
-func TestSyncPipelinePhasesEmpty(t *testing.T) {
-	assert.Empty(t, syncPipelinePhases(&syncpkg.SyncPlan{}), "an empty plan yields no phases")
-}

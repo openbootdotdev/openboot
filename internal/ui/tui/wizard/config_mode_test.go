@@ -1,7 +1,6 @@
 package wizard
 
 import (
-	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -83,23 +82,22 @@ func TestConfigModeConfirmShowsPostInstallAndShiftsHitTest(t *testing.T) {
 	assert.Equal(t, -1, miss, "the info line itself is not clickable")
 }
 
-func TestConfigModeStartInstallDefersPostInstall(t *testing.T) {
+// The wizard hands the plan back intact and installs nothing itself: the CLI
+// applies it on the normal terminal, where post-install gets its own preview
+// and confirm, and Silent stays as the run asked for rather than being forced
+// on to keep prompts out of an alt-screen.
+func TestConfigModeConfirmReturnsPlanWithoutInstalling(t *testing.T) {
 	defer stubGitConfig("", "")()
 	m := finishProbes(sizedConfig(testRemoteConfig()))
 	m.installed = map[string]bool{}
 	m = send(m, key("enter"))
 	require.Equal(t, scrConfirm, m.screen)
-	m = send(m, key("enter")) // startInstall; the spawned engine cmd is dropped by send()
+	m = send(m, key("enter"))
 
-	require.Equal(t, scrInstall, m.screen)
-	require.True(t, m.confirmed)
+	require.True(t, m.confirmed, "↵ on the review screen accepts the plan")
+	require.True(t, m.quit, "and closes the wizard so the CLI can apply it")
 	assert.Equal(t, []string{"echo hi"}, m.plan.PostInstall,
-		"returned plan keeps post-install for the CLI to run after teardown")
-	assert.True(t, m.plan.Silent)
-	var names []string
-	for _, p := range m.phases {
-		names = append(names, p.name)
-	}
-	assert.NotContains(t, strings.Join(names, " "), "post-install",
-		"no post-install phase streams inside the alt-screen")
+		"the config's post-install script reaches the CLI intact")
+	assert.False(t, m.plan.Silent, "an interactive run stays interactive")
+	assert.Contains(t, m.plan.Formulae, "cowsay")
 }
