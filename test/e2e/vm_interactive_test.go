@@ -34,11 +34,21 @@ func TestVM_Interactive_InstallScript(t *testing.T) {
 	vm := testutil.NewMacHost(t)
 	vmInstallViaBrew(t, vm) // taps openbootdotdev/openboot and installs openboot
 
-	// `< /dev/null` reproduces the real hazard: under curl|bash there is no
-	// keyboard on stdin. A prompt here must not block, and must not silently
-	// answer itself from the script's own bytes.
+	// Plain `curl … | bash` IS the hazard, so it needs no simulating: bash's
+	// stdin is the pipe carrying the script, which means there is no keyboard
+	// for a prompt to read from and no way to hand it one.
+	//
+	// Don't try to make that explicit by redirecting — `curl … | bash < /dev/null`
+	// under bash replaces the script itself, so nothing runs at all and every
+	// assertion sees empty output. (Under zsh the same line does run the script,
+	// which is a good way to convince yourself it works before CI proves it
+	// doesn't.)
+	//
+	// `-s -- --help` passes --help through to the `openboot install` the script
+	// exec's into at the end, so these assertions exercise the installer without
+	// kicking off a real install.
 	installOverExisting := fmt.Sprintf(
-		"export NONINTERACTIVE=1 PATH=%q && curl -fsSL https://openboot.dev/install.sh | bash < /dev/null",
+		"export NONINTERACTIVE=1 PATH=%q && curl -fsSL https://openboot.dev/install.sh | bash -s -- --help",
 		brewPath,
 	)
 
