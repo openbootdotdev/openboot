@@ -114,50 +114,36 @@ func Apply(plan InstallPlan, r Reporter) error {
 }
 
 func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
-	if !plan.PackagesOnly && !plan.SkipGit {
-		if err := applyGitConfig(plan, r); err != nil {
-			return fmt.Errorf("apply git config: %w", err)
-		}
-	}
-
+	steps := plannedSteps(plan)
 	var softErrs []error
 
-	if err := applyPackages(ctx, plan, r); err != nil {
-		softErrs = append(softErrs, fmt.Errorf("brew: %w", err))
-	}
-
-	// ctrl+c cancels ctx. brew/npm honour it (exec.CommandContext), but the
-	// config steps below take no ctx, so without these gates an aborted install
-	// would keep symlinking dotfiles and rewriting macOS defaults after the user
-	// asked to stop. Bail between phases so an abort skips not-yet-started work.
-	if err := ctx.Err(); err != nil {
-		return abortWith(softErrs, err)
-	}
-
-	if err := applyNpm(ctx, plan, r); err != nil {
-		r.Error(fmt.Sprintf("npm package installation failed: %v", err))
-		softErrs = append(softErrs, fmt.Errorf("npm: %w", err))
-	}
-
-	if !plan.PackagesOnly {
-		configSteps := []struct {
-			name, failMsg string
-			apply         func(InstallPlan, Reporter) error
-		}{
-			{"shell", "Shell setup failed", applyShell},
-			{"dotfiles", "Dotfiles setup failed", applyDotfiles},
-			{"macos", "macOS configuration failed", applyMacOSPrefs},
-			{"post-install", "Post-install script failed", applyPostInstall},
+	for i, s := range steps {
+		// ctrl+c cancels ctx. brew/npm honour it (exec.CommandContext), but the
+		// config steps take no ctx, so without this gate an aborted install would
+		// keep symlinking dotfiles and rewriting macOS defaults after the user
+		// asked to stop. Bail between steps so an abort skips not-yet-started work.
+		if err := ctx.Err(); err != nil {
+			return abortWith(softErrs, err)
 		}
-		for _, s := range configSteps {
-			if err := ctx.Err(); err != nil {
-				return abortWith(softErrs, err)
-			}
-			if err := s.apply(plan, r); err != nil {
-				r.Error(fmt.Sprintf("%s: %v", s.failMsg, err))
-				softErrs = append(softErrs, fmt.Errorf("%s: %w", s.name, err))
-			}
+
+		r.Header(sectionTitle(i, len(steps), s.name))
+
+		err := s.run(ctx, plan, r)
+		if err == nil {
+			continue
 		}
+		// Git is the one hard failure: everything after it authors commits or
+		// writes config on its behalf, so a broken identity is not something to
+		// carry on past. The rest are soft — a failed cask shouldn't cost you
+		// your dotfiles.
+		if s.name == "Git identity" {
+			return fmt.Errorf("apply git config: %w", err)
+		}
+		// Report here, once. Steps must not also announce their own failure:
+		// when both did, the same error printed twice in a row under its own
+		// section, which reads like two separate things went wrong.
+		r.Error(fmt.Sprintf("%s failed: %v", s.name, err))
+		softErrs = append(softErrs, fmt.Errorf("%s: %w", strings.ToLower(s.name), err))
 	}
 
 	showCompletionFromPlan(plan, r, len(softErrs))
@@ -168,6 +154,55 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 	}
 	slog.Info("install_completed", "soft_errors", 0)
 	return nil
+}
+
+// applyStep is one titled section of the apply.
+//
+// The section title used to be printed by the step function itself, with a
+// number written into the string: "Step 1: Git Configuration", "Step 4:
+// Installation", "Step 6: Dotfiles". Steps are conditional, so those numbers
+// could only ever be wrong — a real run printed 1, 4, 6, 7, with two
+// unnumbered sections wedged between. The numbering has to be derived from the
+// plan, because only the plan knows which steps exist.
+//
+// cond therefore mirrors each step function's own entry guard: a step that
+// won't run must not consume a number. The step functions keep their guards —
+// they're the ones that must not act — and this list keeps the titles honest.
+type applyStep struct {
+	name string
+	cond bool
+	run  func(context.Context, InstallPlan, Reporter) error
+}
+
+// noCtx adapts a step that takes no context to the uniform signature.
+func noCtx(f func(InstallPlan, Reporter) error) func(context.Context, InstallPlan, Reporter) error {
+	return func(_ context.Context, p InstallPlan, r Reporter) error { return f(p, r) }
+}
+
+// plannedSteps returns, in execution order, the sections this plan will run.
+func plannedSteps(plan InstallPlan) []applyStep {
+	sys := !plan.PackagesOnly
+	all := []applyStep{
+		{"Git identity", sys && !plan.SkipGit, noCtx(applyGitConfig)},
+		{"Packages", len(plan.Formulae)+len(plan.Casks)+len(plan.Taps) > 0, applyPackages},
+		{"npm globals", len(plan.Npm) > 0, applyNpm},
+		{"Shell", sys && plan.InstallOhMyZsh, noCtx(applyShell)},
+		{"Dotfiles", sys && plan.DotfilesURL != "", noCtx(applyDotfiles)},
+		{"macOS preferences", sys && (len(plan.MacOSPrefs) > 0 || plan.DockApps != nil || plan.LoginItems != nil), noCtx(applyMacOSPrefs)},
+		{"Post-install script", sys && len(plan.PostInstall) > 0, noCtx(applyPostInstall)},
+	}
+	out := make([]applyStep, 0, len(all))
+	for _, s := range all {
+		if s.cond {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// sectionTitle renders the header for step i of n.
+func sectionTitle(i, n int, name string) string {
+	return fmt.Sprintf("[%d/%d] %s", i+1, n, name)
 }
 
 // abortWith joins the soft errors accumulated so far with the context

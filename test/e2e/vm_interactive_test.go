@@ -13,7 +13,19 @@ import (
 	"github.com/openbootdotdev/openboot/testutil"
 )
 
-// TestVM_Interactive_InstallScript tests install.sh interactive prompts.
+// TestVM_Interactive_InstallScript covers install.sh when openboot is already
+// installed — the path every returning user takes.
+//
+// This file used to drive a "Reinstall? (y/N)" prompt with expect and assert
+// that answering "n" kept the existing install. It passed, and it verified
+// nothing: under `curl … | bash` the script's stdin is the pipe carrying the
+// script, so `read` never saw expect's keystroke. It consumed the script's own
+// bytes, failed to match ^[Yy]$, and took the No branch — precisely what the
+// test asserted. Bug and assertion agreed, so the suite stayed green while
+// every returning user was silently pinned to their first-installed version.
+//
+// The prompt is gone: running the installer means you want the current
+// release. These tests pin that contract instead.
 func TestVM_Interactive_InstallScript(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping VM interactive test in short mode")
@@ -22,47 +34,51 @@ func TestVM_Interactive_InstallScript(t *testing.T) {
 	vm := testutil.NewMacHost(t)
 	vmInstallViaBrew(t, vm) // taps openbootdotdev/openboot and installs openboot
 
-	// expect is required for interactive tests.
-	if _, err := vm.Run(fmt.Sprintf("export PATH=%q && command -v expect", brewPath)); err != nil {
-		out, installErr := vm.Run(fmt.Sprintf("export PATH=%q && brew install expect", brewPath))
-		t.Logf("install expect: %s", out)
-		require.NoError(t, installErr, "should install expect for interactive tests")
-	}
+	// Plain `curl … | bash` IS the hazard, so it needs no simulating: bash's
+	// stdin is the pipe carrying the script, which means there is no keyboard
+	// for a prompt to read from and no way to hand it one.
+	//
+	// Don't try to make that explicit by redirecting — `curl … | bash < /dev/null`
+	// under bash replaces the script itself, so nothing runs at all and every
+	// assertion sees empty output. (Under zsh the same line does run the script,
+	// which is a good way to convince yourself it works before CI proves it
+	// doesn't.)
+	//
+	// `-s -- --help` passes --help through to the `openboot install` the script
+	// exec's into at the end, so these assertions exercise the installer without
+	// kicking off a real install.
+	installOverExisting := fmt.Sprintf(
+		"export NONINTERACTIVE=1 PATH=%q && curl -fsSL https://openboot.dev/install.sh | bash -s -- --help",
+		brewPath,
+	)
 
-	t.Run("reinstall_answer_no", func(t *testing.T) {
-		cmd := fmt.Sprintf(
-			"export NONINTERACTIVE=1 PATH=%q && curl -fsSL https://openboot.dev/install.sh | bash",
-			brewPath,
-		)
-		output, err := vm.RunInteractive(cmd, []testutil.ExpectStep{
-			{Expect: "Reinstall", Send: "n\r"},
-		}, 30)
-		t.Logf("reinstall-no:\n%s", output)
+	t.Run("already_installed_updates_without_prompting", func(t *testing.T) {
+		output, err := vm.Run(installOverExisting)
+		t.Logf("install-over-existing:\n%s", output)
 		if err != nil {
-			t.Logf("exited with: %v", err)
+			t.Logf("exited with: %v", err) // it exec's into `openboot install`, which wants a tty
 		}
-		assert.True(t,
-			strings.Contains(output, "existing") ||
-				strings.Contains(output, "Using"),
-			"should keep existing installation, got: %s", output)
+
+		assert.NotContains(t, output, "Reinstall?",
+			"must not ask a question it cannot receive the answer to under curl|bash")
+		assert.NotContains(t, output, "Using existing installation",
+			"an existing install must be updated, not silently kept")
+		assert.Contains(t, output, "updating",
+			"the already-installed path reports that it is updating, got: %s", output)
 	})
 
-	t.Run("reinstall_answer_yes", func(t *testing.T) {
-		cmd := fmt.Sprintf(
-			"export NONINTERACTIVE=1 PATH=%q && curl -fsSL https://openboot.dev/install.sh | bash -s -- --help",
-			brewPath,
-		)
-		output, err := vm.RunInteractive(cmd, []testutil.ExpectStep{
-			{Expect: "Reinstall", Send: "y\r"},
-		}, 120)
-		t.Logf("reinstall-yes:\n%s", output)
-		if err != nil {
-			t.Logf("exited with: %v", err)
-		}
-		assert.True(t,
-			strings.Contains(output, "reinstalled") ||
-				strings.Contains(output, "Reinstalling") ||
-				strings.Contains(output, "Usage:"),
-			"should reinstall, got: %s", output)
+	// The failure this path guards against is a successful-looking install that
+	// leaves yesterday's binary behind, so the version has to be stated where
+	// the user can see it.
+	t.Run("reports_the_version_it_installed", func(t *testing.T) {
+		output, _ := vm.Run(installOverExisting)
+
+		version, err := vm.Run(fmt.Sprintf("export PATH=%q && openboot version", brewPath))
+		require.NoError(t, err, "openboot must be runnable after the installer")
+		version = strings.TrimSpace(version)
+		require.NotEmpty(t, version)
+
+		assert.Contains(t, output, version,
+			"installer must print the version it left behind (%q), got: %s", version, output)
 	})
 }

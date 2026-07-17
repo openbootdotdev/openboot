@@ -20,9 +20,6 @@ func applyMacOSPrefs(plan InstallPlan, r Reporter) error {
 		return nil
 	}
 
-	r.Header("Step 7: macOS Preferences")
-	ui.Println()
-
 	var errs []error
 
 	if hasPrefs {
@@ -90,9 +87,6 @@ func applyPostInstall(plan InstallPlan, r Reporter) error {
 	if len(plan.PostInstall) == 0 {
 		return nil
 	}
-
-	r.Header("Step 8: Post-Install Script")
-	ui.Println()
 
 	if !plan.DryRun && (plan.Silent || !system.HasTTY()) && !plan.AllowPostInstall {
 		r.Warn("Skipping post-install script in silent mode (use --allow-post-install to enable)")

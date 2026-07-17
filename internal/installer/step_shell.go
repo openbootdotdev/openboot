@@ -14,9 +14,6 @@ var installOhMyZshFunc = shell.InstallOhMyZsh
 
 func applyShell(plan InstallPlan, r Reporter) error {
 	if plan.InstallOhMyZsh {
-		r.Header("Shell Configuration")
-		ui.Println()
-
 		if plan.ShellTheme != "" || len(plan.ShellPlugins) > 0 {
 			// Restore mode: install OMZ if missing, then write theme/plugins.
 			if err := shell.RestoreFromSnapshot(true, plan.ShellTheme, plan.ShellPlugins, plan.DryRun); err != nil {
@@ -54,9 +51,6 @@ func applyDotfiles(plan InstallPlan, r Reporter) error {
 	if plan.DotfilesURL == "" {
 		return nil // explicitly skipped via --dotfiles skip
 	}
-
-	r.Header("Step 6: Dotfiles")
-	ui.Println()
 
 	if plan.DotfilesURL == dotfiles.DefaultDotfilesURL {
 		r.Info(fmt.Sprintf("Using OpenBoot default dotfiles (%s)", plan.DotfilesURL))
