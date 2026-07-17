@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ship PR"
+  short_description: "Ship a finished branch through a reviewed PR"
+  default_prompt: "Use $ship-pr to ship this finished branch through CI, review, and merge."

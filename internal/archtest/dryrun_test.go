@@ -154,7 +154,7 @@ func findDestructiveWithoutDryRun(gf goFile) []callSite {
 	return out
 }
 
-// TestDryRunGuard enforces the CLAUDE.md rule:
+// TestDryRunGuard enforces the AGENTS.md rule:
 //
 //	Destructive ops: check cfg.DryRun first. Always.
 //

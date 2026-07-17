@@ -29,7 +29,7 @@ Three regulation categories:
 
 1. **Maintainability** — code style, complexity, dead code.
 2. **Architecture fitness** — project-specific invariants (the "do X, not Y"
-   rules in CLAUDE.md).
+   rules in AGENTS.md).
 3. **Behaviour** — does it actually do the right thing.
 
 ## Where each control lives
@@ -57,8 +57,9 @@ Three regulation categories:
 | Behav. | Auto-release sensor — patch fast lane (`fix:`-only) auto-tags + dispatches `release.yml`; feat threshold opens a `release-ready` issue (check L4 CI green, then tag manually) | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
-| Feedfwd. | Agent conventions | every AI turn | `CLAUDE.md`, `AGENTS.md` |
-| Feedfwd. | Skills | model-loaded | `.claude/skills/*` |
+| Feedfwd. | Shared agent conventions | every AI turn | `AGENTS.md` (canonical); `CLAUDE.md` imports it for Claude Code |
+| Feedfwd. | Shared skills | model-loaded | `.agents/skills/*` (canonical); `.claude/skills/*/SKILL.md` symlinks for Claude Code |
+| Arch. | Multi-agent config must not drift | L1 | `internal/archtest/agentconfig_test.go` |
 | Feedfwd. | Session-start hook (warm caches, fetch deps) | every Claude session | `.claude/hooks/session-start.sh` |
 | Feedback (agent) | `go vet` on edited package | after every Edit/Write/MultiEdit | `.claude/hooks/post-tool-use.sh` |
 | Feedback (agent) | `go vet ./...` + archtest | end of every Claude turn (if .go dirty) | `.claude/hooks/stop.sh` |
@@ -76,8 +77,8 @@ When you observe a recurring issue, decide where to encode the fix:
 | "Agent introduced a new lint failure that golangci-lint should have caught." | Enable the relevant linter in `.golangci.yml`. |
 | "Agent broke a behaviour that has no test." | Write the test at the right tier — L1 covers both faked-runner units in `internal/<pkg>/` and real-subprocess integration in `test/integration/`. |
 | "A shipped release reached nobody: `install.sh`'s already-installed branch prompted on stdin, which under `curl \| bash` is the script itself, so it always took the don't-upgrade default." | Already handled by the `installsh` archtest. The wider lesson the sensor does *not* cover: `curl-bash-smoke` is gated `if: github.event_name != 'pull_request'` and only exercises the mock-server path, so the real `scripts/install.sh` brew branch has no behavioural test. Upgrade-over-existing-install is the case to add. |
-| "Agent missed a CLAUDE.md rule we keep restating." | Make it a hard or soft archtest rule (a docs rule that doesn't fail is a docs rule that drifts). |
-| "Agent did something safe but suboptimal." | Add to CLAUDE.md "Project-specific conventions" and consider whether it's encodable. |
+| "Agent missed an AGENTS.md rule we keep restating." | Make it a hard or soft archtest rule (a docs rule that doesn't fail is a docs rule that drifts). |
+| "Agent did something safe but suboptimal." | Add to AGENTS.md "Project-specific conventions" and consider whether it's encodable. |
 | "Agent guessed at an API contract." | Update `openboot-contract` repo + fixtures; CI already runs schema validation. |
 | "Agent's PR description was off." | Tighten `pull_request_template.md`. |
 | "Fixes and features piled up on `main` because nobody told an agent to cut a release." | Already handled: `.github/workflows/auto-release.yml` auto-tags patches and opens a `release-ready` issue for feats. Tune thresholds there. |
@@ -93,7 +94,7 @@ it survives doc rot.
   (`codecov.yml` `informational: true`). Hard coverage gates push toward
   test-shaped code without raising actual quality.
 - **No fmt.Print/Println archtest rule yet.** The convention exists in
-  CLAUDE.md but the codebase has ~150 existing call sites and the rule
+  AGENTS.md but the codebase has ~150 existing call sites and the rule
   would be mostly noise. Reconsider after the UI helpers cover all the
   cases currently using raw stdout.
 - **No agent-driven changes to `main` without human review.** All AI
