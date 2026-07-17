@@ -7,6 +7,27 @@ BINARY_NAME="openboot"
 TAP_NAME="openbootdotdev/tap"
 DRY_RUN="${OPENBOOT_DRY_RUN:-false}"
 
+# This script's headline use is `curl -fsSL openboot.dev/install.sh | bash`,
+# where stdin is the pipe carrying the script itself — NOT the user's keyboard.
+# A bare `read` there consumes the script's own next bytes as the answer, which
+# both mangles the script and silently takes a branch the user never chose.
+# Every prompt must therefore read from the controlling terminal, and must have
+# a safe answer for when there isn't one (piped into a CI job, no tty).
+has_tty() { [[ -e /dev/tty ]] && (: >/dev/tty) 2>/dev/null; }
+
+# ask_tty <prompt> <default> [read-opts...] — echoes the reply, or <default>
+# when no terminal is available to ask.
+ask_tty() {
+    local prompt="$1" default="$2"; shift 2
+    if ! has_tty; then
+        echo "$default"
+        return
+    fi
+    local reply=""
+    read -r "$@" -p "$prompt" reply </dev/tty || reply="$default"
+    echo "${reply:-$default}"
+}
+
 install_xcode_clt() {
     if xcode-select -p &>/dev/null; then
         return 0
@@ -18,7 +39,7 @@ install_xcode_clt() {
     echo "Xcode Command Line Tools need to be installed."
     echo "A dialog will appear - please click 'Install' and enter your password."
     echo ""
-    read -p "Press Enter to launch installer..." -r
+    ask_tty "Press Enter to launch installer..." "" >/dev/null
     echo ""
 
     xcode-select --install 2>/dev/null || true
@@ -161,28 +182,35 @@ main() {
     fi
 
     if brew list openboot &>/dev/null 2>&1; then
-        echo "OpenBoot is already installed via Homebrew."
+        echo "OpenBoot is already installed — updating..."
         echo ""
-        read -p "Reinstall? (y/N) " -n 1 -r
-        echo
-        
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            echo "Reinstalling OpenBoot..."
+
+        # Refresh the tap before upgrading. Homebrew only auto-updates it every
+        # HOMEBREW_AUTO_UPDATE_SECS (24h by default), so a release published
+        # since the last refresh is invisible to `upgrade`, which then reports
+        # success while leaving the old binary in place.
+        brew update >/dev/null 2>&1 || true
+        if ! brew upgrade ${TAP_NAME}/openboot 2>/dev/null; then
             brew reinstall ${TAP_NAME}/openboot
-            echo ""
-            echo "✓ OpenBoot reinstalled!"
-        else
-            echo "Using existing installation."
         fi
+
+        echo ""
+        echo "✓ OpenBoot updated!"
     else
         echo "Installing OpenBoot via Homebrew..."
         echo ""
-        
+
         brew install ${TAP_NAME}/openboot
-        
+
         echo ""
         echo "✓ OpenBoot installed!"
     fi
+
+    # Always state the version we ended up on. Running the installer and
+    # silently getting yesterday's binary is the failure this whole path is
+    # guarding against; printing it makes that impossible to miss.
+    hash -r 2>/dev/null || true
+    echo "  $(openboot version 2>/dev/null || echo 'version unavailable')"
 
     echo ""
     echo "Starting OpenBoot setup..."
