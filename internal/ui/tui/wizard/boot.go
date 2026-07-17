@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/openbootdotdev/openboot/internal/brew"
 	"github.com/openbootdotdev/openboot/internal/config"
@@ -238,8 +237,11 @@ func (m Model) enterSelect(sel map[string]bool) (tea.Model, tea.Cmd) {
 func (m Model) bootBody(w, _ int) string {
 	const pad = "   "
 	var b []string
+	// No wordmark here: the title bar one row up already reads
+	// "▲ openboot vX.Y.Z". Repeating the name immediately below it said the
+	// same word twice and spent a row doing it. The tagline is the only part
+	// that adds anything, so the body opens with that.
 	b = append(b, "")
-	b = append(b, pad+wordmark()+" "+fg(cAccent).Render("▌"))
 	b = append(b, pad+fg(cDim3).Render("zero → dev-ready, in one command"))
 	b = append(b, "")
 
@@ -303,19 +305,6 @@ func (m Model) renderLoadout(i int, l loadout, w int) string {
 	return line
 }
 
-// wordmark renders "openboot" with the design's green gradient.
-func wordmark() string {
-	letters := []struct{ ch, hex string }{
-		{"o", "#166534"}, {"p", "#15803d"}, {"e", "#16a34a"}, {"n", "#22c55e"},
-		{"b", "#22c55e"}, {"o", "#4ade80"}, {"o", "#86efac"}, {"t", "#bbf7d0"},
-	}
-	var sb strings.Builder
-	for _, l := range letters {
-		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(l.hex)).Bold(true).Render(l.ch))
-	}
-	return sb.String()
-}
-
 // estMinutes is a rough install-time estimate (~0.4 min/pkg), matching the
 // design's back-of-envelope figure.
 func estMinutes(pkgCount int) int {
@@ -356,10 +345,10 @@ func (m Model) bootHitTest(x, y int) int {
 		return -1
 	}
 	bodyRow := y - 1 // title bar is screen row 0
-	// Header: blank + wordmark + subtitle + blank = 4 body rows
+	// Header: blank + tagline + blank = 3 body rows
 	// Probes: len(m.probes) rows
 	// Footer before loadouts: blank + "Choose…" + blank = 3 body rows
-	loadoutStart := 4 + len(m.probes) + 3
+	loadoutStart := 3 + len(m.probes) + 3
 	idx := bodyRow - loadoutStart
 	if idx >= 0 && idx < len(m.loadouts) {
 		return idx
