@@ -84,31 +84,27 @@ func runInstallContext(ctx context.Context, opts *config.InstallOptions, st *con
 	return ApplyContext(ctx, plan, ConsoleReporter{})
 }
 
-// PlanForConfig runs the pre-flight dependency check and resolves the install
-// plan for cfg — the linear RunContext flow up to (but not including) Apply. It
-// exists so the wizard pipeline can do the interactive prep on a normal
-// terminal, then stream the apply itself via ApplyContext with its own Reporter.
-func PlanForConfig(cfg *config.Config) (InstallPlan, error) {
-	opts := cfg.ToInstallOptions()
-	st := cfg.ToInstallState()
-	// Mirror runInstallContext's install_started event: the pipeline path skips
-	// runInstallContext, so without this a streamed install logs install_completed
-	// (from ApplyContext) with no matching install_started.
+// ApplyReviewedPlan applies a plan the install wizard already resolved and
+// the user already reviewed. It is runInstallContext's tail — banner, apply,
+// completion — for the case where planning happened in the TUI instead.
+//
+// It runs on the normal terminal, by design: the wizard exits before this is
+// called, so package results scroll into the user's scrollback and the
+// completion summary stays on screen afterwards. Applying inside the
+// alt-screen instead meant the whole run vanished on exit, and plan.Silent had
+// to be forced on to keep prompts (npm retry, screen-recording) from painting
+// over the TUI. Here the plan's own Silent value stands and those prompts work
+// where they belong.
+func ApplyReviewedPlan(ctx context.Context, plan InstallPlan) error {
 	slog.Info("install_started",
-		"version", opts.Version,
-		"preset", opts.Preset,
-		"user", opts.User,
-		"dry_run", opts.DryRun,
-		"silent", opts.Silent,
+		"version", plan.Version,
+		"dry_run", plan.DryRun,
+		"silent", plan.Silent,
 	)
-	if err := checkDependencies(opts, st); err != nil {
-		return InstallPlan{}, fmt.Errorf("check dependencies: %w", err)
-	}
-	plan, err := Plan(opts, st)
-	if err != nil {
-		return InstallPlan{}, fmt.Errorf("plan install: %w", err)
-	}
-	return plan, nil
+	ui.Println()
+	ui.Header(fmt.Sprintf("OpenBoot Installer v%s", plan.Version))
+	ui.Println()
+	return ApplyContext(ctx, plan, ConsoleReporter{})
 }
 
 // Apply executes a resolved InstallPlan, reporting progress via r.
@@ -214,35 +210,6 @@ func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 	r.Info("  - Restart your terminal to apply changes")
 	r.Info("  - Run 'brew doctor' to verify Homebrew health")
 	ui.Println()
-}
-
-// ShowScreenRecordingReminderAfterTUI re-runs the screen-recording permission
-// reminder for a plan applied by the full-screen wizard. The wizard forces
-// plan.Silent=true to keep prompts out of the alt-screen, which also
-// suppresses this reminder; the CLI calls this after the TUI exits, back on a
-// normal terminal.
-func ShowScreenRecordingReminderAfterTUI(plan InstallPlan) {
-	plan.Silent = false
-	showScreenRecordingReminderFromPlan(plan)
-}
-
-// RunPostInstallAfterTUI runs the plan's post-install script on a normal
-// terminal after the full-screen wizard has torn down. The wizard forces
-// plan.Silent=true to keep prompts out of the alt-screen — but that also gates
-// out post-install *execution* (applyPostInstall skips when Silent), so a
-// slug/RemoteConfig install streamed through the pipeline would silently drop a
-// script the linear path would have previewed, confirmed, and run. The CLI
-// defers it here with Silent cleared, so the script gets its preview + confirm
-// and runs, matching the linear installer. No-op when there is no script.
-func RunPostInstallAfterTUI(plan InstallPlan) error {
-	if len(plan.PostInstall) == 0 {
-		return nil
-	}
-	plan.Silent = false
-	if err := applyPostInstall(plan, ConsoleReporter{}); err != nil {
-		return fmt.Errorf("post-install: %w", err)
-	}
-	return nil
 }
 
 func showScreenRecordingReminderFromPlan(plan InstallPlan) {

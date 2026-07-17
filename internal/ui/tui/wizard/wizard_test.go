@@ -1,12 +1,8 @@
 package wizard
 
 import (
-	"context"
-	"errors"
-	"io"
 	"strings"
 	"testing"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -14,9 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openbootdotdev/openboot/internal/config"
-	"github.com/openbootdotdev/openboot/internal/installer"
-	"github.com/openbootdotdev/openboot/internal/macos"
-	"github.com/openbootdotdev/openboot/internal/progress"
 )
 
 func sized(w, h int) Model {
@@ -356,14 +349,14 @@ func TestGitCaptureWhenUnconfigured(t *testing.T) {
 		m = send(m, key(string(r)))
 	}
 	// Enter on the email field with both filled proceeds to the confirm
-	// screen; a second enter starts the install.
+	// screen; a second enter accepts the plan and closes the wizard.
 	next, _ := m.Update(key("enter"))
 	m = next.(Model)
 	require.Equal(t, scrConfirm, m.screen, "git capture flows into the review screen")
 	next, _ = m.Update(key("enter"))
 	m = next.(Model)
 
-	require.Equal(t, scrInstall, m.screen)
+	require.True(t, m.confirmed)
 	assert.Equal(t, "Jane Dev", m.plan.GitName)
 	assert.Equal(t, "jane@ex.io", m.plan.GitEmail)
 	assert.False(t, m.plan.SkipGit)
@@ -401,42 +394,10 @@ func TestConfirmtogglesGateThePlan(t *testing.T) {
 	next, _ := m.Update(key("enter"))
 	m = next.(Model)
 
-	require.Equal(t, scrInstall, m.screen)
+	require.True(t, m.confirmed)
 	assert.False(t, m.plan.InstallOhMyZsh, "shell toggled off")
 	assert.Empty(t, m.plan.DotfilesURL, "dotfiles toggled off")
 	assert.Empty(t, m.plan.MacOSPrefs, "prefs toggled off")
-}
-
-// ctrl+c during a running install must request an abort (stay in the TUI,
-// cancel the context) and only quit once the engine reports done — with a
-// non-nil ErrAborted so the CLI exits non-zero.
-func TestCtrlCDuringInstallAbortsHonestly(t *testing.T) {
-	plan := installer.InstallPlan{Formulae: []string{"a"}, SkipGit: true}
-	m := New("1", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.installing = true
-	m.phases = buildPhases(plan)
-	m.cancel = func() {}
-
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	m = next.(Model)
-	assert.Nil(t, cmd, "first ctrl+c must not quit — it waits for the engine")
-	require.True(t, m.aborting)
-
-	// Cancelling the context SIGKILLs the in-flight brew/npm subprocess, so the
-	// engine reports a NON-nil error, not a clean nil. The abort must still be
-	// recognised as ErrAborted — the regression was that the old guard only set
-	// ErrAborted when the error happened to be nil, so an abort during the
-	// package phase (the common case) was misreported as an install failure.
-	killErr := errors.New("signal: killed")
-	next, _ = m.Update(installDoneMsg{err: killErr})
-	m = next.(Model)
-	assert.ErrorIs(t, m.installErr, ErrAborted, "abort with a killed subprocess is still ErrAborted")
-	assert.ErrorIs(t, m.installErr, killErr, "underlying cause stays in the chain for the log")
-	assert.True(t, m.quit)
-	for _, p := range m.phases {
-		assert.False(t, p.finished, "aborted phases must not show as finished")
-	}
 }
 
 func TestGitScreenEscReturnsToSelect(t *testing.T) {
@@ -466,138 +427,6 @@ func stubGitConfig(name, email string) func() {
 	return func() { gitConfigLookup = prev }
 }
 
-func TestBuildPhases(t *testing.T) {
-	plan := installer.InstallPlan{
-		Formulae:       []string{"a", "b"},
-		Casks:          []string{"c"},
-		Npm:            []string{"d"},
-		InstallOhMyZsh: true,
-		DotfilesURL:    "x",
-		MacOSPrefs:     make([]macos.Preference, 1),
-	}
-	phases := buildPhases(plan)
-	var names []string
-	for _, p := range phases {
-		names = append(names, p.name)
-	}
-	assert.Equal(t, []string{
-		"Git identity", progress.PhaseHomebrew, progress.PhaseApplications,
-		progress.PhaseNpm, "Shell", "Dotfiles", "macOS prefs",
-	}, names)
-
-	// PackagesOnly drops every config phase.
-	po := buildPhases(installer.InstallPlan{Formulae: []string{"a"}, PackagesOnly: true})
-	require.Len(t, po, 1)
-	assert.Equal(t, progress.PhaseHomebrew, po[0].name)
-}
-
-// The streaming invariant: every planned package produces exactly one terminal
-// event, so totals count the full plan and already-installed skips arrive as
-// StepOK events with SkipDetail.
-func TestSkipEventsCompletePhaseAndCountSkipped(t *testing.T) {
-	plan := installer.InstallPlan{Formulae: []string{"a", "b", "c"}, SkipGit: true}
-	m := New("1", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.phases = buildPhases(plan)
-	require.Equal(t, 3, m.phases[0].total, "totals count every planned package")
-
-	feed := func(ev progress.Event) {
-		next, _ := m.Update(evMsg{ev: ev})
-		m = next.(Model)
-	}
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepOK, Detail: progress.SkipDetail})
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "b", Status: progress.StepOK, Detail: progress.SkipDetail})
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "c", Status: progress.StepOK, Detail: "1.2s"})
-
-	assert.True(t, m.phases[0].finished, "skips + installs complete the phase")
-	assert.Equal(t, 2, m.skippedPkgs)
-	assert.Equal(t, 1, m.pkgCount()-m.skippedPkgs, "DONE footer counts actual installs")
-}
-
-// A retry pass emits a second terminal event for the same package; done must
-// clamp at total instead of overrunning.
-func TestIncPhaseClampsOnRetryEvents(t *testing.T) {
-	plan := installer.InstallPlan{Formulae: []string{"a"}, SkipGit: true}
-	m := New("1", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.phases = buildPhases(plan)
-
-	feed := func(ev progress.Event) {
-		next, _ := m.Update(evMsg{ev: ev})
-		m = next.(Model)
-	}
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepFail, Detail: "timeout"})
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepOK, Detail: "retry succeeded"})
-	assert.Equal(t, 1, m.phases[0].done, "retry event must not overrun the total")
-	assert.Equal(t, 1, m.completedSteps())
-}
-
-func TestProgressEventsDrivePhasesAndLog(t *testing.T) {
-	// SkipGit drops the "Git identity" phase so the package phases lead.
-	plan := installer.InstallPlan{Formulae: []string{"a", "b"}, Casks: []string{"c"}, SkipGit: true}
-	m := New("1", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.phases = buildPhases(plan)
-
-	feed := func(ev progress.Event) {
-		next, _ := m.Update(evMsg{ev: ev})
-		m = next.(Model)
-	}
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepStart, Command: "brew install a"})
-	assert.True(t, phaseByName(m, progress.PhaseHomebrew).active, "homebrew active")
-	assert.Equal(t, "a", m.curStep)
-
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "a", Status: progress.StepOK, Detail: "1.0s"})
-	feed(progress.Event{Phase: progress.PhaseHomebrew, Name: "b", Status: progress.StepOK, Detail: "2.0s"})
-	assert.True(t, phaseByName(m, progress.PhaseHomebrew).finished, "homebrew finished at 2/2")
-	assert.Equal(t, 2, m.completedSteps())
-
-	feed(progress.Event{Phase: progress.PhaseApplications, Name: "c", Status: progress.StepStart, Command: "brew install --cask c"})
-	assert.True(t, phaseByName(m, progress.PhaseApplications).active)
-
-	// Log carries $cmd and ✓result lines.
-	joined := strings.Join(logTexts(m.logs), "\n")
-	assert.Contains(t, joined, "brew install a")
-	assert.Contains(t, joined, "a — 1.0s")
-}
-
-func phaseByName(m Model, name string) phaseState {
-	for _, p := range m.phases {
-		if p.name == name {
-			return p
-		}
-	}
-	return phaseState{}
-}
-
-func TestReporterHeaderActivatesConfigPhase(t *testing.T) {
-	plan := installer.InstallPlan{InstallOhMyZsh: true, SkipGit: true}
-	m := New("1", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.phases = buildPhases(plan)
-	require.Len(t, m.phases, 1)
-
-	next, _ := m.Update(reporterMsg{kind: rHeader, text: "Shell Configuration"})
-	m = next.(Model)
-	assert.True(t, m.phases[0].active, "shell header activates the Shell phase")
-}
-
-func TestInstallDoneMarksAllFinished(t *testing.T) {
-	plan := installer.InstallPlan{Formulae: []string{"a"}, InstallOhMyZsh: true}
-	m := New("1", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.installing = true
-	m.phases = buildPhases(plan)
-
-	next, _ := m.Update(installDoneMsg{})
-	m = next.(Model)
-	assert.False(t, m.installing)
-	assert.True(t, m.done)
-	for _, p := range m.phases {
-		assert.True(t, p.finished)
-	}
-}
-
 // TestViewDimensions asserts every screen fills exactly the terminal box.
 func TestViewDimensions(t *testing.T) {
 	const W, H = 90, 28
@@ -608,7 +437,9 @@ func TestViewDimensions(t *testing.T) {
 	gitCase := send(finishProbes(sized(W, H)), key("2"))
 	gitCase.screen = scrGit
 	cases["git"] = gitCase
-	cases["install"] = installFrame(finishProbes(sized(W, H)), W, H)
+	confirmCase := send(finishProbes(sized(W, H)), key("2"))
+	confirmCase, _ = func() (Model, tea.Cmd) { m, c := confirmCase.enterConfirm(); return m.(Model), c }()
+	cases["confirm"] = confirmCase
 
 	for name, m := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -626,160 +457,7 @@ func TestViewEmptyBeforeSize(t *testing.T) {
 	assert.Empty(t, m.View(), "renders nothing until sized")
 }
 
-// TestInstallGoroutineStreamsToDone exercises the real wiring end-to-end
-// against a dry-run plan: spawnInstall's goroutine sets the brew/npm sinks,
-// runs installer.ApplyContext with the channel Reporter, and the model drains
-// the channel through Update until installDoneMsg. Dry-run means nothing is
-// actually installed.
-func TestInstallGoroutineStreamsToDone(t *testing.T) {
-	opts := &config.InstallOptions{Version: "1", DryRun: true}
-	m := New("1", opts)
-	m.screen = scrInstall
-
-	plan := installer.PlanFromSelection(opts, config.GetPackagesForPreset("minimal"), nil)
-	plan.Silent = true
-	m.plan = plan
-	m.phases = buildPhases(plan)
-	m.installing = true
-
-	// Start the background install; the cmd returns nil and feeds m.events.
-	m.spawnInstall(context.Background(), plan)()
-
-	// Drain the channel through Update until the install reports done.
-	deadline := time.After(30 * time.Second)
-	for !m.done {
-		select {
-		case msg := <-m.events:
-			next, _ := m.Update(msg)
-			m = next.(Model)
-		case <-deadline:
-			t.Fatal("install did not complete within 30s")
-		}
-	}
-
-	assert.False(t, m.installing)
-	assert.NoError(t, m.installErr)
-	// Every phase ends finished once done.
-	for _, p := range m.phases {
-		assert.Truef(t, p.finished, "phase %q finished", p.name)
-	}
-	// C2: the goroutine closes installDone once ApplyContext returns, so Run's
-	// joinInstall can wait for it before restoring os.Stdout (no force-quit race).
-	select {
-	case <-m.installDone:
-	default:
-		t.Fatal("installDone must be closed once the install goroutine finishes")
-	}
-}
-
-// joinInstall must not block when no install goroutine was ever started (e.g.
-// the user quit on the boot/select screen) — otherwise Run would hang 30s.
-func TestJoinInstallNoopWhenNoInstall(t *testing.T) {
-	m := New("1", &config.InstallOptions{})
-	returned := make(chan struct{})
-	go func() { m.joinInstall(); close(returned) }()
-	select {
-	case <-returned:
-	case <-time.After(2 * time.Second):
-		t.Fatal("joinInstall must be a no-op when no install ran")
-	}
-}
-
-func logTexts(ls []logLine) []string {
-	out := make([]string, len(ls))
-	for i, l := range ls {
-		out[i] = l.text
-	}
-	return out
-}
-
-// TestPipelineDrainsChannelAndCompletes runs a real (headless) program to catch
-// the hang the unit tests below can't: pipeline-mode Init must arm waitForEvent
-// so the goroutine's installDoneMsg is actually read. Without it, done never
-// flips, the 'q' below is ignored (updateInstall quits only when done), and this
-// test times out. (The send()-based tests inject installDoneMsg directly and so
-// bypass — and miss — the Init→channel wiring.)
-func TestPipelineDrainsChannelAndCompletes(t *testing.T) {
-	pr, pw := io.Pipe()
-	t.Cleanup(func() { _ = pw.Close() })
-
-	m := New("t", &config.InstallOptions{})
-	m.screen, m.installing = scrInstall, true
-	m.phases = toPhaseStates([]PipelinePhase{{Name: "Homebrew", Total: 1, Pkg: true}})
-	m.pipelineCtx = context.Background()
-	m.pipelineRun = func(context.Context, installer.Reporter) error { return nil } // completes instantly
-
-	p := tea.NewProgram(m, tea.WithInput(pr), tea.WithOutput(io.Discard), tea.WithoutRenderer())
-	done := make(chan tea.Model, 1)
-	go func() { fm, _ := p.Run(); done <- fm }()
-
-	time.Sleep(300 * time.Millisecond) // let the goroutine finish + drain to done
-	_, _ = pw.Write([]byte("q"))       // DONE screen: q quits
-
-	select {
-	case fm := <-done:
-		assert.True(t, fm.(Model).done, "pipeline reached done via the drained channel")
-	case <-time.After(3 * time.Second):
-		p.Kill()
-		t.Fatal("pipeline hung — Init did not arm waitForEvent to drain m.events")
-	}
-}
-
-// Pipeline mode (RunPipeline / sync-source path) reuses the install screen with
-// externally-built phases; installDoneMsg must mark it done and, on a clean run,
-// check-mark all phases.
-func TestPipelineModeReachesDone(t *testing.T) {
-	m := New("1.0.0", &config.InstallOptions{})
-	m.screen = scrInstall
-	m.installing = true
-	m.phases = toPhaseStates([]PipelinePhase{
-		{Name: "Homebrew", Total: 2, Pkg: true},
-		{Name: "macOS prefs", Total: 1},
-	})
-
-	m = send(m, installDoneMsg{err: nil})
-	assert.True(t, m.done, "installDoneMsg marks the screen done")
-	assert.False(t, m.installing)
-	for _, p := range m.phases {
-		assert.True(t, p.finished, "a clean run check-marks every phase (incl. config steps)")
-	}
-}
-
-func TestPipelineReplayDisabled(t *testing.T) {
-	m := New("1.0.0", &config.InstallOptions{})
-	m.screen, m.done = scrInstall, true
-	m.pipelineRun = func(context.Context, installer.Reporter) error { return nil } // marks pipeline mode
-	next, _ := m.Update(key("r"))
-	// 'r' must NOT restart the wizard probe in pipeline mode — screen stays put.
-	assert.Equal(t, scrInstall, next.(Model).screen, "replay is a no-op in pipeline mode")
-}
-
-// PhasesForPlan drives the slug/preset pipeline sidebar from an installer plan.
-func TestPhasesForPlan(t *testing.T) {
-	plan := installer.InstallPlan{
-		Formulae:       []string{"jq", "ripgrep"},
-		Casks:          []string{"orbstack"},
-		InstallOhMyZsh: true,
-		DotfilesURL:    "https://github.com/x/dotfiles",
-	}
-	ps := PhasesForPlan(plan)
-
-	byName := map[string]PipelinePhase{}
-	for _, p := range ps {
-		byName[p.Name] = p
-	}
-	require.Contains(t, byName, "Homebrew")
-	assert.Equal(t, 2, byName["Homebrew"].Total)
-	assert.True(t, byName["Homebrew"].Pkg)
-	require.Contains(t, byName, "Applications")
-	require.Contains(t, byName, "Shell")
-	assert.False(t, byName["Shell"].Pkg, "config steps are not per-item package phases")
-	require.Contains(t, byName, "Dotfiles")
-	assert.NotContains(t, byName, "npm globals", "no npm in this plan")
-}
-
-// ── deep-polish additions: small terminals, preset entry, online search,
-// completion summary, hover colour degradation ──
+// ── small terminals, preset entry, online search, palette ──
 
 func TestSmallTerminalShowsResizeHint(t *testing.T) {
 	m := sized(48, 12)
@@ -876,31 +554,6 @@ func TestOnlineSearchFindsTogglesAndSurvivesFilterClear(t *testing.T) {
 		assert.NotEqual(t, onlineCatName, c.Name, "empty online category is dropped")
 	}
 	assert.Less(t, m.catCur, len(m.cats), "category cursor re-clamped")
-}
-
-func TestCompletionSummaryListsFailures(t *testing.T) {
-	m := installFrame(sized(96, 30), 96, 30)
-	m = send(m, evMsg{ev: progress.Event{Phase: progress.PhaseHomebrew, Name: "ripgrep", Status: progress.StepFail, Detail: "build error"}})
-	m = send(m, installDoneMsg{err: errors.New("1 package failed")})
-	require.True(t, m.done)
-
-	var logText strings.Builder
-	for _, l := range m.logs {
-		logText.WriteString(l.text + "\n")
-	}
-	assert.Contains(t, logText.String(), "installed · 0 already present", "summary counts land in the log")
-	assert.Contains(t, logText.String(), "1 failed: ripgrep", "failed package names are restated at the end")
-}
-
-func TestCompletionSummaryCleanRun(t *testing.T) {
-	m := installFrame(sized(96, 30), 96, 30)
-	m = send(m, installDoneMsg{})
-	var logText strings.Builder
-	for _, l := range m.logs {
-		logText.WriteString(l.text + "\n")
-	}
-	assert.Contains(t, logText.String(), "installed ·")
-	assert.NotContains(t, logText.String(), "failed:")
 }
 
 // Hover must not depend on a background colour we guessed: reverse video is

@@ -1,19 +1,20 @@
-// Package wizard implements the OpenBoot install TUI (Redesign v5): a single
-// full-screen bubbletea program that flows boot-probe → two-pane select →
-// live pipeline install, under a persistent title bar and status bar.
+// Package wizard implements the OpenBoot install planner: a full-screen
+// bubbletea program that flows boot-probe → two-pane select → git → review,
+// under a persistent title bar and status bar.
 //
-// It replaces the previous interactive planning prompts (preset select, package
-// selector, per-step confirms) and the linear Apply output. Preset installs
-// (-p) enter it with the loadout preselected; remote-config installs (slug,
-// -u, --from, alias) enter config mode via RunForConfig, with the config's own
-// packages on the select screen. Non-interactive paths (--silent, --dry-run,
-// --update, no TTY) never reach the wizard; sync-source installs keep their
-// linear diff pre-flight and reuse only the live install screen (RunPipeline).
+// It replaces the interactive planning prompts (preset select, package
+// selector, per-step confirms) that used to flip between full-screen and inline
+// several times per run. It deliberately stops at the plan: the apply runs
+// after the alt-screen is gone, streaming into the scrollback, because an
+// alt-screen install takes its own output with it when it exits.
+//
+// Preset installs (-p) enter with the loadout preselected; remote-config
+// installs (slug, -u, --from, alias) enter config mode via RunForConfig, with
+// the config's own packages on the select screen. Non-interactive paths
+// (--silent, --dry-run, --update, no TTY) never reach the wizard.
 package wizard
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -33,7 +34,6 @@ const (
 	scrSelect
 	scrGit
 	scrConfirm
-	scrInstall
 )
 
 // focusPane is which of the two select-screen columns holds keyboard focus.
@@ -45,11 +45,7 @@ const (
 	focusCats                  // category sidebar (left column)
 )
 
-// ErrAborted is returned by Run when the user cancels a running install with
-// ctrl+c. It distinguishes a deliberate abort from install failures.
-var ErrAborted = errors.New("installation aborted")
-
-// tickInterval drives the spinner and the derived elapsed clock.
+// tickInterval drives the boot-probe spinner.
 const tickInterval = 120 * time.Millisecond
 
 type tickMsg struct{}
@@ -108,44 +104,25 @@ type Model struct {
 	confPrefs    bool
 	confCur      int
 
-	// ── install ──
-	events       chan tea.Msg
-	installDone  chan struct{} // closed by the install goroutine once ApplyContext returns (Run joins on it)
-	plan         installer.InstallPlan
-	phases       []phaseState
-	logs         []logLine
-	curStep      string
-	installing   bool
-	aborting     bool // ctrl+c received mid-install; waiting for the engine to stop
-	done         bool
-	installErr   error
-	skippedPkgs  int             // terminal events with SkipDetail (already installed)
-	failedPkgs   []string        // packages whose terminal event was StepFail, for the completion summary
-	terminalSeen map[string]bool // packages that produced a terminal event, for skip dedup (npm retry)
-	installTick  int             // ticks value when install started, for elapsed
-	cancel       context.CancelFunc
-
-	// ── pipeline mode (RunPipeline: sync-source & slug installs reuse this screen) ──
-	pipelineRun func(context.Context, installer.Reporter) error // non-nil ⇒ start on install screen
-	pipelineCtx context.Context
+	// ── result ──
+	// plan is what the CLI applies once the wizard exits; confirmed says the
+	// user reviewed it and pressed ↵ rather than quitting.
+	plan installer.InstallPlan
 }
 
 // New builds a wizard model for the given version and resolved install options.
 func New(version string, opts *config.InstallOptions) Model {
 	return Model{
-		version:      version,
-		opts:         opts,
-		screen:       scrBoot,
-		probes:       newProbes(),
-		loadouts:     newLoadouts(),
-		installed:    map[string]bool{},
-		cats:         config.GetCategories(),
-		hoverRow:     -1,
-		selected:     map[string]bool{},
-		onlineKnown:  map[string]bool{},
-		events:       make(chan tea.Msg, 1024),
-		installDone:  make(chan struct{}),
-		terminalSeen: map[string]bool{},
+		version:     version,
+		opts:        opts,
+		screen:      scrBoot,
+		probes:      newProbes(),
+		loadouts:    newLoadouts(),
+		installed:   map[string]bool{},
+		cats:        config.GetCategories(),
+		hoverRow:    -1,
+		selected:    map[string]bool{},
+		onlineKnown: map[string]bool{},
 	}
 }
 
@@ -177,21 +154,11 @@ func configLabel(rc *config.RemoteConfig) string {
 }
 
 func (m Model) Init() tea.Cmd {
-	if m.pipelineRun != nil {
-		// waitForEvent is essential: it drains m.events into Update. Without it
-		// the goroutine's installDoneMsg is never read and the screen hangs.
-		return tea.Batch(tickCmd(), m.startPipeline(), waitForEvent(m.events))
-	}
 	return tea.Batch(tickCmd(), m.runProbe(0))
 }
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(tickInterval, func(time.Time) tea.Msg { return tickMsg{} })
-}
-
-// waitForEvent blocks on the install event channel and delivers the next msg.
-func waitForEvent(ch chan tea.Msg) tea.Cmd {
-	return func() tea.Msg { return <-ch }
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -205,19 +172,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.clampSelScroll(), nil
 
 	case tickMsg:
-		// Stop animating once the install screen is done: nothing on it spins, and
-		// leaving the clock running makes the completion footer's elapsed time keep
-		// counting up while the user reads it. Checking before the increment
-		// freezes elapsed() exactly at completion.
-		if m.done {
-			return m, nil
-		}
 		m.ticks++
 		return m, tickCmd()
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
-			return m.onCtrlC()
+			// Nothing has been applied yet — the wizard only plans — so quitting
+			// is always clean and needs no confirmation.
+			m.quit = true
+			return m, tea.Quit
 		}
 		switch m.screen {
 		case scrBoot:
@@ -228,8 +191,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateGit(msg)
 		case scrConfirm:
 			return m.updateConfirm(msg)
-		case scrInstall:
-			return m.updateInstall(msg)
 		}
 
 	case tea.MouseMsg:
@@ -244,33 +205,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchDoneMsg:
 		return m.onSearchDone(msg)
 
-	case evMsg, reporterMsg, installDoneMsg:
-		return m.onInstallEvent(msg)
 	}
 	return m, nil
-}
-
-// onCtrlC implements the global abort semantics. The first ctrl+c during a
-// running install requests an abort: cancel the context and keep the TUI up
-// until the engine reports back (installDoneMsg), so the goroutine is joined
-// and the abort is reported honestly. A second ctrl+c force-quits; outside an
-// install it quits immediately.
-func (m Model) onCtrlC() (tea.Model, tea.Cmd) {
-	if m.screen == scrInstall && m.installing && !m.aborting {
-		m.aborting = true
-		if m.cancel != nil {
-			m.cancel()
-		}
-		return m, nil
-	}
-	if m.cancel != nil {
-		m.cancel()
-	}
-	if m.installing {
-		m.installErr = ErrAborted
-	}
-	m.quit = true
-	return m, tea.Quit
 }
 
 // routeMouse dispatches a mouse event to the active screen's handler.
@@ -284,8 +220,6 @@ func (m Model) routeMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m.updateGitMouse(msg)
 	case scrConfirm:
 		return m.updateConfirmMouse(msg)
-	case scrInstall:
-		return m.updateInstallMouse(msg)
 	}
 	return m, nil
 }
@@ -326,8 +260,6 @@ func (m Model) View() string {
 		body = m.gitBody(m.width, bodyH)
 	case scrConfirm:
 		body = m.confirmBody(m.width, bodyH)
-	case scrInstall:
-		body = m.installBody(m.width, bodyH)
 	}
 
 	return m.titleBar() + "\n" + fitBlock(body, m.width, bodyH) + "\n" + m.statusBar()
@@ -365,13 +297,8 @@ func (m Model) crumb() string {
 		return "select packages"
 	case scrGit:
 		return "git identity"
-	case scrConfirm:
-		return "review plan"
 	default:
-		if m.done {
-			return "done"
-		}
-		return "installing"
+		return "review plan"
 	}
 }
 
@@ -455,96 +382,27 @@ func truncCell(s string, w int) string {
 	return lipgloss.NewStyle().MaxWidth(w).Render(s)
 }
 
-// Run launches the wizard. It returns the applied plan, whether an install was
-// started (confirmed), and any error from the install run (ErrAborted when the
-// user cancelled mid-install). Stray stdout from the install engine is
-// redirected away from the alt-screen for the program's lifetime; the abort
-// flow keeps the TUI alive until the engine goroutine reports done, so the
-// redirect isn't restored under its feet.
+// Run launches the wizard: boot probe → select → git → review. It installs
+// nothing; it returns the reviewed plan and whether the user confirmed it, and
+// the caller applies that plan on the normal terminal once the alt-screen is
+// gone.
 func Run(version string, opts *config.InstallOptions) (plan installer.InstallPlan, confirmed bool, err error) {
 	return runProgram(New(version, opts))
 }
 
 // RunForConfig launches the wizard in config mode for a fetched remote config
-// (install <slug> / -u / --from / alias): boot probe → select (the config's
-// packages, preselected) → review → live install. Returns like Run; the
-// returned plan keeps the config's post-install script for the CLI to run
-// after teardown (the alt-screen can't host its confirm prompt).
+// (install <slug> / -u / --from / alias): the select screen shows the config's
+// own packages, preselected. Returns like Run.
 func RunForConfig(version string, opts *config.InstallOptions, rc *config.RemoteConfig) (plan installer.InstallPlan, confirmed bool, err error) {
 	return runProgram(NewForConfig(version, opts, rc))
 }
 
 func runProgram(m Model) (plan installer.InstallPlan, confirmed bool, err error) {
-	realOut, restore := redirectOutput()
-	defer restore()
-
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithInput(os.Stdin))
 	final, runErr := p.Run()
 	if runErr != nil {
 		return installer.InstallPlan{}, false, fmt.Errorf("run wizard: %w", runErr)
 	}
 	fm := final.(Model)
-	// Join the install goroutine before the deferred restore() flips os.Stdout
-	// back, so a force-quit (2nd ctrl+c) can neither race the engine's stdout
-	// writes nor return control to the shell while it is still mutating the system.
-	fm.joinInstall()
-	return fm.plan, fm.confirmed, fm.installErr
-}
-
-// joinInstall blocks until the install goroutine has finished (it closes
-// installDone once ApplyContext returns and the brew/npm sinks are restored).
-// No-op when no install was started. The timeout is a safety valve so a wedged
-// subprocess can't hang the process on the terminal indefinitely.
-func (m Model) joinInstall() {
-	if !m.confirmed && m.pipelineRun == nil {
-		return // no install goroutine was ever spawned
-	}
-	select {
-	case <-m.installDone:
-	case <-time.After(30 * time.Second):
-	}
-}
-
-// redirectOutput sends stdout+stderr to /dev/null for the alt-screen's lifetime
-// (subprocess progress must not paint over Bubble Tea) and returns the real
-// stdout to render onto plus a restore func.
-func redirectOutput() (realOut *os.File, restore func()) {
-	realOut, realErr := os.Stdout, os.Stderr
-	if devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0); err == nil {
-		os.Stdout, os.Stderr = devnull, devnull
-		return realOut, func() {
-			os.Stdout, os.Stderr = realOut, realErr
-			_ = devnull.Close()
-		}
-	}
-	return realOut, func() {}
-}
-
-// RunPipeline renders the wizard's live install screen for an externally-built
-// plan, so the sync-source path (install <slug>) shares the wizard's install
-// visuals instead of the linear StickyProgress. phases seed the pipeline
-// sidebar; run does the work on a goroutine, its package progress streaming
-// through the brew/npm sinks RunPipeline registers. Returns run's error
-// (ErrAborted on ctrl+c).
-func RunPipeline(version string, phases []PipelinePhase, run func(context.Context, installer.Reporter) error) error {
-	m := New(version, &config.InstallOptions{Version: version})
-	m.screen = scrInstall
-	m.installing = true
-	m.phases = toPhaseStates(phases)
-	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is stored on the model and called on ctrl+c / done
-	m.cancel = cancel
-	m.pipelineCtx = ctx
-	m.pipelineRun = run
-
-	realOut, restore := redirectOutput()
-	defer restore()
-
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseAllMotion(), tea.WithOutput(realOut), tea.WithInput(os.Stdin))
-	final, runErr := p.Run()
-	if runErr != nil {
-		return fmt.Errorf("run install: %w", runErr)
-	}
-	fm := final.(Model)
-	fm.joinInstall() // see Run: join before the deferred restore()
-	return fm.installErr
+	return fm.plan, fm.confirmed, nil
 }

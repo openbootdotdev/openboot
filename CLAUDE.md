@@ -5,7 +5,11 @@
 OpenBoot is a **macOS-only** Go 1.25 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
 
 Entry point: `cmd/openboot/main.go` → `internal/cli.Execute()`.
-Core flow: `openboot install` orchestrates plan → apply in `internal/installer/installer.go`. Bare interactive `openboot install` on a TTY runs the full-screen install TUI in `internal/ui/tui/wizard/` (boot probe → select → live install); `-p <preset>` enters the same wizard with the loadout preselected, and slug/`-u`/`--from`/alias installs enter it in config mode (`RunForConfig`: the config's own packages on the select screen, preselected). Sync-source installs keep their linear diff pre-flight but stream the apply through the wizard's live install screen (`RunPipeline`). `--silent`, `--dry-run`, `--update`, and non-TTY runs use the linear flow.
+Core flow: `openboot install` orchestrates plan → apply in `internal/installer/installer.go`.
+
+**The wizard plans; the apply is always linear.** On a TTY the planning phase runs as a full-screen TUI in `internal/ui/tui/wizard/` (boot probe → select → git → review), then the wizard *exits* and hands its `InstallPlan` to `installer.ApplyReviewedPlan`, which applies it on the normal terminal with `ConsoleReporter` + `ui.StickyProgress`. This split is deliberate: a TUI is right for browsing a 100+ package catalog, and wrong for the apply — an alt-screen install discards its own output when it exits, so twenty minutes of package results and failures vanish. Streamed into the scrollback they stay where the user can scroll back, copy an error, and pipe it. Don't move the apply back inside the alt-screen.
+
+Entry points: bare `install` → `wizard.Run`; `-p <preset>` → same, loadout preselected; slug/`-u`/`--from`/alias → `wizard.RunForConfig` (config mode: the config's own packages on the select screen, preselected). Sync-source installs keep their linear diff pre-flight and apply linearly. `--silent`, `--dry-run`, `--update`, `--pick`, and non-TTY runs never enter the wizard.
 
 For full contribution guide (test layering L1–L4, Runner interface, hook setup) see @CONTRIBUTING.md.
 For AI agents: @AGENTS.md indexes invariants enforced by `internal/archtest`; @docs/HARNESS.md is the steering meta-doc for where to encode new rules.

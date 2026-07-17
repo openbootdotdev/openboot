@@ -39,8 +39,7 @@ var (
 	cAccent   = lipgloss.Color("#22c55e") // primary green
 	cAccentHi = lipgloss.Color("#4ade80") // bright green — times, links
 	cInfo     = lipgloss.Color("#06b6d4") // cyan — probing / active spinner
-	cWarn     = lipgloss.Color("#f59e0b") // amber — installing / active search
-	cDanger   = lipgloss.Color("#ef4444") // red — failures
+	cWarn     = lipgloss.Color("#f59e0b") // amber — active search
 
 	// Text ramp — terminal-relative. Names kept so call sites read the same.
 	cWhite  = lipgloss.Color("15") // cursor row name

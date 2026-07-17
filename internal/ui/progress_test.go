@@ -170,3 +170,19 @@ func TestStickyProgressFallsBackWhenScrollRegionUnsupported(t *testing.T) {
 	sp.mu.Unlock()
 	assert.False(t, hasRegion, "scroll region should be disabled on dumb TERM")
 }
+
+// Ctrl+C during a linear install must not exit from the progress goroutine:
+// the same signal cancels the install context, and ApplyContext gates every
+// remaining step on it, so letting that unwind is what stops the run cleanly.
+// Only a second interrupt is allowed to force the process out.
+func TestStickyProgressInterruptIsTwoStage(t *testing.T) {
+	sp := NewStickyProgress(3)
+
+	force := sp.onInterrupt()
+	assert.False(t, force, "first ctrl+c unwinds via the cancelled context, it does not exit")
+	assert.True(t, sp.aborting, "abort recorded")
+	assert.False(t, sp.active, "sticky rendering stopped so the abort notice isn't overpainted")
+
+	force = sp.onInterrupt()
+	assert.True(t, force, "second ctrl+c escapes a subprocess that ignored the cancellation")
+}
