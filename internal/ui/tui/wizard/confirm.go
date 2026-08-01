@@ -80,11 +80,19 @@ func (m Model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) confirmBody(_, _ int) string {
 	const pad = "   "
+	title := "Ready to install"
+	detail := "Everything below runs when you press ↵ — space toggles a step off."
+	action := "install"
+	if m.opts.DryRun {
+		title = "Dry-run preview"
+		detail = "No changes will be made — space toggles a step in the preview."
+		action = "preview"
+	}
 	var b []string
 	b = append(b, "")
 	b = append(b, "")
-	b = append(b, pad+fg(cTextHi).Bold(true).Render("Ready to install"))
-	b = append(b, pad+fg(cDim3).Render("Everything below runs when you press ↵ — space toggles a step off."))
+	b = append(b, pad+fg(cTextHi).Bold(true).Render(title))
+	b = append(b, pad+fg(cDim3).Render(detail))
 	b = append(b, "")
 
 	// Packages summary (informational, not toggleable).
@@ -131,7 +139,7 @@ func (m Model) confirmBody(_, _ int) string {
 	if len(rows) > 0 {
 		b = append(b, "")
 	}
-	b = append(b, pad+fg(cDim3).Render("↑↓ move · space toggle · ↵ install · esc back"))
+	b = append(b, pad+fg(cDim3).Render("↑↓ move · space toggle · ↵ "+action+" · esc back"))
 	return strings.Join(b, "\n")
 }
 

@@ -401,6 +401,27 @@ func TestConfirmtogglesGateThePlan(t *testing.T) {
 	assert.Empty(t, m.plan.MacOSPrefs, "prefs toggled off")
 }
 
+func TestDryRunReviewMakesPreviewSemanticsExplicit(t *testing.T) {
+	defer stubGitConfig("Ada", "ada@ex.io")()
+
+	m := New("1.4.0", &config.InstallOptions{Version: "1.4.0", DryRun: true})
+	m = send(m, tea.WindowSizeMsg{Width: 96, Height: 30})
+	m = finishProbes(m)
+	m = send(m, key("2"))
+	m.installed = map[string]bool{}
+	m = send(m, key("enter"))
+	require.Equal(t, scrConfirm, m.screen)
+
+	view := m.View()
+	assert.Contains(t, view, "Dry-run preview")
+	assert.Contains(t, view, "No changes will be made")
+	assert.Contains(t, view, "↵ preview")
+
+	m = send(m, key("enter"))
+	require.True(t, m.confirmed)
+	assert.True(t, m.plan.DryRun)
+}
+
 func TestGitScreenEscReturnsToSelect(t *testing.T) {
 	defer stubGitConfig("", "")()
 	m := finishProbes(sized(96, 30))

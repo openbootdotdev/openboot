@@ -15,8 +15,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
 
-var ErrUserCancelled = errors.New("user cancelled")
-
 const (
 	estimatedSecondsPerFormula = 15
 	estimatedSecondsPerCask    = 30
@@ -104,6 +102,10 @@ func ApplyReviewedPlan(ctx context.Context, plan InstallPlan) error {
 	ui.Println()
 	ui.Header(fmt.Sprintf("OpenBoot Installer v%s", plan.Version))
 	ui.Println()
+	if plan.DryRun {
+		ui.Muted("[DRY-RUN MODE - No changes will be made]")
+		ui.Println()
+	}
 	return ApplyContext(ctx, plan, ConsoleReporter{})
 }
 

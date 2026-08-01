@@ -9,7 +9,6 @@ import (
 	"github.com/openbootdotdev/openboot/internal/shell"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
-	"github.com/openbootdotdev/openboot/internal/ui/tui"
 )
 
 // InstallPlan captures all resolved decisions from the interactive planning phase.
@@ -204,30 +203,12 @@ func planGitConfig(opts *config.InstallOptions) (name, email string, err error) 
 
 func planPackages(opts *config.InstallOptions, st *config.InstallState, plan *InstallPlan) error {
 	if opts.Preset == "" {
-		if opts.Silent || (opts.DryRun && !system.HasTTY()) {
-			opts.Preset = "minimal"
-		} else {
-			var err error
-			opts.Preset, err = ui.SelectPreset()
-			if err != nil {
-				return fmt.Errorf("select preset: %w", err)
-			}
-		}
+		opts.Preset = "minimal"
 	}
-
-	if opts.Silent || (opts.DryRun && !system.HasTTY()) {
-		st.SelectedPkgs = config.GetPackagesForPreset(opts.Preset)
-	} else {
-		selected, onlinePkgs, confirmed, err := tui.RunSelector(opts.Preset)
-		if err != nil {
-			return fmt.Errorf("run package selector: %w", err)
-		}
-		if !confirmed {
-			return ErrUserCancelled
-		}
-		st.SelectedPkgs = selected
-		st.OnlinePkgs = onlinePkgs
+	if _, ok := config.GetPreset(opts.Preset); !ok {
+		return fmt.Errorf("unknown preset %q", opts.Preset)
 	}
+	st.SelectedPkgs = config.GetPackagesForPreset(opts.Preset)
 
 	plan.SelectedPkgs = st.SelectedPkgs
 	plan.OnlinePkgs = st.OnlinePkgs
@@ -295,17 +276,7 @@ func planMacOSDecision(opts *config.InstallOptions) ([]macos.Preference, error) 
 	if opts.Macos == "skip" {
 		return nil, nil
 	}
-	if opts.Macos == "configure" || opts.Silent || (opts.DryRun && !system.HasTTY()) {
-		return macos.DefaultPreferences, nil
-	}
-	selected, confirmed, err := tui.RunMacOSSelector()
-	if err != nil {
-		return nil, fmt.Errorf("macOS selector: %w", err)
-	}
-	if !confirmed {
-		return nil, nil
-	}
-	return selected, nil
+	return macos.DefaultPreferences, nil
 }
 
 // PlanFromSelection builds a ready-to-Apply InstallPlan from an explicit

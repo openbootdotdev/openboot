@@ -7,7 +7,7 @@ live in the `tui/` subpackage.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `ui.go` | 247 | Base styles, color helpers, output helpers (Header/Success/Error/Info/Warn/Muted/DryRun*), huh form wrappers (InputGitConfig, SelectPreset, Confirm, SelectOption, Input) |
+| `ui.go` | output + forms | Base styles, output helpers, and small huh form wrappers |
 | `progress.go` | 245 | StickyProgress: per-package timing, succeeded/failed/skipped counters, in-place status line |
 | `scanprogress.go` | 221 | ScanProgress: step timing, overall counter `[3/8]` |
 
@@ -15,10 +15,9 @@ live in the `tui/` subpackage.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `selector.go` + `selector_view.go` | ~1,026 | Package selector: tabs, fuzzy search, online search, multi-select |
 | `snapshot_editor.go` + `snapshot_editor_search.go` | ~1,022 | Snapshot editing: diff view, toggle packages, add online, confirm |
 | `config_customizer.go` | 253 | Remote-config customizer: toggle which packages to install |
-| `macos_selector.go` | 435 | macOS preferences selector: category tabs, toggle, confirm |
+| `wizard/` | install planner | Boot probe, package selection, git identity, and plan review |
 
 ## PATTERNS
 

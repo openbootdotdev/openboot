@@ -1,15 +1,10 @@
 package macos
 
-// PrefCategory groups related macOS preferences for display in the TUI selector.
+// PrefCategory groups related macOS preferences in the default catalog.
 type PrefCategory struct {
 	Name  string
 	Icon  string
 	Prefs []Preference
-}
-
-// PrefKey returns a unique identifier for a preference, used as the selection map key.
-func PrefKey(p Preference) string {
-	return p.Domain + "/" + p.Key
 }
 
 // DefaultCategories groups DefaultPreferences by logical category.
@@ -155,15 +150,4 @@ var DefaultCategories = []PrefCategory{
 			{"com.apple.WindowManager", "EnableStandardClickToShowDesktop", "bool", "false", "Click wallpaper to show desktop only in Stage Manager", ""},
 		},
 	},
-}
-
-// AllPrefsSelected returns a map with all default preferences set to true.
-func AllPrefsSelected() map[string]bool {
-	selected := make(map[string]bool)
-	for _, cat := range DefaultCategories {
-		for _, p := range cat.Prefs {
-			selected[PrefKey(p)] = true
-		}
-	}
-	return selected
 }

@@ -77,7 +77,7 @@ func init() {
 	installCmd.Flags().StringVar(&installCfg.Dotfiles, "dotfiles", "", "dotfiles: clone, link, skip")
 	installCmd.Flags().StringVar(&installCfg.PostInstall, "post-install", "", "post-install script: skip")
 
-	installCmd.Flags().BoolVar(&installCfg.Update, "update", false, "update Homebrew before installing")
+	installCmd.Flags().BoolVar(&installCfg.Update, "update", false, "update Homebrew and exit")
 	installCmd.Flags().BoolVar(&installCfg.AllowPostInstall, "allow-post-install", false, "allow post-install scripts in silent mode")
 }
 
@@ -101,8 +101,15 @@ func applyEnvOverrides(cfg *config.Config) {
 	}
 }
 
-func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo // top-level install dispatch: routes source (sync / wizard / RemoteConfig) × mode (pick / silent / dry-run / TTY-pipeline / linear); splitting the branch table scatters the flow
+func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo // top-level install dispatch: routes source (sync / wizard / RemoteConfig) × mode (pick / silent / dry-run / update / linear); splitting the branch table scatters the flow
 	applyEnvOverrides(installCfg)
+
+	// --update is a standalone Homebrew maintenance mode. It does not consume
+	// an install source or make package-selection decisions, so keep it out of
+	// every wizard/customizer branch (including a saved sync source).
+	if installCfg.Update {
+		return installer.RunContext(cmd.Context(), installCfg)
+	}
 
 	if installCfg.RemoteConfig == nil {
 		src, err := resolveInstallSource(cmd, args)
@@ -135,11 +142,11 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 				return perr
 			}
 			installCfg.RemoteConfig = rc
-		} else if !installCfg.Silent && !installCfg.DryRun && !installCfg.Update && system.HasTTY() {
+		} else if wizardMode(installCfg, system.HasTTY()) {
 			// The full-screen config wizard owns the whole interactive flow
-			// (select the config's packages → review → live install) —
+			// (select the config's packages → review → linear apply) —
 			// replacing the linear 3-way prompt + customizer that used to
-			// precede the pipeline screen for slug / -u / --from / alias.
+			// handle slug / -u / --from / alias, including dry-run previews.
 			return runConfigWizard(cmd.Context(), installCfg.RemoteConfig)
 		} else if !installCfg.Silent && (!installCfg.DryRun || system.HasTTY()) {
 			rc, proceed, err := promptCustomizeAndApply(installCfg.RemoteConfig)
@@ -153,13 +160,10 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 			installCfg.RemoteConfig = rc
 		}
 	} else if pickRaw != "" {
-		return fmt.Errorf("--pick requires a remote config; use the preset selector instead")
+		return fmt.Errorf("--pick requires a remote config; use the interactive wizard instead")
 	}
 
 	err := installer.RunContext(cmd.Context(), installCfg)
-	if errors.Is(err, installer.ErrUserCancelled) {
-		return nil
-	}
 	if err == nil && !installCfg.DryRun {
 		saveSyncSourceIfRemote(installCfg)
 	}
@@ -167,14 +171,20 @@ func runInstallCmd(cmd *cobra.Command, args []string) error { //nolint:gocyclo /
 }
 
 // shouldLaunchWizard reports whether this run gets the full-screen wizard
-// (boot probe → select → live install) on a TTY: a bare `openboot install`,
+// (boot probe → select → git → review) on a TTY: a bare `openboot install`,
 // or a valid preset (-p / OPENBOOT_PRESET / positional), which enters the
 // wizard with that loadout preselected on the select screen. Remote sources
-// (--from, -u, slug, sync), --silent, --dry-run, and --update keep their
-// existing flows.
+// (--from, -u, slug, sync), --silent, --update, and non-TTY runs keep their
+// dedicated flows. Dry-run is still interactive on a TTY; the returned plan
+// carries DryRun through the normal preview-only apply.
 func shouldLaunchWizard(src *installSource) bool {
-	return wizardSource(src) && !installCfg.Silent && !installCfg.DryRun &&
-		!installCfg.Update && system.HasTTY()
+	return wizardSource(src) && wizardMode(installCfg, system.HasTTY())
+}
+
+// wizardMode is the mode half of wizard routing. DryRun is intentionally not
+// checked: previewing changes changes apply semantics, not the planning UI.
+func wizardMode(cfg *config.Config, hasTTY bool) bool {
+	return !cfg.Silent && !cfg.Update && hasTTY
 }
 
 // wizardSource is the source-kind half of the wizard-routing decision, split
@@ -184,8 +194,8 @@ func wizardSource(src *installSource) bool {
 	case sourceNone:
 		return true
 	case sourcePreset:
-		// An unknown preset must keep the linear path, which rejects it with a
-		// clear error instead of silently opening an empty wizard.
+		// Keep this check defensive even though applyInstallSource validates the
+		// flag before routing.
 		_, ok := config.GetPreset(installCfg.Preset)
 		return ok
 	default:
@@ -236,7 +246,9 @@ func runConfigWizard(ctx context.Context, rc *config.RemoteConfig) error {
 	if err := applyReviewedPlan(ctx, plan); err != nil {
 		return err
 	}
-	saveSyncSourceIfRemote(installCfg)
+	if !installCfg.DryRun {
+		saveSyncSourceIfRemote(installCfg)
+	}
 	return nil
 }
 
@@ -356,6 +368,9 @@ func applyInstallSource(src *installSource) error {
 
 	case sourcePreset:
 		// installCfg.Preset is already set (by flag or resolvePositionalArg).
+		if _, ok := config.GetPreset(installCfg.Preset); !ok {
+			return fmt.Errorf("unknown preset %q (available: %s)", installCfg.Preset, strings.Join(config.GetPresetNames(), ", "))
+		}
 		return nil
 
 	case sourceSyncSource:

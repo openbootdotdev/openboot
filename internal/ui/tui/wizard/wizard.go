@@ -10,8 +10,9 @@
 //
 // Preset installs (-p) enter with the loadout preselected; remote-config
 // installs (slug, -u, --from, alias) enter config mode via RunForConfig, with
-// the config's own packages on the select screen. Non-interactive paths
-// (--silent, --dry-run, --update, no TTY) never reach the wizard.
+// the config's own packages on the select screen. TTY dry-runs use the same
+// planner and carry DryRun into apply; --silent, --update, and no-TTY paths do
+// not reach the wizard.
 package wizard
 
 import (
