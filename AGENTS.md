@@ -88,7 +88,7 @@ internal/
   diff/              # Pure-logic system-vs-config comparison
   dotfiles/          # Clone + stow with .openboot.bak backup
   httputil/          # HTTP Do() with rate-limit + Retry-After
-  installer/         # 7-step wizard orchestrator + snapshot restore
+  installer/         # Install planning + linear apply + snapshot restore
   macos/             # defaults write + app restart
   npm/               # Batch install with sequential fallback
   permissions/       # macOS screen-recording probe

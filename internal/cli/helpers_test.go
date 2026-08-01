@@ -10,19 +10,25 @@ import (
 
 func TestParseConflictError_MaxConfigsMessage(t *testing.T) {
 	tests := []struct {
-		name        string
-		body        []byte
-		wantContain string
+		name            string
+		body            []byte
+		wantContain     string
+		wantAlsoContain string
+		wantNotContain  string
 	}{
 		{
-			name:        "message field contains maximum",
-			body:        mustMarshalJSON(t, map[string]string{"message": "You have reached the maximum number of configs"}),
-			wantContain: "config limit reached",
+			name:            "message field contains maximum",
+			body:            mustMarshalJSON(t, map[string]string{"message": "You have reached the maximum number of configs"}),
+			wantContain:     "config limit reached",
+			wantAlsoContain: "https://openboot.dev/dashboard",
+			wantNotContain:  "openboot delete",
 		},
 		{
-			name:        "error field contains maximum",
-			body:        mustMarshalJSON(t, map[string]string{"error": "Maximum configs exceeded"}),
-			wantContain: "config limit reached",
+			name:            "error field contains maximum",
+			body:            mustMarshalJSON(t, map[string]string{"error": "Maximum configs exceeded"}),
+			wantContain:     "config limit reached",
+			wantAlsoContain: "https://openboot.dev/dashboard",
+			wantNotContain:  "openboot delete",
 		},
 		{
 			name:        "plain message field returned as-is",
@@ -51,6 +57,12 @@ func TestParseConflictError_MaxConfigsMessage(t *testing.T) {
 			err := parseConflictError(tt.body)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantContain)
+			if tt.wantAlsoContain != "" {
+				assert.Contains(t, err.Error(), tt.wantAlsoContain)
+			}
+			if tt.wantNotContain != "" {
+				assert.NotContains(t, err.Error(), tt.wantNotContain)
+			}
 		})
 	}
 }

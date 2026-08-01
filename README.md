@@ -167,10 +167,12 @@ openboot snapshot --publish         # Upload to openboot.dev
 openboot snapshot --import FILE     # Restore from a snapshot file
 
 openboot login / logout             # openboot.dev auth
+openboot doctor                     # Check system health and diagnose issues
+openboot update                     # Update, pin, or roll back OpenBoot
 openboot version                    # Print version
 ```
 
-Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `setup-agent`, `doctor`, `update`. See [CHANGELOG.md](CHANGELOG.md) for migration.
+Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `setup-agent`. See [CHANGELOG.md](CHANGELOG.md) for migration.
 
 </details>
 
