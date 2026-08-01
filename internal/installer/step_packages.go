@@ -116,25 +116,22 @@ func applyPackages(ctx context.Context, plan InstallPlan, r Reporter) error { //
 			}
 		}
 
-		var stateSkippedCli, stateSkippedCask []string
+		stateSkipped := 0
 		for _, pkg := range cliPkgs {
 			if !state.isFormulaInstalled(pkg) {
 				newCli = append(newCli, pkg)
 			} else {
-				stateSkippedCli = append(stateSkippedCli, pkg)
+				stateSkipped++
 			}
 		}
 		for _, pkg := range caskPkgs {
 			if !state.isCaskInstalled(pkg) {
 				newCask = append(newCask, pkg)
 			} else {
-				stateSkippedCask = append(stateSkippedCask, pkg)
+				stateSkipped++
 			}
 		}
-		// Streaming invariant: state-file skips still produce terminal events.
-		brew.EmitSkipped(stateSkippedCli, stateSkippedCask)
 
-		stateSkipped := len(stateSkippedCli) + len(stateSkippedCask)
 		if stateSkipped > 0 {
 			r.Muted(fmt.Sprintf("Skipping %d packages from previous install", stateSkipped))
 		}
@@ -211,18 +208,15 @@ func applyNpm(ctx context.Context, plan InstallPlan, r Reporter) error { //nolin
 			}
 		}
 
-		var stateSkippedNpm []string
+		stateSkipped := 0
 		for _, pkg := range npmPkgs {
 			if !state.isNpmInstalled(pkg) {
 				newNpm = append(newNpm, pkg)
 			} else {
-				stateSkippedNpm = append(stateSkippedNpm, pkg)
+				stateSkipped++
 			}
 		}
-		// Streaming invariant: state-file skips still produce terminal events.
-		npm.EmitSkipped(stateSkippedNpm)
 
-		stateSkipped := len(stateSkippedNpm)
 		if stateSkipped > 0 {
 			r.Muted(fmt.Sprintf("Skipping %d npm packages from previous install", stateSkipped))
 		}
