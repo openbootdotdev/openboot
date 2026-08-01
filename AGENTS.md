@@ -115,7 +115,7 @@ scripts/
 |------|----------|-------|
 | Add CLI command | `internal/cli/` | Register in `root.go init()`, follow cobra pattern |
 | Change install flow | `internal/installer/installer.go` | plan -> apply orchestrator; `PlanFromSelection` builds a plan from TUI picks |
-| Change interactive install TUI | `internal/ui/tui/wizard/` | Redesign v5: boot/select/install screens; live install streams `internal/progress` events (brew/npm `SetProgressSink`) |
+| Change interactive install TUI | `internal/ui/tui/wizard/` | Redesign v5 planning screens: boot -> select -> git -> review; apply starts only after the wizard exits |
 | Change sync behavior | `internal/sync/diff.go`, `internal/sync/plan.go` | Diff -> confirm -> execute |
 | Add package category | `openboot.dev/src/lib/package-metadata.ts` | Server is source of truth; CLI fetches `/api/packages` and caches 24h in `~/.openboot/packages-cache.json`. `data/packages.yaml` is fallback only. |
 | Modify presets | `internal/config/data/presets.yaml` | 3 presets: minimal, developer, full |
