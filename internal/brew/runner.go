@@ -14,11 +14,11 @@ import (
 //
 // Coverage notes — the following call sites remain outside the Runner because
 // they need features Runner does not express cleanly:
-//   - progress-stream install path (brew_install.go: brewInstallCmd / Install /
+//   - progress-aware install path (brew_install.go: brewInstallCmd / Install /
 //     InstallCask / installCaskWithProgress / brewCombinedOutputWithTTY /
 //     installFormulaWithError / installSmartCaskWithError) — these rely on
-//     the HOMEBREW_NO_AUTO_UPDATE env var plus custom stdout pipe wiring for
-//     StickyProgress and TTY stdin for sudo prompts.
+//     the HOMEBREW_NO_AUTO_UPDATE env var plus custom output capture and TTY
+//     stdin for sudo prompts.
 type Runner interface {
 	// Output runs `brew args...` and returns stdout only.
 	Output(args ...string) ([]byte, error)
