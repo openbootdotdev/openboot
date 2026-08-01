@@ -51,9 +51,10 @@ Three regulation categories:
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |
-| Behav. | L4 VM e2e (`vm`) — full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (macos-14 runner, two parallel jobs) |
+| Behav. | L4 VM e2e (`vm`) — required full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (`vm-e2e` required check on a macos-14 runner) |
+| Behav. | `install.sh` upgrade over an existing install — tap refresh, upgrade, reinstall fallback, and resolved-version reporting with fake Homebrew/OpenBoot commands | L1 | `test/integration/install_script_test.go` |
 | Behav. | Install-wizard TUI on a real pty — L3: launch/quit smoke + full keyboard choreography (stops before confirm, installs nothing); L4: same key sequence through a real install via `expect(1)`, asserting brew/git system state | L3 at release, L4 every PR | `test/e2e/install_wizard_e2e_test.go`, `test/e2e/install_wizard_vm_test.go` |
-| Behav. | curl\|bash smoke (install.sh + mock server) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
+| Behav. | curl\|bash smoke (install.sh + mock server) | push to main / dispatch | `.github/workflows/test.yml` `curl-bash-smoke` job |
 | Behav. | Auto-release sensor — patch fast lane (`fix:`-only) auto-tags + dispatches `release.yml`; feat threshold opens a `release-ready` issue (check L4 CI green, then tag manually) | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
@@ -76,7 +77,7 @@ When you observe a recurring issue, decide where to encode the fix:
 | "Agent doesn't know about preset X." | Update `internal/config/data/presets.yaml`. Source of truth, not docs. |
 | "Agent introduced a new lint failure that golangci-lint should have caught." | Enable the relevant linter in `.golangci.yml`. |
 | "Agent broke a behaviour that has no test." | Write the test at the right tier — L1 covers both faked-runner units in `internal/<pkg>/` and real-subprocess integration in `test/integration/`. |
-| "A shipped release reached nobody: `install.sh`'s already-installed branch prompted on stdin, which under `curl \| bash` is the script itself, so it always took the don't-upgrade default." | Already handled by the `installsh` archtest. The wider lesson the sensor does *not* cover: `curl-bash-smoke` is gated `if: github.event_name != 'pull_request'` and only exercises the mock-server path, so the real `scripts/install.sh` brew branch has no behavioural test. Upgrade-over-existing-install is the case to add. |
+| "A shipped release reached nobody: `install.sh`'s already-installed branch prompted on stdin, which under `curl \| bash` is the script itself, so it always took the don't-upgrade default." | The `installsh` archtest blocks stdin prompts, and `TestIntegration_InstallScript_ExistingInstallUpgrade` drives the real script through piped stdin with fake commands to pin tap refresh, upgrade, reinstall fallback, and version reporting. |
 | "Agent missed an AGENTS.md rule we keep restating." | Make it a hard or soft archtest rule (a docs rule that doesn't fail is a docs rule that drifts). |
 | "Agent did something safe but suboptimal." | Add to AGENTS.md "Project-specific conventions" and consider whether it's encodable. |
 | "Agent guessed at an API contract." | Update `openboot-contract` repo + fixtures; CI already runs schema validation. |
@@ -119,9 +120,8 @@ it survives doc rot.
 - **L4 runs on GitHub Actions, not a self-hosted runner.** `macos-14`
   runners are Apple Silicon VMs — each job gets a fresh clean macOS
   environment, which is exactly what L4 needs. Tart is no longer required.
-  The L4 workflow (`vm-e2e-spike.yml`) is not yet a hard merge gate (not in
-  `required-checks.txt`); it runs on every PR. Promoting it to a required
-  check is the next step once the workflow has proven stable.
+  The L4 workflow (`vm-e2e-spike.yml`) runs on every PR as the required
+  `vm-e2e` merge check.
 
 ## How agents should think about this file
 

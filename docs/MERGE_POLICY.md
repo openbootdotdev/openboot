@@ -21,6 +21,7 @@ Runs on every PR. Must pass before merge.
 |---|---|---|
 | `lint` | Test | Catches gofmt / gosec / staticcheck issues that block release builds. |
 | `unit (L1)` | Test | Unit + integration + contract: faked-runner Go tests *and* real `brew` / `git` / `npm` against temp dirs. Includes `internal/archtest` fitness rules. |
+| `vm-e2e` | vm-e2e-spike | Exercises the destructive install paths and TUI choreography on a fresh Apple Silicon macOS VM. |
 
 ### Post-merge (runs on push to `main`)
 
@@ -38,7 +39,6 @@ the auto-release sensor can tag. Runs on `workflow_dispatch` and
 
 | Check | Status | Reason |
 |---|---|---|
-| `macos e2e (L4)` | runs only on tag pushes / manual dispatch | Slow + destructive; runs at release time, not per PR. |
 | Harness drift sensors (`govulncheck`, `deadcode`, `mod-tidy diff`, `archtest stale baseline`) | `continue-on-error: true` | Informational by design. Failures surface as annotations and, on `main`, open tracking issues via `drift-to-issue.yml`. |
 | `codecov/patch` | informational | Coverage threshold is a guideline, not a gate. Hard coverage gates push toward test-shaped code without raising actual quality. |
 
@@ -56,7 +56,7 @@ the auto-release sensor can tag. Runs on `workflow_dispatch` and
   add it to this list. Promote a check to required by editing this doc
   and updating branch protection in the same PR.
 
-## Why these two
+## Why these three
 
 Each required check covers a class of regression that has shipped to
 users in past commits:
@@ -65,6 +65,9 @@ users in past commits:
 - `unit (L1)` is the broadest behaviour check — covers both faked-runner
   unit logic and real-subprocess integration drift (brew flag changes,
   `git` exit-code shifts between macOS versions).
+- `vm-e2e` (L4) covers the destructive and terminal-dependent paths that
+  cannot safely run inside L1, including real Homebrew installs and the
+  install-wizard choreography on a fresh macOS VM.
 
 The three heavier checks (`contract schema (L2)`, `curl|bash smoke`,
 `old-cli compat`) still run on every merge to `main` — they just don't

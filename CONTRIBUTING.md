@@ -37,7 +37,7 @@ Tests are split across four tiers. Which one runs where:
 | **L1 Unit + Integration + Contract** | Pure-Go logic with faked `Runner` *plus* real `brew` / `git` / `npm` against temp dirs and real `httptest` servers | `make test-unit` (~75s) | Every push (pre-push hook); CI on push/PR |
 | **L2 Contract schema** | JSON schema validation against [openboot-contract](https://github.com/openbootdotdev/openboot-contract) | (runs in CI only) | CI on push/PR |
 | **L3 E2E binary** | Compiled binary driven by scripts; `-tags=e2e` | `make test-e2e` | CI on release |
-| **L4 VM e2e** | Full destructive suite (`-tags="e2e,vm"`). Installs real packages, modifies `~/.zshrc`, writes `defaults`. Each run requires a clean macOS host (Apple Silicon). | CI only — `vm-e2e-spike.yml` on `macos-14` | **CI** — GitHub Actions `macos-14` runner, two parallel jobs. No local target. |
+| **L4 VM e2e** | Full destructive suite (`-tags="e2e,vm"`). Installs real packages, modifies `~/.zshrc`, writes `defaults`. Each run requires a clean macOS host (Apple Silicon). | CI only — `vm-e2e-spike.yml` on `macos-14` | Every PR as the required `vm-e2e` check. No local target. |
 
 Rules of thumb:
 

@@ -10,3 +10,4 @@
 
 lint
 unit (L1)
+vm-e2e
