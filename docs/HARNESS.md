@@ -46,7 +46,7 @@ Three regulation categories:
 | Arch. | `no-raw-http` | L1 | `internal/archtest/http_test.go` |
 | Arch. | `no-os-getenv-home` | L1 | `internal/archtest/envhome_test.go` |
 | Arch. | `dryrun` — destructive ops must check `DryRun` | L1 | `internal/archtest/dryrun_test.go` |
-| Arch. | `no-raw-fmtprint` — UI output via `ui.*` helpers, not raw `fmt.Print*` | L1 | `internal/archtest/fmtprint_test.go` |
+| Arch. | `fmtprint` — UI output via `ui.*` helpers, not raw `fmt.Print*` | L1 | `internal/archtest/fmtprint_test.go` |
 | Arch. | `install.sh` must not prompt on stdin — under `curl \| bash` stdin is the script | L1 | `internal/archtest/installsh_test.go` |
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
@@ -94,10 +94,6 @@ it survives doc rot.
 - **No coverage gate that fails PRs.** Coverage is informational
   (`codecov.yml` `informational: true`). Hard coverage gates push toward
   test-shaped code without raising actual quality.
-- **No fmt.Print/Println archtest rule yet.** The convention exists in
-  AGENTS.md but the codebase has ~150 existing call sites and the rule
-  would be mostly noise. Reconsider after the UI helpers cover all the
-  cases currently using raw stdout.
 - **No agent-driven changes to `main` without human review.** All AI
   changes go through PR review and the existing CI matrix.
 - **No retroactive refactors triggered by new archtest rules.** New rules

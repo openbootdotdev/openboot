@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	progresspkg "github.com/openbootdotdev/openboot/internal/progress"
 	"github.com/openbootdotdev/openboot/internal/system"
 	"github.com/openbootdotdev/openboot/internal/ui"
 )
@@ -110,27 +109,23 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 	// Casks don't have an alias system, so we skip resolution for them.
 	aliasMap := ResolveFormulaNames(cliPkgs)
 
-	var newCli, skippedCli []string
+	var newCli []string
 	for _, p := range cliPkgs {
 		resolvedName := aliasMap[p]
 		if !alreadyFormulae[resolvedName] {
 			newCli = append(newCli, p)
 		} else {
 			installedFormulae = append(installedFormulae, resolvedName)
-			skippedCli = append(skippedCli, p)
 		}
 	}
-	var newCask, skippedCask []string
+	var newCask []string
 	for _, p := range caskPkgs {
 		if !alreadyCasks[p] {
 			newCask = append(newCask, p)
 		} else {
 			installedCasks = append(installedCasks, p)
-			skippedCask = append(skippedCask, p)
 		}
 	}
-	// Streaming invariant: skipped packages still produce a terminal event.
-	EmitSkipped(skippedCli, skippedCask)
 
 	skipped := total - len(newCli) - len(newCask)
 	if skipped > 0 {
@@ -147,14 +142,9 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 		return installedFormulae, installedCasks, preErr
 	}
 
-	// bar stays nil when a streaming sink is registered — the sink owns the
-	// terminal, so we emit events instead of drawing a sticky progress bar.
-	var bar *ui.StickyProgress
-	if !streaming() {
-		bar = ui.NewStickyProgress(len(newCli) + len(newCask))
-		bar.SetSkipped(skipped)
-		bar.Start()
-	}
+	bar := ui.NewStickyProgress(len(newCli) + len(newCask))
+	bar.SetSkipped(skipped)
+	bar.Start()
 
 	var allFailed []failedJob
 
@@ -178,9 +168,7 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 		allFailed = append(allFailed, caskFailed...)
 	}
 
-	if bar != nil {
-		bar.Finish()
-	}
+	bar.Finish()
 
 	allFailed = retryFailedJobs(ctx, allFailed, &installedFormulae, &installedCasks, aliasMap)
 
@@ -198,18 +186,17 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 }
 
 // installCasksWithProgress installs cask packages one by one with brew output
-// suppressed. Returns successful installs and failed jobs. bar is nil when a
-// streaming progress sink is registered.
+// suppressed. Returns successful installs and failed jobs.
 func installCasksWithProgress(ctx context.Context, pkgs []string, bar *ui.StickyProgress) (installed []string, failed []failedJob) {
 	for _, pkg := range pkgs {
-		stepStart(bar, progresspkg.PhaseApplications, pkg, "brew install --cask "+pkg)
+		stepStart(bar, pkg)
 
 		start := time.Now()
 		errMsg := installCaskWithProgress(ctx, pkg)
 		elapsed := time.Since(start)
 
 		duration := ui.FormatDuration(elapsed)
-		stepDone(bar, progresspkg.PhaseApplications, pkg, errMsg == "", errMsg, duration)
+		stepDone(bar, pkg, errMsg == "", errMsg, duration)
 		if errMsg == "" {
 			installed = append(installed, pkg)
 		} else {
@@ -232,16 +219,6 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 	ui.Printf("\nRetrying %d failed packages...\n", len(allFailed))
 
 	for _, f := range allFailed {
-		phase := progresspkg.PhaseHomebrew
-		if f.isCask {
-			phase = progresspkg.PhaseApplications
-		}
-		// Streaming: the retry outcome supersedes the earlier StepFail in the
-		// log; without these events the wizard would show ✗ for a package
-		// that actually installed on retry.
-		if streaming() {
-			progressSink.Emit(progresspkg.Event{Phase: phase, Name: f.name, Status: progresspkg.StepStart, Command: "retrying " + f.name})
-		}
 		var errMsg string
 		if f.isCask {
 			errMsg = installSmartCaskWithError(ctx, f.name)
@@ -249,22 +226,14 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 			errMsg = installFormulaWithError(ctx, f.name)
 		}
 		if errMsg == "" {
-			if streaming() {
-				progressSink.Emit(progresspkg.Event{Phase: phase, Name: f.name, Status: progresspkg.StepOK, Detail: "retry succeeded"})
-			} else {
-				ui.Printf("  ✔ %s (retry succeeded)\n", f.name)
-			}
+			ui.Printf("  ✔ %s (retry succeeded)\n", f.name)
 			if f.isCask {
 				*installedCasks = append(*installedCasks, f.name)
 			} else {
 				*installedFormulae = append(*installedFormulae, aliasMap[f.name])
 			}
 		} else {
-			if streaming() {
-				progressSink.Emit(progresspkg.Event{Phase: phase, Name: f.name, Status: progresspkg.StepFail, Detail: "still failed: " + errMsg})
-			} else {
-				ui.Printf("  ✗ %s (still failed)\n", f.name)
-			}
+			ui.Printf("  ✗ %s (still failed)\n", f.name)
 		}
 	}
 
@@ -307,8 +276,7 @@ func handleFailedJobs(failed []failedJob) {
 	}
 }
 
-// runSerialInstallWithProgress installs formulae one by one. bar is nil when a
-// streaming progress sink is registered.
+// runSerialInstallWithProgress installs formulae one by one.
 func runSerialInstallWithProgress(ctx context.Context, pkgs []string, bar *ui.StickyProgress) []failedJob {
 	if len(pkgs) == 0 {
 		return nil
@@ -317,14 +285,14 @@ func runSerialInstallWithProgress(ctx context.Context, pkgs []string, bar *ui.St
 	failed := make([]failedJob, 0)
 	for _, pkg := range pkgs {
 		job := installJob{name: pkg, isCask: false}
-		stepStart(bar, progresspkg.PhaseHomebrew, job.name, "brew install "+job.name)
+		stepStart(bar, job.name)
 
 		start := time.Now()
 		errMsg := installFormulaWithError(ctx, job.name)
 		elapsed := time.Since(start)
 
 		duration := ui.FormatDuration(elapsed)
-		stepDone(bar, progresspkg.PhaseHomebrew, job.name, errMsg == "", errMsg, duration)
+		stepDone(bar, job.name, errMsg == "", errMsg, duration)
 		if errMsg == "" {
 			continue
 		}
@@ -347,9 +315,9 @@ func installCaskWithProgress(ctx context.Context, pkg string) string {
 }
 
 // Runner-exempt: this helper sets HOMEBREW_NO_AUTO_UPDATE=1 and returns a raw
-// *exec.Cmd so callers can wire custom stdout pipes (StickyProgress streaming)
-// and TTY stdin (sudo prompts for cask installs). The Runner interface cannot
-// express either of those cleanly, so Install / InstallCask /
+// *exec.Cmd so callers can attach or capture output and wire TTY stdin (sudo
+// prompts for cask installs). The Runner interface cannot express those needs
+// cleanly, so Install / InstallCask /
 // installCaskWithProgress / brewCombinedOutputWithTTY / installFormulaWithError
 // / installSmartCaskWithError continue to use this helper directly.
 func brewInstallCmd(ctx context.Context, args ...string) *exec.Cmd {
@@ -360,19 +328,12 @@ func brewInstallCmd(ctx context.Context, args ...string) *exec.Cmd {
 
 // brewCombinedOutputWithTTY runs a brew command capturing combined output while
 // providing a TTY for stdin so that sudo password prompts work.
-//
-// In streaming mode the TUI owns the terminal in raw mode: a sudo prompt would
-// be invisible and its keystrokes swallowed by the TUI's input reader, hanging
-// the install. Withholding the TTY makes sudo fail fast instead, surfacing a
-// visible step failure.
 func brewCombinedOutputWithTTY(ctx context.Context, args ...string) (string, error) {
 	cmd := brewInstallCmd(ctx, args...)
-	if !streaming() {
-		tty, opened := system.OpenTTY()
-		if opened {
-			cmd.Stdin = tty
-			defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
-		}
+	tty, opened := system.OpenTTY()
+	if opened {
+		cmd.Stdin = tty
+		defer tty.Close() //nolint:errcheck // best-effort TTY cleanup
 	}
 	output, err := cmd.CombinedOutput()
 	return string(output), err
