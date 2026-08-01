@@ -70,23 +70,33 @@ jobs:
 
   contract:
     name: contract schema (L2)
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Checkout contract
+        uses: actions/checkout@v4
+        with:
+          repository: openbootdotdev/openboot-contract
+          ref: ${{ github.event.client_payload.ref || 'main' }}
+          path: .contract
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
       - name: Contract schema validation
         run: |
-          git clone --depth 1 https://github.com/openbootdotdev/openboot-contract.git /tmp/contract
           pip3 install --break-system-packages jsonschema
 
           python3 -c "
           import json, jsonschema, sys
 
           checks = [
-            ('/tmp/contract/schemas/remote-config.json', '/tmp/contract/fixtures/config-v1.json'),
-            ('/tmp/contract/schemas/snapshot.json', '/tmp/contract/fixtures/snapshot-v1.json'),
+            ('.contract/schemas/remote-config.json', '.contract/fixtures/config-v1.json'),
+            ('.contract/schemas/snapshot.json', '.contract/fixtures/snapshot-v1.json'),
           ]
 
           failed = 0
@@ -103,9 +113,13 @@ jobs:
           sys.exit(1 if failed else 0)
           "
 
+      - name: Verify CLI consumes canonical fixtures losslessly
+        env:
+          OPENBOOT_CONTRACT_DIR: ${{ github.workspace }}/.contract
+        run: go test -v -tags=contract ./test/contract
+
   curl-bash-smoke:
     name: curl|bash smoke
-    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -137,7 +151,6 @@ jobs:
 
   cli-compat:
     name: old-cli compat
-    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     steps:
       - name: Checkout code
