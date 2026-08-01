@@ -27,7 +27,7 @@ func parseConflictError(body []byte) error {
 			msg = errResp.Error
 		}
 		if msg != "" && strings.Contains(strings.ToLower(msg), "maximum") {
-			return errors.New("config limit reached (max 20): delete an existing config with 'openboot delete <slug>' first")
+			return errors.New("config limit reached (max 20): delete an existing config at https://openboot.dev/dashboard first")
 		}
 		if msg != "" {
 			return errors.New(msg)

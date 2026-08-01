@@ -29,6 +29,8 @@ from the baseline) are logged but do not fail the test.
 | `no-raw-http` | `http_test.go` | yes | "Use `httputil.Do()` — handles 429 + Retry-After" |
 | `no-os-getenv-home` | `envhome_test.go` | no (hard rule) | "Use `os.UserHomeDir()` — never hardcode `~` or `/Users/...`" |
 | `dryrun` | `dryrun_test.go` | yes | "Destructive ops: check `cfg.DryRun` first. Always." |
+| `fmtprint` | `fmtprint_test.go` | yes | "UI output must go through `ui.*` helpers" |
+| `installsh` | `installsh_test.go` | no (hard rule) | "`install.sh` must not prompt on stdin" |
 | `agent-config` | `agentconfig_test.go` | no (hard rule) | "Keep `AGENTS.md` and shared skills canonical across agent tools" |
 
 ## Workflow

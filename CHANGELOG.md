@@ -2,11 +2,11 @@
 
 ## v1.0 (unreleased)
 
-OpenBoot v1.0 narrows the product to two verbs: **`install`** (add things to your Mac) and **`snapshot`** (save your current state somewhere). Everything else is either cloud-config CRUD or independent tooling.
+OpenBoot v1.0 narrows the core workflow to two verbs: **`install`** (add things to your Mac) and **`snapshot`** (save your current state somewhere). The supporting **`doctor`** and **`update`** maintenance commands remain available; everything else is either cloud-config CRUD or independent tooling.
 
 ### Breaking changes
 
-Six commands are removed outright. Each prints an error with a migration hint when invoked:
+Eight commands are removed outright:
 
 | Removed | Use instead |
 |---------|-------------|
@@ -18,8 +18,6 @@ Six commands are removed outright. Each prints an error with a migration hint wh
 | `openboot restore` | **no replacement** — version history is dropped |
 | `openboot init` | **no replacement** — use your project's own tooling (npm/pip/go/cargo) |
 | `openboot setup-agent` | **no replacement** — existed only to service `openboot init` |
-| `openboot doctor` | **no replacement** — use `brew doctor` and `git config --list` directly |
-| `openboot update` | **no replacement** — use `brew upgrade` directly; OpenBoot self-updates on launch |
 
 Three flat commands are removed with no replacement — manage configs directly at openboot.dev:
 
