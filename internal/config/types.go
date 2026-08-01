@@ -28,7 +28,7 @@ type InstallOptions struct {
 // InstallState holds runtime values populated during installation.
 // Fields are written by installer steps and read by subsequent steps.
 type InstallState struct {
-	SelectedPkgs         map[string]bool    // set by UI package selector
+	SelectedPkgs         map[string]bool    // set by the wizard or preset planner
 	OnlinePkgs           []Package          // fetched from packages API
 	SnapshotTaps         []string           // from snapshot capture
 	RemoteConfig         *RemoteConfig      // fetched from openboot.dev at startup

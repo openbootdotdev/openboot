@@ -42,48 +42,9 @@ func TestDefaultPreferences_DerivedFromCategories(t *testing.T) {
 func TestDefaultPreferences_NoDuplicateKeys(t *testing.T) {
 	seen := make(map[string]bool)
 	for _, p := range DefaultPreferences {
-		k := PrefKey(p)
-		assert.False(t, seen[k], "duplicate PrefKey %q", k)
+		k := p.Domain + "/" + p.Key
+		assert.False(t, seen[k], "duplicate preference key %q", k)
 		seen[k] = true
-	}
-}
-
-func TestPrefKey_Format(t *testing.T) {
-	p := Preference{Domain: "com.apple.finder", Key: "ShowPathbar"}
-	assert.Equal(t, "com.apple.finder/ShowPathbar", PrefKey(p))
-}
-
-func TestPrefKey_UniqueAcrossCategories(t *testing.T) {
-	keys := make(map[string]bool)
-	for _, cat := range DefaultCategories {
-		for _, p := range cat.Prefs {
-			k := PrefKey(p)
-			assert.False(t, keys[k], "duplicate PrefKey %q in categories", k)
-			keys[k] = true
-		}
-	}
-}
-
-func TestAllPrefsSelected_CountMatchesDefaultPreferences(t *testing.T) {
-	selected := AllPrefsSelected()
-	assert.Equal(t, len(DefaultPreferences), len(selected))
-}
-
-func TestAllPrefsSelected_AllTrue(t *testing.T) {
-	selected := AllPrefsSelected()
-	for k, v := range selected {
-		assert.True(t, v, "expected preference %q to be selected", k)
-	}
-}
-
-func TestAllPrefsSelected_KeysMatchDefaultCategories(t *testing.T) {
-	selected := AllPrefsSelected()
-	for _, cat := range DefaultCategories {
-		for _, p := range cat.Prefs {
-			k := PrefKey(p)
-			_, ok := selected[k]
-			assert.True(t, ok, "expected key %q to be present in AllPrefsSelected", k)
-		}
 	}
 }
 

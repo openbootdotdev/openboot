@@ -7,7 +7,6 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.0
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/lipgloss v1.0.0
-	github.com/sahilm/fuzzy v0.1.1
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/term v0.39.0

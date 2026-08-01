@@ -270,11 +270,6 @@ func TestGetStatePath(t *testing.T) {
 	assert.True(t, filepath.IsAbs(path))
 }
 
-func TestErrUserCancelled(t *testing.T) {
-	assert.Error(t, ErrUserCancelled)
-	assert.Equal(t, "user cancelled", ErrUserCancelled.Error())
-}
-
 func TestInstallState_OnlySuccessfulPackagesMarked(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)

@@ -47,7 +47,7 @@ Core flow: `openboot install` orchestrates plan -> apply in `internal/installer/
 
 **The wizard plans; the apply is always linear.** On a TTY the planning phase runs as a full-screen TUI in `internal/ui/tui/wizard/` (boot probe -> select -> git -> review), then the wizard *exits* and hands its `InstallPlan` to `installer.ApplyReviewedPlan`, which applies it on the normal terminal with `ConsoleReporter` + `ui.StickyProgress`. This split is deliberate: a TUI is right for browsing a 100+ package catalog, and wrong for the apply — an alt-screen install discards its own output when it exits, so twenty minutes of package results and failures vanish. Streamed into the scrollback they stay where the user can scroll back, copy an error, and pipe it. Don't move the apply back inside the alt-screen.
 
-Entry points: bare `install` -> `wizard.Run`; `-p <preset>` -> same, loadout preselected; slug/`-u`/`--from`/alias -> `wizard.RunForConfig` (config mode: the config's own packages on the select screen, preselected). Sync-source installs keep their linear diff pre-flight and apply linearly. `--silent`, `--dry-run`, `--update`, `--pick`, and non-TTY runs never enter the wizard.
+Entry points: bare `install` -> `wizard.Run`; `-p <preset>` -> same, loadout preselected; slug/`-u`/`--from`/alias -> `wizard.RunForConfig` (config mode: the config's own packages on the select screen, preselected). TTY `--dry-run` uses the same wizard and carries preview-only semantics into apply. Sync-source installs keep their linear diff pre-flight and apply linearly. `--silent`, `--update`, `--pick`, and non-TTY runs never enter the wizard.
 
 ## Working in parallel
 

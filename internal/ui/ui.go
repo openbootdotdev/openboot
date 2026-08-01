@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/system"
 )
 
@@ -174,30 +173,6 @@ func InputGitConfig() (name, email string, err error) {
 
 	err = form.Run()
 	return
-}
-
-func SelectPreset() (string, error) {
-	var preset string
-
-	options := make([]huh.Option[string], 0)
-	for _, name := range config.GetPresetNames() {
-		p, _ := config.GetPreset(name)
-		label := fmt.Sprintf("%s - %s", name, p.Description)
-		options = append(options, huh.NewOption(label, name))
-	}
-	options = append(options, huh.NewOption("scratch - Start from scratch (select individual packages)", "scratch"))
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Choose your preset").
-				Options(options...).
-				Value(&preset),
-		),
-	)
-
-	err := form.Run()
-	return preset, err
 }
 
 func Confirm(question string, defaultVal bool) (bool, error) {

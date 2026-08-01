@@ -304,6 +304,17 @@ func TestPlanInteractive_DryRun_Minimal_AllSkipped(t *testing.T) {
 	assert.False(t, plan.InstallOhMyZsh)
 }
 
+func TestPlanPackages_UnknownPresetRejected(t *testing.T) {
+	opts := &config.InstallOptions{Preset: "not-a-preset"}
+	st := &config.InstallState{}
+	plan := InstallPlan{}
+
+	err := planPackages(opts, st, &plan)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown preset "not-a-preset"`)
+	assert.Nil(t, st.SelectedPkgs)
+}
+
 // ---------------------------------------------------------------------------
 // PlanFromSnapshot
 // ---------------------------------------------------------------------------
