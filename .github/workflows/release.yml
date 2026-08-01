@@ -65,6 +65,7 @@ jobs:
         run: make test-unit
 
   vm-e2e:
+    name: release vm-e2e (L4)
     needs: gate-tests
     runs-on: macos-14
     timeout-minutes: 60
