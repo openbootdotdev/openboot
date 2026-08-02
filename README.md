@@ -185,6 +185,7 @@ Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `set
     --from FILE        Install from a local config or snapshot JSON file
 -s, --silent           Non-interactive mode (requires env vars)
     --dry-run          Preview what would be installed
+    --pick NAMES       Comma-separated packages to install from a remote config
     --packages-only    Install packages only, skip system config
     --update           Update Homebrew before installing
     --shell MODE       Shell setup: install, skip

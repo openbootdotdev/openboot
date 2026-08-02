@@ -1,29 +1,29 @@
 # SYNC PACKAGE
 
-Compute diff + execute plan for syncing a remote config with the local system. 3 source files + 3 test files, 1,040 lines.
+Compute diff + execute plan for syncing a remote config with the local system.
 
 ## FILES
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `source.go` | 95 | `SyncSource` struct + Load/Save/Delete to `~/.openboot/sync_source.json` |
-| `diff.go` | 239 | `SyncDiff` struct + `ComputeDiff()` comparing remote config vs local system |
-| `plan.go` | 196 | `SyncPlan` struct + `Execute()` applying selected changes via brew/npm/shell/macos |
+| `source.go` | 102 | `SyncSource` struct + Load/Save/Delete to `~/.openboot/sync_source.json` |
+| `diff.go` | 280 | `SyncDiff` struct + `ComputeDiff()` comparing remote config vs local system |
+| `plan.go` | 212 | `SyncPlan` struct + `Execute()`/`ExecuteContext()` applying selected changes via brew/npm/shell/macos |
 
 ## HOW IT WORKS
 
 ```
 openboot install user/config   →   saves SyncSource to disk
                                      ↓
-openboot sync                  →   loads SyncSource
+openboot install (no args)     →   loads SyncSource (cli/install.go runSyncInstall)
                                      ↓
                                →   fetches latest RemoteConfig
                                      ↓
                                →   ComputeDiff(rc) compares remote vs local
                                      ↓
-                               →   user selects changes in TUI (cli/sync.go)
+                               →   3-way prompt: install / customize / cancel (cli/sync_helpers.go)
                                      ↓
-                               →   Execute(plan, dryRun) applies changes
+                               →   ExecuteContext(ctx, plan, dryRun) applies additions
 ```
 
 ## SOURCE PERSISTENCE (source.go)
@@ -49,11 +49,11 @@ Key types:
 - `ShellDiff` — theme/plugins changes
 - `MacOSPrefDiff` — per-preference domain/key/value diff
 
-Helper: `ToSet([]string) map[string]bool` — exported for use in `cli/sync.go`
+Helper: `ToSet([]string) map[string]bool` — exported wrapper around the `diff` package's `ToSet`
 
 ## PLAN EXECUTION (plan.go)
 
-`Execute(plan *SyncPlan, dryRun bool) (*SyncResult, error)`:
+`Execute(plan *SyncPlan, dryRun bool)` / `ExecuteContext(ctx, plan, dryRun) (*SyncResult, error)`:
 
 Execution order (dependency-aware):
 1. Install taps (other packages may depend on them)
@@ -62,6 +62,10 @@ Execution order (dependency-aware):
 4. Update dotfiles (clone)
 5. Update shell (theme + plugins via `shell.RestoreFromSnapshot`)
 6. Apply macOS preferences (via `macos.Configure`)
+
+The uninstall branches remain implemented, but since v1.0 no CLI path
+populates the `Uninstall*` fields — install is additive
+(`buildInstallPlan` in `cli/sync_helpers.go` never sets them).
 
 Error handling: Collects all errors via `errors.Join` (continues on failure).
 
@@ -83,11 +87,11 @@ Error handling: Collects all errors via `errors.Join` (continues on failure).
 
 - Pure logic functions (diffLists, ToSet, HasChanges, Totals, TotalActions, IsEmpty) have 100% coverage
 - `getLocalDotfilesURL` tested with temp git repo at 80%
-- `ComputeDiff` and `Execute` depend on external commands (brew, npm, git) — not unit-testable without interface refactoring. Exercise them via real-subprocess tests in `test/integration/` (run as part of L1, `make test-unit`).
+- `Execute` is unit-tested with faked `brew.Runner`/`npm.Runner` doubles (`execute_test.go`). `ComputeDiff` still captures via real commands (brew, npm, git) — exercise it via real-subprocess tests in `test/integration/` (run as part of L1, `make test-unit`).
 - Source persistence tested with `t.TempDir()` + `t.Setenv("HOME", tmpDir)` pattern
 
 ## WHEN MODIFYING
 
-- Adding a new diff category: Add fields to `SyncDiff`, update `HasChanges/TotalMissing/TotalExtra/TotalChanged`, add capture in `ComputeDiff`, update `cli/sync.go` TUI
-- Adding a new plan action: Add fields to `SyncPlan`, update `TotalActions`, add execution branch in `Execute`, update `cli/sync.go` `buildSyncPlan`
+- Adding a new diff category: Add fields to `SyncDiff`, update `HasChanges/TotalMissing/TotalExtra/TotalChanged`, add capture in `ComputeDiff`, update the printed diff in `cli/sync_helpers.go`
+- Adding a new plan action: Add fields to `SyncPlan`, update `TotalActions`, add execution branch in `Execute`, update `buildInstallPlan` in `cli/sync_helpers.go`
 - Changing persistence format: Update `SyncSource` struct — JSON tags are the wire format
