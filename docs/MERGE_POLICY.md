@@ -9,31 +9,21 @@ branch protection rules configured at:
 If the two ever drift, **GitHub is authoritative** — file a PR against
 this doc to bring it back in sync.
 
-## CI stages
+## Required checks (block merge)
 
-CI is split into two stages to keep PR feedback fast.
-
-### Pre-merge (required — blocks merge)
-
-Runs on every PR. Must pass before merge.
+All six run on every PR and again on push to `main`. There is no
+post-merge-only tier: every job in `.github/workflows/test.yml` fires on
+`push`, `pull_request`, `repository_dispatch`, and `workflow_dispatch`
+alike, and `vm-e2e` on `push` and `pull_request`.
 
 | Check | Workflow | Why required |
 |---|---|---|
 | `lint` | Test | Catches gofmt / gosec / staticcheck issues that block release builds. |
 | `unit (L1)` | Test | Unit + integration + contract: faked-runner Go tests *and* real `brew` / `git` / `npm` against temp dirs. Includes `internal/archtest` fitness rules. |
+| `contract schema (L2)` | Test | Validates remote-config / snapshot JSON against the `openboot-contract` schemas, and asserts the CLI decoders consume the canonical fixtures losslessly. |
+| `curl\|bash smoke` | Test | Builds binary + starts mock server. Confirms `scripts/install.sh` still bootstraps the CLI. |
+| `old-cli compat` | Test | Runs the previous release binary against the current mock server. Catches server-side changes that would break already-shipped CLIs. |
 | `vm-e2e` | vm-e2e-spike | Exercises the destructive install paths and TUI choreography on a fresh Apple Silicon macOS VM. |
-
-### Post-merge (runs on push to `main`)
-
-Does not block merge. Catches regressions on the merged state before
-the auto-release sensor can tag. Runs on `workflow_dispatch` and
-`repository_dispatch` too.
-
-| Check | Workflow | Why post-merge |
-|---|---|---|
-| `contract schema (L2)` | Test | Clones external repo + pip install — too slow for every PR. Validates remote-config / snapshot JSON against the `openboot-contract` schemas. |
-| `curl\|bash smoke` | Test | Builds binary + starts mock server — too slow for every PR. Confirms `scripts/install.sh` still bootstraps the CLI. |
-| `old-cli compat` | Test | Downloads previous release from GitHub — too slow and network-dependent for every PR. Catches server-side changes that would break already-shipped CLIs. |
 
 ### Not required (and why)
 
@@ -56,7 +46,7 @@ the auto-release sensor can tag. Runs on `workflow_dispatch` and
   add it to this list. Promote a check to required by editing this doc
   and updating branch protection in the same PR.
 
-## Why these three
+## Why these six
 
 Each required check covers a class of regression that has shipped to
 users in past commits:
@@ -65,14 +55,33 @@ users in past commits:
 - `unit (L1)` is the broadest behaviour check — covers both faked-runner
   unit logic and real-subprocess integration drift (brew flag changes,
   `git` exit-code shifts between macOS versions).
+- `contract schema (L2)` catches CLI ↔ server wire drift. Tolerant
+  decoders like `UnmarshalRemoteConfigFlexible` will silently repair,
+  move, or drop fields; only a canonical-fixture comparison notices.
+- `curl|bash smoke` catches breakage in the one install path every new
+  user takes, which no Go test exercises end to end.
+- `old-cli compat` catches server-side changes that break CLIs already
+  on users' machines — the one regression class the current binary's
+  own tests structurally cannot see.
 - `vm-e2e` (L4) covers the destructive and terminal-dependent paths that
   cannot safely run inside L1, including real Homebrew installs and the
   install-wizard choreography on a fresh macOS VM.
 
-The three heavier checks (`contract schema (L2)`, `curl|bash smoke`,
-`old-cli compat`) still run on every merge to `main` — they just don't
-block PRs, because they're too slow or network-dependent to require on
-every push to a feature branch.
+### The cost of requiring the network-dependent three
+
+`old-cli compat` downloads the previous GitHub release, and
+`contract schema (L2)` checks out `openboot-contract@main`. As *required*
+checks they make every merge depend on external state: a GitHub API
+blip, a yanked release asset, or a red `openboot-contract` main blocks
+all PRs, including ones that touch neither. That is the deliberate
+trade — the two regression classes they cover (shipped-CLI breakage and
+silent wire drift) are invisible to every other check, and a merge that
+introduces one is discovered by users rather than by CI.
+
+If external flakiness starts blocking unrelated work, the escape hatch
+is the documented bypass under *Operating principles*, not quietly
+dropping the contexts from protection while this doc still lists them —
+that is the exact drift this file exists to prevent.
 
 ## How to change this policy
 
@@ -81,6 +90,11 @@ The required-checks list has an in-repo source of truth:
 `required-checks alignment (drift)` sensor in
 [`.github/workflows/harness.yml`](../.github/workflows/harness.yml)
 fails on PRs that desync it from the workflow `name:` values.
+
+That sensor only compares the file against workflow job names — it has
+no visibility into live branch protection, so a context added or removed
+in the GitHub UI alone drifts silently. Step 3 below is the only thing
+that catches it.
 
 1. Open a PR that edits this file **and** `.github/required-checks.txt`
    with the proposed change.

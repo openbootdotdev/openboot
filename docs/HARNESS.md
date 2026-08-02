@@ -49,12 +49,12 @@ Three regulation categories:
 | Arch. | `fmtprint` — UI output via `ui.*` helpers, not raw `fmt.Print*` | L1 | `internal/archtest/fmtprint_test.go` |
 | Arch. | `install.sh` must not prompt on stdin — under `curl \| bash` stdin is the script | L1 | `internal/archtest/installsh_test.go` |
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
-| Behav. | L2 contract schema (against openboot-contract repo) | CI | `.github/workflows/test.yml` `contract` job |
+| Behav. | L2 contract schema (against openboot-contract repo) | every PR | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |
 | Behav. | L4 VM e2e (`vm`) — required full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (`vm-e2e` required check on a macos-14 runner) |
 | Behav. | `install.sh` upgrade over an existing install — tap refresh, upgrade, reinstall fallback, and resolved-version reporting with fake Homebrew/OpenBoot commands | L1 | `test/integration/install_script_test.go` |
 | Behav. | Install-wizard TUI on a real pty — L3: launch/quit smoke + full keyboard choreography (stops before confirm, installs nothing); L4: same key sequence through a real install via `expect(1)`, asserting brew/git system state | L3 at release, L4 every PR | `test/e2e/install_wizard_e2e_test.go`, `test/e2e/install_wizard_vm_test.go` |
-| Behav. | curl\|bash smoke (install.sh + mock server) | push to main / dispatch | `.github/workflows/test.yml` `curl-bash-smoke` job |
+| Behav. | curl\|bash smoke (install.sh + mock server) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
 | Behav. | Auto-release sensor — patch fast lane (`fix:`-only) auto-tags + dispatches `release.yml`; feat threshold opens a `release-ready` issue (check L4 CI green, then tag manually) | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
