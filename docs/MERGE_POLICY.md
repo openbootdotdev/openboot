@@ -9,31 +9,25 @@ branch protection rules configured at:
 If the two ever drift, **GitHub is authoritative** — file a PR against
 this doc to bring it back in sync.
 
-## CI stages
+## Required checks (block merge)
 
-CI is split into two stages to keep PR feedback fast.
+All six run on every PR. There is no post-merge-only tier: every job in
+`.github/workflows/test.yml` fires on `push` (to `main`/`master`),
+`pull_request`, `repository_dispatch` (`contract-updated`), and
+`workflow_dispatch` alike, with no job-level `if:` gating.
 
-### Pre-merge (required — blocks merge)
-
-Runs on every PR. Must pass before merge.
+`vm-e2e` is the exception in the other direction — it is **PR-only**. Its
+workflow's `push` trigger is scoped to the `test/vm-e2e-speed` spike
+branch, so it does not run on `main` at all.
 
 | Check | Workflow | Why required |
 |---|---|---|
 | `lint` | Test | Catches gofmt / gosec / staticcheck issues that block release builds. |
 | `unit (L1)` | Test | Unit + integration + contract: faked-runner Go tests *and* real `brew` / `git` / `npm` against temp dirs. Includes `internal/archtest` fitness rules. |
+| `contract schema (L2)` | Test | Validates remote-config / snapshot JSON against the `openboot-contract` schemas, and asserts the CLI decoders consume the canonical fixtures losslessly. |
+| `curl\|bash smoke` | Test | Builds the binary, starts `scripts/mock-server.py`, and pipes a served install script into `bash`, driving `openboot install -s -u <slug>` end to end against a mock API. Despite the name it does **not** exercise `scripts/install.sh` — that is covered in L1 by `test/integration/install_script_test.go`. |
+| `old-cli compat` | Test | Runs the previous release binary against the current mock server. Catches server-side changes that would break already-shipped CLIs. |
 | `vm-e2e` | vm-e2e-spike | Exercises the destructive install paths and TUI choreography on a fresh Apple Silicon macOS VM. |
-
-### Post-merge (runs on push to `main`)
-
-Does not block merge. Catches regressions on the merged state before
-the auto-release sensor can tag. Runs on `workflow_dispatch` and
-`repository_dispatch` too.
-
-| Check | Workflow | Why post-merge |
-|---|---|---|
-| `contract schema (L2)` | Test | Clones external repo + pip install — too slow for every PR. Validates remote-config / snapshot JSON against the `openboot-contract` schemas. |
-| `curl\|bash smoke` | Test | Builds binary + starts mock server — too slow for every PR. Confirms `scripts/install.sh` still bootstraps the CLI. |
-| `old-cli compat` | Test | Downloads previous release from GitHub — too slow and network-dependent for every PR. Catches server-side changes that would break already-shipped CLIs. |
 
 ### Not required (and why)
 
@@ -56,7 +50,7 @@ the auto-release sensor can tag. Runs on `workflow_dispatch` and
   add it to this list. Promote a check to required by editing this doc
   and updating branch protection in the same PR.
 
-## Why these three
+## Why these six
 
 Each required check covers a class of regression that has shipped to
 users in past commits:
@@ -65,14 +59,43 @@ users in past commits:
 - `unit (L1)` is the broadest behaviour check — covers both faked-runner
   unit logic and real-subprocess integration drift (brew flag changes,
   `git` exit-code shifts between macOS versions).
+- `contract schema (L2)` catches CLI ↔ server wire drift. Tolerant
+  decoders like `UnmarshalRemoteConfigFlexible` will silently repair,
+  move, or drop fields; only a canonical-fixture comparison notices.
+- `curl|bash smoke` is the only check that drives a real built binary
+  through a config install against a live HTTP API, catching wiring
+  breakage that faked-runner tests structurally cannot reach.
+- `old-cli compat` catches server-side changes that break CLIs already
+  on users' machines — the one regression class the current binary's
+  own tests structurally cannot see.
 - `vm-e2e` (L4) covers the destructive and terminal-dependent paths that
   cannot safely run inside L1, including real Homebrew installs and the
   install-wizard choreography on a fresh macOS VM.
 
-The three heavier checks (`contract schema (L2)`, `curl|bash smoke`,
-`old-cli compat`) still run on every merge to `main` — they just don't
-block PRs, because they're too slow or network-dependent to require on
-every push to a feature branch.
+### The cost of requiring the two network-dependent checks
+
+`contract schema (L2)` checks out `openboot-contract@main` and
+`old-cli compat` downloads the previous GitHub release, so requiring
+both ties every merge to state outside this repo. They fail in opposite
+directions, and the difference is worth knowing before you trust either
+badge:
+
+- `contract schema (L2)` **blocks**. A red or mid-edit `openboot-contract`
+  main stops every PR, including ones that touch neither the contract nor
+  the decoders. That is the deliberate trade: tolerant decoders like
+  `UnmarshalRemoteConfigFlexible` hide wire drift from every other check,
+  so the alternative to a blocked PR is a user bug report.
+- `old-cli compat` **passes silently**. Its release lookup ends in
+  `|| true` and writes a possibly-empty `version=`, and every step after
+  it is gated on `steps.prev.outputs.version != ''`. A GitHub API blip,
+  or no stable release still carrying the arch asset, yields a green
+  check that ran no compat test at all. It cannot block a PR — but a
+  green tick is therefore not evidence that compat was verified.
+
+If external flakiness does start blocking unrelated work, the escape
+hatch is the documented bypass under *Operating principles*, not quietly
+dropping the contexts from protection while this doc still lists them —
+that is the exact drift this file exists to prevent.
 
 ## How to change this policy
 
@@ -80,7 +103,14 @@ The required-checks list has an in-repo source of truth:
 [`.github/required-checks.txt`](../.github/required-checks.txt). The
 `required-checks alignment (drift)` sensor in
 [`.github/workflows/harness.yml`](../.github/workflows/harness.yml)
-fails on PRs that desync it from the workflow `name:` values.
+flags PRs that desync it from the workflow `name:` values. It is
+`continue-on-error: true`, so it annotates rather than blocks.
+
+It also has two blind spots. It never reads live branch protection, so a
+context added or removed in the GitHub UI alone drifts silently; and it
+only checks one direction — every line in the file must map to a job,
+but a required context missing from the file is not flagged. Step 3
+below is the only thing that catches either.
 
 1. Open a PR that edits this file **and** `.github/required-checks.txt`
    with the proposed change.
