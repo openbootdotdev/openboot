@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0 (unreleased)
+## v1.0.0
 
 OpenBoot v1.0 narrows the core workflow to two verbs: **`install`** (add things to your Mac) and **`snapshot`** (save your current state somewhere). The supporting **`doctor`** and **`update`** maintenance commands remain available; everything else is either cloud-config CRUD or independent tooling.
 
@@ -37,6 +37,8 @@ No aliases are kept — silent aliasing would regress behavior invisibly (the ol
 - **`snapshot --publish`**: direct non-interactive cloud upload. Respects the sync source (updates it) or creates a new config with a prompt. Does not ask for name/desc/visibility when updating existing.
 - **`snapshot` in pipe**: piping `openboot snapshot` to another command now emits JSON to stdout automatically (TTY detection).
 - **Shell capture**: snapshots now include the Oh-My-Zsh state, theme, and plugins (previously the field was defined but never populated — publishing silently dropped shell data).
+- **Interactive dry-run**: `install --dry-run` on a TTY now walks the same full-screen wizard as a real install and previews the reviewed plan (DRY-RUN banner, no changes made). Non-TTY dry-run stays linear.
+- **`install --update` help corrected**: the flag has always meant "update Homebrew and exit"; the help text now says so instead of implying it combines with an install.
 
 ### Philosophy
 
