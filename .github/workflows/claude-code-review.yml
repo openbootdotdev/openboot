@@ -48,7 +48,13 @@ jobs:
           # it: with pull-requests:read it never reaches the tool (0 denials);
           # with write it tries and hits the permission gate (1 denial, "No
           # buffered inline comments"). The gh commands let it read diff/context.
-          claude_args: '--allowed-tools mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)'
+          #
+          # The value MUST stay double-quoted. claude_args is parsed with a
+          # shell-style splitter, so an unquoted `Bash(gh pr diff:*)` splits on
+          # its spaces: PR #163's run logged the allowlist as "Bash(gh", "pr",
+          # "diff:*)", "view:*)", "comment:*)" — every gh command then hit the
+          # permission gate (10 denials) and the review was silently dropped.
+          claude_args: '--allowed-tools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
