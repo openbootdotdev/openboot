@@ -187,7 +187,7 @@ Removed in v1.0: `pull`, `push`, `diff`, `clean`, `log`, `restore`, `init`, `set
     --dry-run          Preview what would be installed
     --pick NAMES       Comma-separated packages to install from a remote config
     --packages-only    Install packages only, skip system config
-    --update           Update Homebrew before installing
+    --update           Update Homebrew and exit
     --shell MODE       Shell setup: install, skip
     --macos MODE       macOS prefs: configure, skip
     --dotfiles MODE    Dotfiles: clone, link, skip

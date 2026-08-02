@@ -79,7 +79,7 @@ Snapshot data is mapped to `config.SnapshotGitConfig` and `config.SnapshotShellC
 
 ## WHEN MODIFYING
 
-- Adding capture step: Add to `CaptureWithProgress()`, update `totalSteps`, add to `Snapshot` struct
+- Adding capture step: Add an entry to `captureSteps` in `capture.go`, add to `Snapshot` struct
 - Adding restore step: Add to `installer.RunFromSnapshot()`, create `config.Snapshot*Config` type, wire in `cli/snapshot.go`
 - Adding preset detection: Modify `DetectBestPreset()` scoring in `match.go`
 - Tests: Table-driven with testify. `capture_test.go` mocks command output. `match_test.go` tests Jaccard scoring.
