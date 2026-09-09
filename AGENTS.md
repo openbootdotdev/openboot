@@ -193,4 +193,3 @@ extra confirmation.
 | `OPENBOOT_API_URL` | Override API base URL (testing; https or http://localhost only) |
 | `OPENBOOT_DOTFILES` | Override dotfiles repo URL |
 | `OPENBOOT_DRY_RUN` | Dry-run mode for `scripts/install.sh` (not the CLI) |
-| `OPENBOOT_VERSION` | Pin version in `scripts/install.sh` |

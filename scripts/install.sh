@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION="${OPENBOOT_VERSION:-latest}"
-REPO="openbootdotdev/openboot"
 BINARY_NAME="openboot"
 TAP_NAME="openbootdotdev/tap"
 DRY_RUN="${OPENBOOT_DRY_RUN:-false}"
