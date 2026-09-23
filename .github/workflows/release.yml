@@ -51,10 +51,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
 
@@ -70,8 +70,8 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -96,10 +96,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
 
@@ -112,7 +112,7 @@ jobs:
           go build -ldflags="-s -w -X github.com/openbootdotdev/openboot/internal/cli.version=${{ needs.detect-release-type.outputs.version_clean }}" -trimpath -o openboot-${{ matrix.os }}-${{ matrix.arch }} ./cmd/openboot
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openboot-${{ matrix.os }}-${{ matrix.arch }}
           path: openboot-${{ matrix.os }}-${{ matrix.arch }}
@@ -122,13 +122,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -197,7 +197,7 @@ jobs:
           cat release_notes.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.detect-release-type.outputs.version }}
           name: OpenBoot ${{ needs.detect-release-type.outputs.version }}
@@ -225,7 +225,7 @@ jobs:
           echo "amd64=$(sha256sum openboot-darwin-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: Checkout homebrew-tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: openbootdotdev/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
