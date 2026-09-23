@@ -40,7 +40,7 @@ The `agent-config` architecture test verifies the import and skill adapters.
 
 ## Project
 
-OpenBoot is a **macOS-only** Go 1.25 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
+OpenBoot is a **macOS-only** Go 1.26 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
 
 Entry point: `cmd/openboot/main.go` -> `internal/cli.Execute()`.
 Core flow: `openboot install` orchestrates plan -> apply in `internal/installer/installer.go`.
