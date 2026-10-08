@@ -216,6 +216,10 @@ func abortWith(softErrs []error, cause error) error {
 }
 
 func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
+	if plan.DryRun {
+		showDryRunCompletionFromPlan(plan, r, errCount)
+		return
+	}
 	ui.Println()
 	if errCount > 0 {
 		r.Header("Installation finished with errors")
@@ -246,6 +250,35 @@ func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 	r.Info("Next steps:")
 	r.Info("  - Restart your terminal to apply changes")
 	r.Info("  - Run 'brew doctor' to verify Homebrew health")
+	ui.Println()
+}
+
+// showDryRunCompletionFromPlan is the summary for a --dry-run. Nothing was
+// changed, so it must not claim anything was installed or configured: it says
+// what a real run would install and how to start one. Git has no line here —
+// whether it would be configured depends on the existing identity, and the Git
+// step above has already said which way it goes.
+func showDryRunCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
+	ui.Println()
+	if errCount > 0 {
+		r.Header("Dry run finished with errors — no changes were made")
+		ui.Println()
+		r.Warn(fmt.Sprintf("%d step(s) had errors — check the output above for details.", errCount))
+	} else {
+		r.Header("Dry run complete — no changes were made")
+	}
+	ui.Println()
+
+	r.Info("Would install:")
+	r.Info(fmt.Sprintf("  - %d CLI packages", len(plan.Formulae)))
+	r.Info(fmt.Sprintf("  - %d GUI applications", len(plan.Casks)))
+	if len(plan.Npm) > 0 {
+		r.Info(fmt.Sprintf("  - %d npm global packages", len(plan.Npm)))
+	}
+	ui.Println()
+
+	r.Info("Next steps:")
+	r.Info("  - Run the same command without --dry-run to apply these changes")
 	ui.Println()
 }
 
