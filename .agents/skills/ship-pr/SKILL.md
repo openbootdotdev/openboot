@@ -140,105 +140,22 @@ If you can't tell which checks are required, the ones branch protection
 enforces are; `gh pr checks` marks the rest, and the merge in Step 7 will
 refuse anyway if a required one is red.
 
-### Step 5 — Get a review
+### Step 5 — Review the full diff locally
 
-Once CI is green, the diff needs an inferential review — behaviour, design,
-test coverage, risk, rollback. Prefer to have the **`@claude` GitHub bot** do
-this first pass *on the PR itself*, so the review lives next to the code where
-the whole team can see it. Fall back to a local review only when the bot isn't
-available.
-
-**5a — Is the Claude bot wired up for this repo?**
-
-The bot is the Claude GitHub App driven by `anthropics/claude-code-action`. The
-reliable, permission-free signal is a workflow that uses it:
-
-```bash
-grep -rilE 'anthropics/claude-code-action|@claude' .github/workflows 2>/dev/null
-```
-
-(With repo-admin scope you could also confirm via
-`gh api "repos/{owner}/{repo}/installations" --jq '.[].app.slug'`, but that
-403s without admin — don't depend on it.)
-
-- Match found → the bot can review; go to **5b**.
-- No match → the app isn't set up here; skip to **5d (local fallback)**.
-
-**5b — Request the review (or pick up an automated one)**
-
-```bash
-PR=$(gh pr view --json number -q .number)
-```
-
-Some repos run `claude-code-action` automatically on every push
-(`on: pull_request`), so a `claude[bot]` review for the current commit may
-already be on its way — check before posting, to avoid asking twice:
-
-```bash
-gh pr view "$PR" --json comments \
-  -q '.comments[] | select(.author.login|test("claude|github-actions")) | "\(.author.login)\t\(.createdAt)"'
-```
-
-(Comment objects carry `createdAt`, not `updatedAt` — and the sticky
-comment is edited in place, so an old timestamp can still be a live
-review. When in doubt, just mention the bot again.)
-
-If there's no current bot comment, summon it with a mention. A focused prompt
-gets a more useful review than a bare "review this":
-
-```bash
-gh pr comment "$PR" --body "@claude please review this PR — focus on correctness, design, test coverage for the branches it adds, risk, and how it rolls back."
-```
-
-(`@claude` is the default trigger; a repo can rename it via `trigger_phrase` in
-its workflow. If the mention gets no response at all, check the workflow for a
-custom phrase.)
-
-**5c — Wait for the bot, then read its review**
-
-The bot answers in a single **sticky comment it edits in place** — it shows
-progress first (checkboxes like "Analyzing…") and fills in the real review when
-done. Wait for it to *finish*; don't act on a half-written comment. It usually
-lands in under a minute, occasionally a few minutes under load.
-
-```bash
-for i in $(seq 1 30); do
-  body=$(gh pr view "$PR" --json comments \
-    -q '[.comments[] | select(.author.login|test("claude|github-actions"))] | last | .body')
-  if [ -n "$body" ] && ! printf '%s' "$body" | grep -qiE 'analyzing|in progress|- \[ \]'; then
-    printf '%s\n' "$body" && break
-  fi
-  sleep 10
-done
-```
-
-Re-fetch until the body reads as a *completed* review (no lingering
-"Analyzing…/in progress" markers). The author is normally `claude[bot]`;
-a repo using a custom `github_token` surfaces it as `github-actions[bot]`
-instead — either way it's obviously a Claude review by its content. A
-workflow configured to submit a formal PR review rather than a comment
-shows up under `gh pr view --json reviews` — glance there before declaring
-the bot unavailable. If nothing
-substantive shows up after a few minutes, treat the bot as unavailable and fall
-back. (If the loop times out but a bot comment *is* visible — e.g. a finished
-review whose body happens to contain unchecked checkboxes — read it manually
-instead of discarding it.) Carry whatever it found into Step 6.
-
-**5d — Local fallback**
-
-When the bot isn't wired up, or never returns a finished review, review the
-**full PR diff** yourself so the gate still closes:
+Once CI is green, review the **full PR diff** locally for behaviour, design,
+test coverage, risk, and rollback:
 
 ```bash
 git diff "origin/$BASE"...HEAD
 ```
 
-- If a `/code-review` command or a repo-specific review skill is available, run
-  it on the full diff — it's purpose-built for this.
-- Otherwise review inline: behaviour, design, test coverage for the branches
-  this PR adds, risk, and how it rolls back.
+- Use a repo-specific review skill when available; otherwise review the diff
+  directly against the repository's conventions and the PR's stated scope.
+- Read existing PR comments and formal reviews for any unresolved findings.
+- Summarize the findings and relevant verification in the session. Passing CI
+  alone does not satisfy this review gate.
 
-Either way, the findings feed into Step 6.
+Carry the findings into Step 6.
 
 ### Step 6 — Triage the findings
 
@@ -250,14 +167,9 @@ corrections clearly inside the PR's stated scope: typos, formatting, doc
 wording, dead code this PR introduced, missing imports, missing tests for
 branches this PR adds, bug fixes that don't change observable behaviour,
 or following through on a rule the user already stated this session. Fix
-it, push to the same branch, wait for CI again, then re-request the
-review: capture the current sticky-comment body first, mention `@claude`
-again, and poll (as in 5c) until the body *changes* from what you captured
-and reads as complete — the sticky comment is edited in place, so the
-pre-fix review stays visible (and satisfies 5c's break condition) until
-the new one lands. Then re-triage. Don't
-prompt the user — the point is to spend their attention only on real
-decisions.
+it, push to the same branch, wait for CI again, then review the updated
+full diff locally as in Step 5 and re-triage. Don't prompt the user — the
+point is to spend their attention only on real decisions.
 
 **Needs user judgment → surface and stop.** Anything with a genuine
 choice: design / API shape / behaviour changes, anything touching a
