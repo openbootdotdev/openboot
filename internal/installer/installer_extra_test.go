@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -131,6 +132,91 @@ func TestShowCompletionFromPlan_WithNpm(t *testing.T) {
 	assert.NotPanics(t, func() {
 		showCompletionFromPlan(plan, NopReporter{}, 0)
 	})
+}
+
+// A real run's summary is pinned line for line, so making the dry-run summary
+// honest can't quietly reword it.
+func TestShowCompletionFromPlan_RealRunOutput(t *testing.T) {
+	tests := []struct {
+		name        string
+		errCount    int
+		wantHeaders []string
+		wantStatus  string
+	}{
+		{"clean", 0, []string{"Installation Complete!"}, "OpenBoot has successfully configured your Mac."},
+		{"with errors", 2, []string{"Installation finished with errors"}, "2 step(s) had errors — check the output above for details."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			plan := InstallPlan{
+				Silent:   true, // keep the screen-recording reminder out of the test
+				Formulae: []string{"git", "curl"},
+				Casks:    []string{"firefox"},
+				Npm:      []string{"typescript"},
+			}
+			rr := &recordReporter{}
+			showCompletionFromPlan(plan, rr, tt.errCount)
+
+			assert.Equal(t, tt.wantHeaders, rr.headers)
+			assert.Equal(t, []string{
+				tt.wantStatus,
+				"What was installed:",
+				"  - Git configured with your identity",
+				"  - 2 CLI packages",
+				"  - 1 GUI applications",
+				"  - 1 npm global packages",
+				"Next steps:",
+				"  - Restart your terminal to apply changes",
+				"  - Run 'brew doctor' to verify Homebrew health",
+			}, rr.lines)
+		})
+	}
+}
+
+// A --dry-run changes nothing, so its summary must not say it did — no
+// "Installation Complete!", no "What was installed:", no "restart your
+// terminal to apply changes". It reports what a real run would install.
+func TestShowCompletionFromPlan_DryRunDoesNotClaimChanges(t *testing.T) {
+	tests := []struct {
+		name       string
+		errCount   int
+		wantHeader string
+		wantWarn   string
+	}{
+		{"clean", 0, "Dry run complete — no changes were made", ""},
+		{"with errors", 2, "Dry run finished with errors — no changes were made", "2 step(s) had errors — check the output above for details."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			plan := InstallPlan{
+				DryRun:   true,
+				Formulae: []string{"git", "curl"},
+				Casks:    []string{"firefox"},
+				Npm:      []string{"typescript"},
+			}
+			rr := &recordReporter{}
+			showCompletionFromPlan(plan, rr, tt.errCount)
+
+			assert.Equal(t, []string{tt.wantHeader}, rr.headers)
+			out := strings.Join(rr.lines, "\n")
+			assert.Contains(t, out, "Would install:\n  - 2 CLI packages\n  - 1 GUI applications\n  - 1 npm global packages")
+			assert.Contains(t, out, "Run the same command without --dry-run to apply these changes")
+			if tt.wantWarn != "" {
+				assert.Contains(t, out, tt.wantWarn)
+			}
+			for _, claim := range []string{
+				"What was installed:",
+				"successfully configured",
+				"Git configured",
+				"Restart your terminal",
+				"brew doctor",
+			} {
+				assert.NotContains(t, out, claim)
+			}
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------
