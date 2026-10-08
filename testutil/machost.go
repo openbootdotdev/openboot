@@ -1,7 +1,7 @@
 //go:build e2e && vm
 
 // MacHost runs destructive openboot E2E tests directly against the
-// current macOS host. In CI this is a fresh GitHub Actions macos-14 runner;
+// current macOS host. In CI this is a fresh GitHub Actions macos-15 runner;
 // locally it should only be used on a throwaway machine.
 //
 // A host refuses to activate unless CI=true, OPENBOOT_IN_VM=1, or
