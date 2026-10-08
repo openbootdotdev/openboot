@@ -51,7 +51,7 @@ Three regulation categories:
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | every PR | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |
-| Behav. | L4 VM e2e (`vm`) — required full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (`vm-e2e` required check on a macos-14 runner) |
+| Behav. | L4 VM e2e (`vm`) — required full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (`vm-e2e` required check on a macos-15 runner) |
 | Behav. | `install.sh` upgrade over an existing install — tap refresh, upgrade, reinstall fallback, and resolved-version reporting with fake Homebrew/OpenBoot commands | L1 | `test/integration/install_script_test.go` |
 | Behav. | Install-wizard TUI on a real pty — L3: launch/quit smoke + full keyboard choreography (stops before confirm, installs nothing); L4: same key sequence through a real install via `expect(1)`, asserting brew/git system state | L3 at release, L4 every PR | `test/e2e/install_wizard_e2e_test.go`, `test/e2e/install_wizard_vm_test.go` |
 | Behav. | curl\|bash smoke — mock-served install script piped into `bash`, driving the built binary through a config install (**not** `scripts/install.sh`; that's the L1 row above) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
@@ -117,7 +117,7 @@ it survives doc rot.
   the two apart from `TERM`/TTY/height alone. It now draws a plain in-place
   `\r\033[K` status line that trails top-to-bottom output on every terminal.
   Don't reintroduce the scroll region.
-- **L4 runs on GitHub Actions, not a self-hosted runner.** `macos-14`
+- **L4 runs on GitHub Actions, not a self-hosted runner.** `macos-15`
   runners are Apple Silicon VMs — each job gets a fresh clean macOS
   environment, which is exactly what L4 needs. Tart is no longer required.
   The L4 workflow (`vm-e2e-spike.yml`) runs on every PR as the required

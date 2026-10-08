@@ -12,15 +12,19 @@ import (
 )
 
 // recordReporter captures Header calls so a test can assert which install
-// phases ApplyContext actually entered.
-type recordReporter struct{ headers []string }
+// phases ApplyContext actually entered, and every other message in lines so a
+// test can assert what the user was told.
+type recordReporter struct {
+	headers []string
+	lines   []string
+}
 
-func (r *recordReporter) Header(msg string) { r.headers = append(r.headers, msg) }
-func (r *recordReporter) Info(string)       {}
-func (r *recordReporter) Success(string)    {}
-func (r *recordReporter) Warn(string)       {}
-func (r *recordReporter) Error(string)      {}
-func (r *recordReporter) Muted(string)      {}
+func (r *recordReporter) Header(msg string)  { r.headers = append(r.headers, msg) }
+func (r *recordReporter) Info(msg string)    { r.lines = append(r.lines, msg) }
+func (r *recordReporter) Success(msg string) { r.lines = append(r.lines, msg) }
+func (r *recordReporter) Warn(msg string)    { r.lines = append(r.lines, msg) }
+func (r *recordReporter) Error(msg string)   { r.lines = append(r.lines, msg) }
+func (r *recordReporter) Muted(msg string)   { r.lines = append(r.lines, msg) }
 
 // A cancelled context must stop ApplyContext before the config steps run, so a
 // ctrl+c abort doesn't keep symlinking dotfiles / rewriting macOS defaults after

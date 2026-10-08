@@ -40,7 +40,7 @@ The `agent-config` architecture test verifies the import and skill adapters.
 
 ## Project
 
-OpenBoot is a **macOS-only** Go 1.25 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
+OpenBoot is a **macOS-only** Go 1.26 CLI that automates dev-environment setup: Homebrew packages/casks, npm globals, Oh-My-Zsh, macOS `defaults`, and dotfiles. Built on **Cobra** (CLI) + **Charmbracelet** (bubbletea / lipgloss / huh for TUI).
 
 Entry point: `cmd/openboot/main.go` -> `internal/cli.Execute()`.
 Core flow: `openboot install` orchestrates plan -> apply in `internal/installer/installer.go`.
@@ -63,7 +63,7 @@ make build-release VERSION=0.25.0    # optimized + UPX
 # Test — full tier table in CONTRIBUTING.md
 make test-unit                       # L1 (~75s) — unit + integration + contract; pre-push hook
 make test-e2e                        # L3 compiled binary
-                                     # L4 — destructive e2e runs in CI only (vm-e2e-spike.yml on macos-14)
+                                     # L4 — destructive e2e runs in CI only (vm-e2e-spike.yml on macos-15)
 make test-coverage                   # coverage.out + coverage.html
 
 # Single test
