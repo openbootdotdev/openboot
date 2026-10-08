@@ -9,12 +9,12 @@ on:
 
 jobs:
   vm-e2e:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -22,7 +22,7 @@ jobs:
       - name: Build binary
         run: make build
 
-      # GitHub's macos-14 image ships with third-party taps (aws/tap,
+      # GitHub's macos-15 image ships with third-party taps (aws/tap,
       # azure/bicep, hashicorp/tap) pre-installed. Recent Homebrew refuses
       # to load formulae/casks from untrusted taps, which breaks `brew`
       # operations the L4 suite drives. Trust everything already tapped so
