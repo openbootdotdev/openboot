@@ -237,7 +237,6 @@ jobs:
           class Openboot < Formula
             desc "Set up your macOS dev environment in one command"
             homepage "https://openboot.dev"
-            version "VERSION_PLACEHOLDER"
             license "MIT"
 
             depends_on :macos
