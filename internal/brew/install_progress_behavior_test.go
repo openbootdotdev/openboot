@@ -59,6 +59,10 @@ fi
 if [ "$1" = "list" ] && [ "$2" = "--cask" ]; then
   exit 0
 fi
+if [ "$1" = "info" ] && [ "$2" = "--cask" ]; then
+  echo '{"casks":[]}'
+  exit 0
+fi
 if [ "$1" = "info" ]; then
   shift 2
   for arg in "$@"; do
