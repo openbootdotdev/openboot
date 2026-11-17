@@ -1,7 +1,10 @@
 package sync
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +14,34 @@ import (
 	"github.com/openbootdotdev/openboot/internal/config"
 	"github.com/openbootdotdev/openboot/internal/npm"
 )
+
+type externalAppRunner struct {
+	fakeBrewRunner
+	metadata []byte
+}
+
+func (r externalAppRunner) Output(args ...string) ([]byte, error) {
+	if args[0] == "info" {
+		return r.metadata, nil
+	}
+	return nil, nil
+}
+
+func TestExecute_ExternalAppIsNotCountedAsInstalled(t *testing.T) {
+	app := filepath.Join(t.TempDir(), "Typeless.app")
+	require.NoError(t, os.MkdirAll(filepath.Join(app, "Contents"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(app, "Contents", "Info.plist"), []byte("existing app"), 0644))
+	metadata, err := json.Marshal(map[string]any{"casks": []any{map[string]any{
+		"token": "typeless", "artifacts": []any{map[string]any{"app": []string{"Typeless.app"}, "target": app}},
+	}}})
+	require.NoError(t, err)
+	t.Cleanup(brew.SetRunner(externalAppRunner{metadata: metadata}))
+	t.Setenv("PATH", t.TempDir())
+	result, err := Execute(&SyncPlan{InstallCasks: []string{"typeless"}}, false)
+	require.NoError(t, err)
+	assert.Zero(t, result.Installed)
+	assert.Empty(t, result.Errors)
+}
 
 // fakeBrewRunner is a test double for the brew.Runner interface.
 // forceErr causes every method to return the configured error.
