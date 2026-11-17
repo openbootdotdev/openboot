@@ -169,7 +169,7 @@ jobs:
 
           # Auto-generated changelog from Conventional Commits since the
           # previous tag, grouped by type. Non-conventional commits are
-          # intentionally dropped — they should be rare (CLAUDE.md enforces
+          # intentionally dropped — they should be rare (AGENTS.md enforces
           # the convention) and silence is better than a misleading row.
           # Skipped entirely on the first release (no prior tag).
           VERSION="${{ needs.detect-release-type.outputs.version }}"

@@ -18,13 +18,13 @@ func TestPackageSnapshot_UnmarshalJSON(t *testing.T) {
 	}{
 		{
 			name:  "object format",
-			input: `{"formulae":["git","go"],"casks":["docker"],"taps":["homebrew/core"],"npm":["typescript"],"bun":["@anthropic-ai/claude-code"]}`,
+			input: `{"formulae":["git","go"],"casks":["docker"],"taps":["homebrew/core"],"npm":["typescript"],"bun":["@example/cli"]}`,
 			expected: PackageSnapshot{
 				Formulae: []string{"git", "go"},
 				Casks:    []string{"docker"},
 				Taps:     []string{"homebrew/core"},
 				Npm:      []string{"typescript"},
-				Bun:      []string{"@anthropic-ai/claude-code"},
+				Bun:      []string{"@example/cli"},
 			},
 		},
 		{

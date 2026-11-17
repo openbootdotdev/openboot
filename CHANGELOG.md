@@ -48,7 +48,7 @@ No aliases are kept — silent aliasing would regress behavior invisibly (the ol
 
 ### Versioning policy change
 
-The previous `CLAUDE.md` rule "CLI changes must maintain backward compatibility" has been relaxed:
+The previous repository rule "CLI changes must maintain backward compatibility" has been relaxed:
 
 - Breaking CLI changes are allowed, but require a **major version bump** and a migration entry here.
 - Same-name commands **must not** silently change behavior — either preserve semantics or remove the command.

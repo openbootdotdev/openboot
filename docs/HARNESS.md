@@ -58,12 +58,8 @@ Three regulation categories:
 | Behav. | Auto-release sensor — patch fast lane (`fix:`-only) auto-tags + dispatches `release.yml`; feat threshold opens a `release-ready` issue (check L4 CI green, then tag manually) | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
-| Feedfwd. | Shared agent conventions | every AI turn | `AGENTS.md` (canonical); `CLAUDE.md` imports it for Claude Code |
-| Feedfwd. | Shared skills | model-loaded | `.agents/skills/*` (canonical); `.claude/skills/*/SKILL.md` symlinks for Claude Code |
-| Arch. | Multi-agent config must not drift | L1 | `internal/archtest/agentconfig_test.go` |
-| Feedfwd. | Session-start hook (warm caches, fetch deps) | every Claude session | `.claude/hooks/session-start.sh` |
-| Feedback (agent) | `go vet` on edited package | after every Edit/Write/MultiEdit | `.claude/hooks/post-tool-use.sh` |
-| Feedback (agent) | `go vet ./...` + archtest | end of every Claude turn (if .go dirty) | `.claude/hooks/stop.sh` |
+| Feedfwd. | Shared agent conventions | every AI turn | `AGENTS.md` (canonical) |
+| Feedfwd. | Shared skills | model-loaded | `.agents/skills/*` (canonical) |
 | Maint. | `golangci-lint` on the staged diff | local git pre-commit | `scripts/hooks/pre-commit` |
 | Drift loop | Failed harness sensor → open/update GitHub issue | on main / nightly | `.github/workflows/drift-to-issue.yml` |
 
@@ -101,7 +97,7 @@ it survives doc rot.
   decision from rule introduction.
 - **No session-start stale-branch sensor.** A previous iteration of the
   `ship-pr` skill used `gh pr merge --auto`, so the merge could happen
-  asynchronously after the Claude session ended — leaving a feature
+  asynchronously after the agent session ended — leaving a feature
   branch checked out next time. The sensor existed to nag the user to
   clean it up. Once the skill dropped `--auto` and made cleanup part of
   the in-session loop (Step 8), the sensor became dead code and was
