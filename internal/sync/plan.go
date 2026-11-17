@@ -110,10 +110,13 @@ func ExecuteContext(ctx context.Context, plan *SyncPlan, dryRun bool) (*SyncResu
 	// the wizard path uses. Skipping this and calling brew.Install /
 	// brew.InstallCask separately would lose the byte-level progress bar.
 	if len(plan.InstallFormulae) > 0 || len(plan.InstallCasks) > 0 {
-		_, _, err := brew.InstallWithProgress(ctx, plan.InstallFormulae, plan.InstallCasks, dryRun)
+		formulae, casks, err := brew.InstallWithProgress(ctx, plan.InstallFormulae, plan.InstallCasks, dryRun)
 		step := stepResult{label: "brew", err: err}
 		if err == nil {
-			step.count = len(plan.InstallFormulae) + len(plan.InstallCasks)
+			step.count = len(formulae) + len(casks)
+			if dryRun {
+				step.count = len(plan.InstallFormulae) + len(plan.InstallCasks)
+			}
 		}
 		installSteps = append(installSteps, step)
 	}

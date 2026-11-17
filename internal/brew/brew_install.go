@@ -81,6 +81,10 @@ func InstallCask(packages []string, dryRun bool) error {
 
 	ui.Info(fmt.Sprintf("Installing %d GUI applications...", len(packages)))
 
+	packages = filterExternalApps(packages)
+	if len(packages) == 0 {
+		return nil
+	}
 	args := append([]string{"install", "--cask"}, packages...)
 	cmd := brewInstallCmd(context.Background(), args...)
 	cmd.Stdout = os.Stdout
@@ -127,14 +131,18 @@ func InstallWithProgress(ctx context.Context, cliPkgs, caskPkgs []string, dryRun
 		}
 	}
 
-	skipped := total - len(newCli) - len(newCask)
+	managed := total - len(newCli) - len(newCask)
+	external := len(newCask)
+	newCask = filterExternalApps(newCask)
+	external -= len(newCask)
+	skipped := managed + external
 	if skipped > 0 {
-		ui.Muted(fmt.Sprintf("  %d already installed, %d to install", skipped, len(newCli)+len(newCask)))
+		ui.Muted(fmt.Sprintf("  %d already managed by Homebrew, %d external apps skipped, %d to install", managed, external, len(newCli)+len(newCask)))
 		ui.Println()
 	}
 
 	if len(newCli)+len(newCask) == 0 {
-		ui.Success("All packages already installed!")
+		ui.Success("No packages left to install; existing apps kept unchanged")
 		return installedFormulae, installedCasks, nil
 	}
 
