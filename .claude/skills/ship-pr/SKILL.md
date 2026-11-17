@@ -1,1 +1,0 @@
-../../../.agents/skills/ship-pr/SKILL.md

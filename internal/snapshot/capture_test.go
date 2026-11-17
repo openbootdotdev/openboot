@@ -167,10 +167,10 @@ func TestParseBunList(t *testing.T) {
 		{
 			name: "scoped and unscoped entries",
 			input: "/Users/x/.bun/install/global node_modules (3)\n" +
-				"├── @anthropic-ai/claude-code@1.0.5\n" +
+				"├── @example/cli@1.0.5\n" +
 				"├── prettier@3.2.5\n" +
 				"└── typescript@5.4.3\n",
-			expected: []string{"@anthropic-ai/claude-code", "prettier", "typescript"},
+			expected: []string{"@example/cli", "prettier", "typescript"},
 		},
 		{
 			name: "bun itself is excluded",

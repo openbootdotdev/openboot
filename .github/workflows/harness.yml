@@ -27,6 +27,11 @@ on:
 permissions:
   contents: read
 
+# Superseded PR runs should not consume runner capacity. Other events stay independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   govulncheck:
     name: govulncheck (drift)

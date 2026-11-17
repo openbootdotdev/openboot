@@ -13,10 +13,15 @@ on:
     types: [contract-updated]
   workflow_dispatch:
 
+# Superseded PR runs should not consume runner capacity. Other events stay independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     name: lint
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -29,7 +34,7 @@ jobs:
 
   unit:
     name: unit (L1)
-    runs-on: macos-latest
+    runs-on: macos-15
     permissions:
       id-token: write
       contents: read
@@ -68,68 +73,6 @@ jobs:
             coverage.html
           retention-days: 7
 
-  contract:
-    name: contract schema (L2)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Checkout contract
-        uses: actions/checkout@v7
-        with:
-          repository: openbootdotdev/openboot-contract
-          ref: ${{ github.event.client_payload.ref || 'main' }}
-          path: .contract
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: "go.mod"
-
-      - name: Contract schema validation
-        run: |
-          pip3 install --break-system-packages jsonschema
-
-          python3 -c "
-          import json, jsonschema, sys
-
-          checks = [
-            ('.contract/schemas/remote-config.json', '.contract/fixtures/config-v1.json'),
-            ('.contract/schemas/snapshot.json', '.contract/fixtures/snapshot-v1.json'),
-          ]
-
-          failed = 0
-          for schema_path, fixture_path in checks:
-            schema = json.load(open(schema_path))
-            data = json.load(open(fixture_path))
-            try:
-              jsonschema.validate(data, schema)
-              print(f'  ✓ {fixture_path.split(\"/\")[-1]} matches {schema_path.split(\"/\")[-1]}')
-            except jsonschema.ValidationError as e:
-              print(f'  ✗ {fixture_path.split(\"/\")[-1]}: {e.message}')
-              failed += 1
-
-          sys.exit(1 if failed else 0)
-          "
-
-      - name: Verify CLI consumes canonical fixtures losslessly
-        env:
-          OPENBOOT_CONTRACT_DIR: ${{ github.workspace }}/.contract
-        run: go test -v -tags=contract ./test/contract
-
-  curl-bash-smoke:
-    name: curl|bash smoke
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: "go.mod"
-
       - name: Build
         run: make build
 
@@ -148,13 +91,6 @@ jobs:
       - name: Stop mock server
         if: always()
         run: kill $(cat /tmp/mock-pid) 2>/dev/null || true
-
-  cli-compat:
-    name: old-cli compat
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
 
       - name: Get previous release version
         id: prev
@@ -225,3 +161,76 @@ jobs:
       - name: Stop compat mock server
         if: always()
         run: kill $(cat /tmp/compat-mock-pid) 2>/dev/null || true
+
+  contract:
+    name: contract schema (L2)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Checkout contract
+        uses: actions/checkout@v7
+        with:
+          repository: openbootdotdev/openboot-contract
+          ref: ${{ github.event.client_payload.ref || 'main' }}
+          path: .contract
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Contract schema validation
+        run: |
+          pip3 install --break-system-packages jsonschema
+
+          python3 -c "
+          import json, jsonschema, sys
+
+          checks = [
+            ('.contract/schemas/remote-config.json', '.contract/fixtures/config-v1.json'),
+            ('.contract/schemas/snapshot.json', '.contract/fixtures/snapshot-v1.json'),
+          ]
+
+          failed = 0
+          for schema_path, fixture_path in checks:
+            schema = json.load(open(schema_path))
+            data = json.load(open(fixture_path))
+            try:
+              jsonschema.validate(data, schema)
+              print(f'  ✓ {fixture_path.split(\"/\")[-1]} matches {schema_path.split(\"/\")[-1]}')
+            except jsonschema.ValidationError as e:
+              print(f'  ✗ {fixture_path.split(\"/\")[-1]}: {e.message}')
+              failed += 1
+
+          sys.exit(1 if failed else 0)
+          "
+
+      - name: Verify CLI consumes canonical fixtures losslessly
+        env:
+          OPENBOOT_CONTRACT_DIR: ${{ github.workspace }}/.contract
+        run: go test -v -tags=contract ./test/contract
+
+  # Preserve required check names without requesting two more macOS runners.
+  curl-bash-smoke:
+    name: curl|bash smoke
+    needs: unit
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require combined macOS checks to pass
+        env:
+          MACOS_RESULT: ${{ needs.unit.result }}
+        run: test "$MACOS_RESULT" = success
+
+  cli-compat:
+    name: old-cli compat
+    needs: unit
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require combined macOS checks to pass
+        env:
+          MACOS_RESULT: ${{ needs.unit.result }}
+        run: test "$MACOS_RESULT" = success

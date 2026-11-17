@@ -14,7 +14,16 @@ this doc to bring it back in sync.
 All six run on every PR. There is no post-merge-only tier: every job in
 `.github/workflows/test.yml` fires on `push` (to `main`/`master`),
 `pull_request`, `repository_dispatch` (`contract-updated`), and
-`workflow_dispatch` alike, with no job-level `if:` gating.
+`workflow_dispatch` alike, with no path-based filtering. The
+`curl|bash smoke` and `old-cli compat`
+checks are Linux result gates: their tests execute after L1 in the same
+macOS job, and both gates require that whole job to succeed. They run even
+when the macOS job fails or is cancelled, so a skipped dependency cannot
+silently satisfy branch protection.
+
+Each PR requests three macOS runners: lint, the combined L1/smoke/compat
+job, and L4. New commits cancel older runs of the same PR in Test, Harness,
+and vm-e2e-spike; push, scheduled, and manual runs remain independent.
 
 `vm-e2e` is the exception in the other direction — it is **PR-only**. Its
 workflow's `push` trigger is scoped to the `test/vm-e2e-speed` spike

@@ -51,21 +51,22 @@ Three regulation categories:
 | Behav. | L1 unit + integration + contract (faked runners *and* real brew/git/npm in temp dirs) | pre-push, CI | `make test-unit` |
 | Behav. | L2 contract schema (against openboot-contract repo) | every PR | `.github/workflows/test.yml` `contract` job |
 | Behav. | L3 e2e binary | release | `make test-e2e` |
-| Behav. | L4 VM e2e (`vm`) — required full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (`vm-e2e` required check on a macos-latest runner) |
+| Behav. | L4 VM e2e (`vm`) — required full destructive suite on a clean macOS host | every PR | `.github/workflows/vm-e2e-spike.yml` (`vm-e2e` required check on a macos-15 runner) |
 | Behav. | `install.sh` upgrade over an existing install — tap refresh, upgrade, reinstall fallback, and resolved-version reporting with fake Homebrew/OpenBoot commands | L1 | `test/integration/install_script_test.go` |
 | Behav. | Install-wizard TUI on a real pty — L3: launch/quit smoke + full keyboard choreography (stops before confirm, installs nothing); L4: same key sequence through a real install via `expect(1)`, asserting brew/git system state | L3 at release, L4 every PR | `test/e2e/install_wizard_e2e_test.go`, `test/e2e/install_wizard_vm_test.go` |
 | Behav. | curl\|bash smoke — mock-served install script piped into `bash`, driving the built binary through a config install (**not** `scripts/install.sh`; that's the L1 row above) | every PR | `.github/workflows/test.yml` `curl-bash-smoke` job |
 | Behav. | Auto-release sensor — patch fast lane (`fix:`-only) auto-tags + dispatches `release.yml`; feat threshold opens a `release-ready` issue (check L4 CI green, then tag manually) | push to `main` | `.github/workflows/auto-release.yml` |
 | Behav. | Release notes — Conventional Commits since previous tag, grouped by type (Features / Bug Fixes / etc) + Full Changelog link, appended to the install-instructions template | tag push or `workflow_dispatch` | `.github/workflows/release.yml` (`Write release notes` step) |
 | Behav. | Old-CLI compat (previous release × current mock server) | every PR | `.github/workflows/test.yml` `cli-compat` job |
-| Feedfwd. | Shared agent conventions | every AI turn | `AGENTS.md` (canonical); `CLAUDE.md` imports it for Claude Code |
-| Feedfwd. | Shared skills | model-loaded | `.agents/skills/*` (canonical); `.claude/skills/*/SKILL.md` symlinks for Claude Code |
-| Arch. | Multi-agent config must not drift | L1 | `internal/archtest/agentconfig_test.go` |
-| Feedfwd. | Session-start hook (warm caches, fetch deps) | every Claude session | `.claude/hooks/session-start.sh` |
-| Feedback (agent) | `go vet` on edited package | after every Edit/Write/MultiEdit | `.claude/hooks/post-tool-use.sh` |
-| Feedback (agent) | `go vet ./...` + archtest | end of every Claude turn (if .go dirty) | `.claude/hooks/stop.sh` |
+| Feedfwd. | Shared agent conventions | every AI turn | `AGENTS.md` (canonical) |
+| Feedfwd. | Shared skills | model-loaded | `.agents/skills/*` (canonical) |
 | Maint. | `golangci-lint` on the staged diff | local git pre-commit | `scripts/hooks/pre-commit` |
 | Drift loop | Failed harness sensor → open/update GitHub issue | on main / nightly | `.github/workflows/drift-to-issue.yml` |
+
+PR checks use three macOS runners: lint, combined L1/smoke/compat, and L4.
+The smoke and compatibility check names remain as Linux result gates for
+the combined job. New commits cancel superseded PR runs; see
+[merge policy](MERGE_POLICY.md) for the gate semantics.
 
 ## The steering loop
 
@@ -101,7 +102,7 @@ it survives doc rot.
   decision from rule introduction.
 - **No session-start stale-branch sensor.** A previous iteration of the
   `ship-pr` skill used `gh pr merge --auto`, so the merge could happen
-  asynchronously after the Claude session ended — leaving a feature
+  asynchronously after the agent session ended — leaving a feature
   branch checked out next time. The sensor existed to nag the user to
   clean it up. Once the skill dropped `--auto` and made cleanup part of
   the in-session loop (Step 8), the sensor became dead code and was
@@ -117,7 +118,7 @@ it survives doc rot.
   the two apart from `TERM`/TTY/height alone. It now draws a plain in-place
   `\r\033[K` status line that trails top-to-bottom output on every terminal.
   Don't reintroduce the scroll region.
-- **L4 runs on GitHub Actions, not a self-hosted runner.** `macos-latest`
+- **L4 runs on GitHub Actions, not a self-hosted runner.** `macos-15`
   runners are Apple Silicon VMs — each job gets a fresh clean macOS
   environment, which is exactly what L4 needs. Tart is no longer required.
   The L4 workflow (`vm-e2e-spike.yml`) runs on every PR as the required

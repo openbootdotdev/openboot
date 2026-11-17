@@ -32,11 +32,6 @@ __pycache__/
 .sisyphus/
 docs/superpowers/
 docs/openboot-linus-code-review.md
-.claude/*
-!.claude/hooks/
-!.claude/settings.json
-!.claude/skills/
-.claude/settings.local.json
 
 # Go vendor (deps downloaded at build time)
 vendor/

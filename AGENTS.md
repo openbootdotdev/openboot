@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Canonical, tool-neutral instructions for coding agents working on this repo.
-Codex reads this file directly; Claude Code imports it from `CLAUDE.md`.
+Codex reads this file directly.
 If you're a human, you probably want [README.md](README.md) or
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -9,25 +9,10 @@ If you're a human, you probably want [README.md](README.md) or
 
 - Keep shared repository guidance in this file. Do not duplicate it in a
   tool-specific instruction file.
-- `CLAUDE.md` is a thin Claude Code adapter: it imports this file with
-  `@AGENTS.md` and may contain only Claude-specific additions.
 - Shared skills use the open Agent Skills format and live in
-  `.agents/skills/<name>/SKILL.md`. Claude Code discovers the same skills
-  through relative symlinks under `.claude/skills/`.
+  `.agents/skills/<name>/SKILL.md`.
 - Other tools that implement `AGENTS.md` or Agent Skills can consume the same
   canonical paths without another copy of the instructions.
-- Tool-specific integration stays tool-specific. Claude Code hooks and
-  permissions remain in `.claude/settings.json` and `.claude/hooks/`.
-
-When adding a shared skill, create it under `.agents/skills/`, then expose it
-to Claude Code without copying its contents:
-
-```bash
-mkdir -p .claude/skills/<name>
-ln -s ../../../.agents/skills/<name>/SKILL.md .claude/skills/<name>/SKILL.md
-```
-
-The `agent-config` architecture test verifies the import and skill adapters.
 
 ## Read first
 
@@ -63,7 +48,7 @@ make build-release VERSION=0.25.0    # optimized + UPX
 # Test — full tier table in CONTRIBUTING.md
 make test-unit                       # L1 (~75s) — unit + integration + contract; pre-push hook
 make test-e2e                        # L3 compiled binary
-                                     # L4 — destructive e2e runs in CI only (vm-e2e-spike.yml on macos-latest)
+                                     # L4 — destructive e2e runs in CI only (vm-e2e-spike.yml on macos-15)
 make test-coverage                   # coverage.out + coverage.html
 
 # Single test
