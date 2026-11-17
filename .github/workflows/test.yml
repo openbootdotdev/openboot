@@ -29,7 +29,7 @@ jobs:
 
   unit:
     name: unit (L1)
-    runs-on: macos-latest
+    runs-on: macos-15
     permissions:
       id-token: write
       contents: read
@@ -120,7 +120,7 @@ jobs:
 
   curl-bash-smoke:
     name: curl|bash smoke
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -151,7 +151,7 @@ jobs:
 
   cli-compat:
     name: old-cli compat
-    runs-on: macos-latest
+    runs-on: macos-15
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
