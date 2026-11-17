@@ -22,8 +22,8 @@ Two execution flavors:
 
 - **Computational** — deterministic, fast, free: `go vet`, `golangci-lint`,
   `make test-unit`, `internal/archtest/*`. Run on every change.
-- **Inferential** — non-deterministic, slower, paid: AI code review,
-  `/security-review`, `/ultrareview`. Run on integration boundaries.
+- **Inferential** — non-deterministic, slower, paid: AI code review
+  and security review. Run on integration boundaries.
 
 Three regulation categories:
 
