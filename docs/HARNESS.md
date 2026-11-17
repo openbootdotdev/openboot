@@ -63,6 +63,11 @@ Three regulation categories:
 | Maint. | `golangci-lint` on the staged diff | local git pre-commit | `scripts/hooks/pre-commit` |
 | Drift loop | Failed harness sensor → open/update GitHub issue | on main / nightly | `.github/workflows/drift-to-issue.yml` |
 
+PR checks use three macOS runners: lint, combined L1/smoke/compat, and L4.
+The smoke and compatibility check names remain as Linux result gates for
+the combined job. New commits cancel superseded PR runs; see
+[merge policy](MERGE_POLICY.md) for the gate semantics.
+
 ## The steering loop
 
 When you observe a recurring issue, decide where to encode the fix:
