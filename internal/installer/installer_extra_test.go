@@ -134,8 +134,7 @@ func TestShowCompletionFromPlan_WithNpm(t *testing.T) {
 	})
 }
 
-// A real run's summary is pinned line for line, so making the dry-run summary
-// honest can't quietly reword it.
+// Real summaries report step outcomes, never planned package counts as installed.
 func TestShowCompletionFromPlan_RealRunOutput(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -156,16 +155,20 @@ func TestShowCompletionFromPlan_RealRunOutput(t *testing.T) {
 				Npm:      []string{"typescript"},
 			}
 			rr := &recordReporter{}
-			showCompletionFromPlan(plan, rr, tt.errCount)
+			showCompletionFromPlan(plan, rr, tt.errCount,
+				stepResult{name: "Packages", failed: tt.errCount > 0},
+				stepResult{name: "npm globals"})
 
+			packageStatus := "completed"
+			if tt.errCount > 0 {
+				packageStatus = "failed"
+			}
 			assert.Equal(t, tt.wantHeaders, rr.headers)
 			assert.Equal(t, []string{
 				tt.wantStatus,
-				"What was installed:",
-				"  - Git configured with your identity",
-				"  - 2 CLI packages",
-				"  - 1 GUI applications",
-				"  - 1 npm global packages",
+				"Step results (package details above):",
+				"  - Packages: " + packageStatus,
+				"  - npm globals: completed",
 				"Next steps:",
 				"  - Restart your terminal to apply changes",
 				"  - Run 'brew doctor' to verify Homebrew health",

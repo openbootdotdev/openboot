@@ -118,6 +118,7 @@ func Apply(plan InstallPlan, r Reporter) error {
 func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 	steps := plannedSteps(plan)
 	var softErrs []error
+	var results []stepResult
 
 	for i, s := range steps {
 		// ctrl+c cancels ctx. brew/npm honour it (exec.CommandContext), but the
@@ -131,6 +132,7 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 		r.Header(sectionTitle(i, len(steps), s.name))
 
 		err := s.run(ctx, plan, r)
+		results = append(results, stepResult{name: s.name, failed: err != nil})
 		if err == nil {
 			continue
 		}
@@ -148,7 +150,7 @@ func ApplyContext(ctx context.Context, plan InstallPlan, r Reporter) error {
 		softErrs = append(softErrs, fmt.Errorf("%s: %w", strings.ToLower(s.name), err))
 	}
 
-	showCompletionFromPlan(plan, r, len(softErrs))
+	showCompletionFromPlan(plan, r, len(softErrs), results...)
 
 	if len(softErrs) > 0 {
 		slog.Info("install_completed", "soft_errors", len(softErrs))
@@ -215,7 +217,12 @@ func abortWith(softErrs []error, cause error) error {
 	return errors.Join(append(softErrs, cause)...)
 }
 
-func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
+type stepResult struct {
+	name   string
+	failed bool
+}
+
+func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int, results ...stepResult) {
 	if plan.DryRun {
 		showDryRunCompletionFromPlan(plan, r, errCount)
 		return
@@ -234,14 +241,13 @@ func showCompletionFromPlan(plan InstallPlan, r Reporter, errCount int) {
 	}
 	ui.Println()
 
-	r.Info("What was installed:")
-	if !plan.PackagesOnly {
-		r.Info("  - Git configured with your identity")
-	}
-	r.Info(fmt.Sprintf("  - %d CLI packages", len(plan.Formulae)))
-	r.Info(fmt.Sprintf("  - %d GUI applications", len(plan.Casks)))
-	if len(plan.Npm) > 0 {
-		r.Info(fmt.Sprintf("  - %d npm global packages", len(plan.Npm)))
+	r.Info("Step results (package details above):")
+	for _, result := range results {
+		status := "completed"
+		if result.failed {
+			status = "failed"
+		}
+		r.Info(fmt.Sprintf("  - %s: %s", result.name, status))
 	}
 	ui.Println()
 

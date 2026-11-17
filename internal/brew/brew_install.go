@@ -226,7 +226,8 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 
 	ui.Printf("\nRetrying %d failed packages...\n", len(allFailed))
 
-	for _, f := range allFailed {
+	for i := range allFailed {
+		f := &allFailed[i]
 		var errMsg string
 		if f.isCask {
 			errMsg = installSmartCaskWithError(ctx, f.name)
@@ -241,6 +242,7 @@ func retryFailedJobs(ctx context.Context, allFailed []failedJob, installedFormul
 				*installedFormulae = append(*installedFormulae, aliasMap[f.name])
 			}
 		} else {
+			f.errMsg = errMsg
 			ui.Printf("  ✗ %s (still failed)\n", f.name)
 		}
 	}
@@ -319,7 +321,7 @@ func installCaskWithProgress(ctx context.Context, pkg string) string {
 	if err == nil {
 		return ""
 	}
-	return parseBrewError(output)
+	return brewFailureDetails(output, err)
 }
 
 // Runner-exempt: this helper sets HOMEBREW_NO_AUTO_UPDATE=1 and returns a raw
@@ -361,7 +363,7 @@ func retryBrew(action func() (string, error)) string {
 			sleepFunc(time.Duration(attempt) * 2 * time.Second)
 			continue
 		}
-		return errMsg
+		return brewFailureDetails(output, err)
 	}
 	return "max retries exceeded"
 }
@@ -382,7 +384,7 @@ func installFormulaWithError(ctx context.Context, pkg string) string {
 			if err2 == nil {
 				return ""
 			}
-			outputStr = caskOutput
+			outputStr, err = caskOutput, err2
 		}
 
 		errMsg := parseBrewError(outputStr)
@@ -391,7 +393,7 @@ func installFormulaWithError(ctx context.Context, pkg string) string {
 			continue
 		}
 
-		return errMsg
+		return brewFailureDetails(outputStr, err)
 	}
 	return "max retries exceeded"
 }
@@ -419,6 +421,19 @@ func installSmartCaskWithError(ctx context.Context, pkg string) string {
 	return retryBrew(func() (string, error) {
 		return brewCaskInstallFunc(ctx, pkg)
 	})
+}
+
+// Keep the concise classification for progress, but retain the complete
+// subprocess output for diagnosis (including curl errors preceding Error:).
+func brewFailureDetails(output string, err error) string {
+	summary := parseBrewError(output)
+	if summary == "" || summary == "unknown error" {
+		summary = fmt.Sprintf("brew failed: %v", err)
+	}
+	if details := strings.TrimSpace(output); details != "" && details != summary {
+		return summary + "\n" + details
+	}
+	return summary
 }
 
 func parseBrewError(output string) string {

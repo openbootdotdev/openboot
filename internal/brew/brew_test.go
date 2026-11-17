@@ -238,3 +238,24 @@ func TestHandleFailedJobs_WithFailures(t *testing.T) {
 	}
 	handleFailedJobs(failed)
 }
+
+func TestRetryFailedJobsRetainsLatestFullOutput(t *testing.T) {
+	original := brewCaskInstallFunc
+	t.Cleanup(func() { brewCaskInstallFunc = original })
+	details := "curl: (35) TLS handshake failed\nError: Download failed: https://example.com/" + strings.Repeat("long-path/", 30)
+	brewCaskInstallFunc = func(context.Context, string) (string, error) {
+		return details, fmt.Errorf("exit status 1")
+	}
+	var formulae, casks []string
+	output := captureOutput(t, func() {
+		failed := retryFailedJobs(context.Background(), []failedJob{{installJob: installJob{name: "office", isCask: true}, errMsg: "old failure"}}, &formulae, &casks, nil)
+		assert.Len(t, failed, 1)
+		handleFailedJobs(failed)
+	})
+	assert.Contains(t, output, details)
+	assert.NotContains(t, output, "old failure")
+}
+
+func TestBrewFailureDetailsEmptyOutput(t *testing.T) {
+	assert.Contains(t, brewFailureDetails("", context.DeadlineExceeded), "context deadline exceeded")
+}

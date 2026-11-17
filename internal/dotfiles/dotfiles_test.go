@@ -786,3 +786,29 @@ func TestClone_LocalChanges_CleanRepo(t *testing.T) {
 	_, statErr := os.Stat(filepath.Join(dotfilesPath, ".vimrc"))
 	assert.NoError(t, statErr, ".vimrc must appear after clean sync")
 }
+
+// A deployed directory link must not turn its source files into conflicts.
+func TestBackupConflicts_DirectorySymlinksPreserveSources(t *testing.T) {
+	for _, linkedDir := range []string{".agents", ".agents/skills/how"} {
+		t.Run(linkedDir, func(t *testing.T) {
+			root := t.TempDir()
+			pkg := filepath.Join(root, "repo", "agents")
+			home := filepath.Join(root, "home")
+			rel := filepath.Join(".agents", "skills", "how", "SKILL.md")
+			source := filepath.Join(pkg, rel)
+			require.NoError(t, os.MkdirAll(filepath.Dir(source), 0755))
+			require.NoError(t, os.WriteFile(source, []byte("original skill"), 0644))
+			link := filepath.Join(home, linkedDir)
+			require.NoError(t, os.MkdirAll(filepath.Dir(link), 0755))
+			require.NoError(t, os.Symlink(filepath.Join(pkg, linkedDir), link))
+			backed, err := backupConflicts(pkg, home, false)
+			require.NoError(t, err)
+			assert.Empty(t, backed)
+			content, err := os.ReadFile(source)
+			require.NoError(t, err)
+			assert.Equal(t, "original skill", string(content))
+			assert.NoFileExists(t, source+".openboot.bak")
+			assert.FileExists(t, filepath.Join(home, rel))
+		})
+	}
+}
