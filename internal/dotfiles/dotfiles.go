@@ -311,7 +311,7 @@ func linkWithMake(dotfilesPath string, dryRun bool) error {
 	}
 
 	for _, pair := range allBacked {
-		if rmErr := os.Remove(pair[0]); rmErr != nil {
+		if rmErr := os.Remove(pair[0]); rmErr != nil && !os.IsNotExist(rmErr) {
 			ui.Warn(fmt.Sprintf("could not remove backup %s: %v", pair[0], rmErr))
 		}
 	}
@@ -395,15 +395,25 @@ func backupConflicts(pkgDir, targetDir string, dryRun bool) ([][2]string, error)
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
-			return nil
-		}
-
 		rel, relErr := filepath.Rel(pkgDir, path)
 		if relErr != nil {
 			return relErr
 		}
 		target := filepath.Join(targetDir, rel)
+
+		if d.IsDir() {
+			// Lstat on a child follows symlinks in its parents. Prune linked
+			// target directories before visiting children, or backing up an
+			// already deployed directory would modify the source repository.
+			info, statErr := os.Lstat(target)
+			if statErr != nil && !os.IsNotExist(statErr) {
+				return fmt.Errorf("inspect target directory %s: %w", target, statErr)
+			}
+			if statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 
 		info, statErr := os.Lstat(target)
 		if statErr != nil || info.Mode()&os.ModeSymlink != 0 {
@@ -486,7 +496,7 @@ func linkWithStow(dotfilesPath string, dryRun bool) error {
 
 		// Stow succeeded — clean up backups.
 		for _, pair := range backed {
-			if rmErr := os.Remove(pair[0]); rmErr != nil {
+			if rmErr := os.Remove(pair[0]); rmErr != nil && !os.IsNotExist(rmErr) {
 				ui.Warn(fmt.Sprintf("could not remove backup %s: %v", pair[0], rmErr))
 			}
 		}
