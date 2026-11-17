@@ -789,7 +789,7 @@ func TestClone_LocalChanges_CleanRepo(t *testing.T) {
 
 // A deployed directory link must not turn its source files into conflicts.
 func TestBackupConflicts_DirectorySymlinksPreserveSources(t *testing.T) {
-	for _, linkedDir := range []string{".agents", ".agents/skills/how"} {
+	for _, linkedDir := range []string{".agents", ".agents/skills", ".agents/skills/how"} {
 		t.Run(linkedDir, func(t *testing.T) {
 			root := t.TempDir()
 			pkg := filepath.Join(root, "repo", "agents")
@@ -801,14 +801,21 @@ func TestBackupConflicts_DirectorySymlinksPreserveSources(t *testing.T) {
 			link := filepath.Join(home, linkedDir)
 			require.NoError(t, os.MkdirAll(filepath.Dir(link), 0755))
 			require.NoError(t, os.Symlink(filepath.Join(pkg, linkedDir), link))
-			backed, err := backupConflicts(pkg, home, false)
-			require.NoError(t, err)
-			assert.Empty(t, backed)
-			content, err := os.ReadFile(source)
-			require.NoError(t, err)
-			assert.Equal(t, "original skill", string(content))
-			assert.NoFileExists(t, source+".openboot.bak")
-			assert.FileExists(t, filepath.Join(home, rel))
+			backup := source + ".openboot.bak"
+			require.NoError(t, os.WriteFile(backup, []byte("previous backup"), 0644))
+			for range 2 {
+				backed, err := backupConflicts(pkg, home, false)
+				require.NoError(t, err)
+				assert.Empty(t, backed)
+				content, err := os.ReadFile(source)
+				require.NoError(t, err)
+				assert.Equal(t, "original skill", string(content))
+				content, err = os.ReadFile(backup)
+				require.NoError(t, err)
+				assert.Equal(t, "previous backup", string(content))
+				assert.NoFileExists(t, backup+".openboot.bak")
+				assert.FileExists(t, filepath.Join(home, rel))
+			}
 		})
 	}
 }
