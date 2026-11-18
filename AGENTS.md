@@ -13,6 +13,10 @@ If you're a human, you probably want [README.md](README.md) or
   `.agents/skills/<name>/SKILL.md`.
 - Other tools that implement `AGENTS.md` or Agent Skills can consume the same
   canonical paths without another copy of the instructions.
+- The personal `ship-pr` skill is installed globally; do not duplicate it here.
+  For PR delivery, use `docs/MERGE_POLICY.md` and the project-specific
+  `architecture-review` skill. When merging is authorized, prefer squash merge
+  after required CI and full-diff review pass; do not use auto-merge.
 
 ## Read first
 
